@@ -1,0 +1,77 @@
+# OS and editor state
+.DS_Store
+*.swp
+*.swo
+
+# node
+node_modules/
+.pnpm-store/
+.next/
+out/
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+*.tsbuildinfo
+build/
+dist/
+.local/
+
+# Local configuration and credentials. Reviewed examples remain publishable.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.local
+**/*.local.*
+**/config/local.*
+**/config/private.*
+**/config/secrets.*
+**/*credentials*.json
+**/*secrets*.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/*.tfstate
+**/*.tfstate.*
+
+# Private operator data and runtime persistence.
+**/private/
+**/recordings/
+**/captures/
+**/artifacts/
+**/backups/
+**/exports/
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+**/*.sqlite3
+**/*.dump
+**/*.sql.gz
+**/*.log
+
+# runtime artifacts
+apps/simulator-backend/results/
+apps/simulator-backend/data/
+apps/simulator-backend/src/telephony_voice_simulator/corpus/assets/**/*.mp3
+apps/simulator-backend/src/telephony_voice_simulator/corpus/assets/**/*.wav
+apps/simulator-backend/src/telephony_voice_simulator/corpus/assets/**/*.m4a
+apps/simulator-backend/src/telephony_voice_simulator/corpus/assets/**/*.aac
+apps/simulator-backend/src/telephony_voice_simulator/corpus/assets/**/*.flac
+apps/simulator-backend/src/telephony_voice_simulator/corpus/assets/**/*.ogg
+apps/web-console/public/audio/**/*.mp3
+apps/web-console/public/audio/**/*.wav
+deploy/twilio-ivr/assets/*.mp3
+results/
+
+# generated (rebuilt from scenarios by scripts/generate_content.py)
+apps/web-console/content/scenarios.json
+apps/web-console/public/audio/
+apps/web-console/public/LICENSE
+apps/web-console/public/NOTICE
+apps/web-console/public/THIRD_PARTY_NOTICES.md

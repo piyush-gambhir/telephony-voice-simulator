@@ -1,0 +1,39 @@
+{
+  "name": "telephony-voice-simulator",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Monorepo for the telephony simulation backend and web console.",
+  "scripts": {
+    "content": "python3 scripts/generate_content.py",
+    "dev": "pnpm --parallel --filter simulator-backend --filter web-console dev",
+    "dev:pstn": "pnpm --parallel --filter simulator-backend --filter web-console dev:pstn",
+    "dev:ivr": "pnpm --parallel --filter simulator-backend --filter web-console dev:ivr",
+    "dev:web": "pnpm --filter web-console dev",
+    "dev:backend": "pnpm --filter simulator-backend dev",
+    "dev:api": "pnpm --filter simulator-backend dev",
+    "start": "pnpm --parallel --filter simulator-backend --filter web-console start",
+    "start:api": "pnpm --parallel --filter simulator-backend --filter web-console start:api",
+    "start:pstn": "pnpm --parallel --filter simulator-backend --filter web-console start:pstn",
+    "start:ivr": "pnpm --parallel --filter simulator-backend --filter web-console start:ivr",
+    "build": "pnpm --filter web-console build",
+    "lint": "pnpm -r --if-present lint && pnpm ui:check",
+    "ui:check": "python3 scripts/check_web_theme.py",
+    "test": "pnpm -r --if-present test",
+    "license:check": "pnpm -r --if-present license:check && npm --prefix deploy/twilio-ivr run license:check",
+    "public-release:check": "uv run --project apps/simulator-backend python scripts/check_public_release.py",
+    "uat:check": "pnpm --filter simulator-backend uat:check",
+    "prompts:check": "pnpm --filter simulator-backend prompts:check"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@1.1.15": "1.1.16",
+      "brace-expansion@5.0.7": "5.0.8",
+      "postcss": ">=8.5.18",
+      "sharp": ">=0.35.0"
+    }
+  },
+  "workspaces": [
+    "apps/*"
+  ]
+}

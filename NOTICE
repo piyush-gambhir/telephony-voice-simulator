@@ -1,0 +1,20 @@
+Telephony Voice Simulator
+Copyright 2026 Telephony Voice Simulator contributors
+
+This product includes software developed by Telephony Voice Simulator
+contributors and third-party open-source dependencies distributed under their
+respective licenses.
+
+Copied shadcn/ui component code and direct web dependency attributions are
+listed in THIRD_PARTY_NOTICES.md, which must accompany source and binary
+distributions of the web console.
+
+Audio under apps/simulator-backend/src/telephony_voice_simulator/corpus/assets
+is governed by the per-file provenance metadata in assets_manifest.json.
+Generated prompt audio not present in that manifest is not part of the source
+distribution and must not be redistributed without checking the selected TTS
+provider's terms and the rights to the selected voice.
+
+Names and trademarks of telephony, handset, carrier, cloud, and software
+vendors are used only to describe compatibility or modeled behavior. No
+endorsement or affiliation is implied.
