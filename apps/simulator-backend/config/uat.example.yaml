@@ -1,0 +1,67 @@
+# Portable example: the command adapter invokes the repository's generic
+# LiveKit outbound adapter and lets that command perform hosted PSTN grading.
+# Copy this file, choose your own matrix, and provide credentials through the
+# environment variables documented in docs/CONFIGURATION.md.
+version: 1
+continue_on_failure: true
+delay_seconds: 5
+
+matrix:
+  - scenario: stock_voicemail_beep_1000
+  - scenario: pbx_segmented_voicemail_cleanroom
+  - scenario: dtmf_gate_honored
+
+steps:
+  - name: run_hosted_call
+    adapter:
+      type: command
+      cwd: ..
+      timeout_seconds: 420
+      argv:
+        - uv
+        - run
+        - python
+        - -m
+        - telephony_voice_simulator.agent_call
+        - --scenario
+        - "{scenario}"
+
+# The command above already triggers, waits for, grades, and saves the hosted
+# run. For a platform with separate APIs, replace it with an ordered workflow.
+# Failed poll attempts are retried; the artifact step runs even after a failure:
+#
+# steps:
+#   - name: queue
+#     adapter:
+#       type: http
+#       method: POST
+#       url: https://agent.example.test/v1/test-runs
+#       headers:
+#         Authorization: {from_env: UAT_AGENT_AUTHORIZATION}
+#       json: {scenario: "{scenario}", client_run_id: "{run_id}"}
+#     capture_json: {remote_run_id: data.id}
+#   - name: trigger
+#     adapter:
+#       type: http
+#       method: POST
+#       url: https://agent.example.test/v1/test-runs/{remote_run_id}/start
+#       headers:
+#         Authorization: {from_env: UAT_AGENT_AUTHORIZATION}
+#   - name: poll
+#     attempts: 30
+#     interval_seconds: 5
+#     adapter:
+#       type: command
+#       argv: [./integration/poll-run, "{remote_run_id}"]
+#   - name: grade
+#     adapter:
+#       type: command
+#       argv: [./integration/grade-run, "{remote_run_id}", "{scenario}"]
+#   - name: collect_artifacts
+#     run_if: always
+#     adapter:
+#       type: command
+#       argv:
+#         - ./integration/fetch-artifacts
+#         - "{remote_run_id}"
+#         - "{artifact_dir}"

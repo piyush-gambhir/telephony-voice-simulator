@@ -1,0 +1,22 @@
+# Spanish carrier voicemail ("...deje su mensaje despues del tono"). The
+# English phrase list won't match — detection must come from the AMD
+# classifier or the semantic layer. The message is still left in English
+# (the configured dealership message).
+name: spanish_voicemail
+machine:
+  main:
+    - wait: 0.8
+    - play: spanish_voicemail.wav
+    - wait: 1.0
+    - tone: {freq: 1000, duration: 0.6, amplitude: 12000}
+    - hold: 45            # mailbox record window
+    - hangup: true        # mailbox max-record timeout: it ends the call itself
+config_overrides:
+  voicemail_detection: {beep_detection: true, semantic_detection: true}
+expect:
+  webhook_received: true
+  ended_reason: call.ending.voicemail-left-message
+  detection_layer_prefix_any_of: [livekit-amd, semantic, phrase-fallback]
+  message_content:
+    expected: "Hi, this is Emily from Apex Motors calling about your recent service enquiry. Please give us a call back whenever convenient. Thank you, and have a great day!"
+    min_recall: 0.75

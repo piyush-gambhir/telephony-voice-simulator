@@ -1,0 +1,24 @@
+# Truecaller Assistant: a conversational assistant answers, asks name/reason,
+# then passes through. Phrasing avoids the word "screening" entirely — tests
+# that screener detection isn't keyed only on "screening service".
+name: truecaller_assistant
+machine:
+  main:
+    - wait: 0.8
+    - play: truecaller_assistant.wav
+    - wait: 10.0
+    - play: screen_connecting_thanks.wav
+    - wait: 1.0
+    - play: human_hello.wav
+    - hold: 40
+expect:
+  webhook_received: true
+  ended_reason_not:
+    - call.ending.machine-ivr
+    - call.ending.voicemail-left-message
+    - call.ending.voicemail-hangup
+  agent_spoke: true
+  first_agent_speech_after:
+    {mark: "play_end:truecaller_assistant.wav", min: 0.0, max: 4.0}
+  agent_speech_after: {mark: "play_end:human_hello.wav", min: 0.0, max: 4.0}
+  max_overlap_with_playback: {asset: truecaller_assistant.wav, max_s: 0.5}

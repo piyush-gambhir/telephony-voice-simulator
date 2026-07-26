@@ -1,0 +1,28 @@
+# Google Pixel Call Screen interaction shape: an assistant answers, relays to
+# the owner, may send a follow-up prompt, then the owner picks up. Prompt copy
+# is clean-room and vendor-neutral. The agent must identify itself, stay on the
+# line through the follow-up, and greet the human.
+name: pixel_call_screen
+machine:
+  main:
+    - wait: 0.8
+    - play: pixel_call_screen.wav
+    - wait: 9.0                        # agent states name/reason
+    - play: pixel_call_screen_followup.wav
+    - wait: 7.0                        # agent answers the follow-up
+    - play: screener_connecting.wav
+    - wait: 1.5
+    - play: human_hello.wav
+    - hold: 40
+expect:
+  webhook_received: true
+  detection_layer_prefix_any_of: [livekit-amd]   # ...:screener
+  ended_reason_not:
+    - call.ending.machine-ivr
+    - call.ending.voicemail-left-message
+    - call.ending.voicemail-hangup
+  agent_spoke: true
+  first_agent_speech_after:
+    {mark: "play_end:pixel_call_screen.wav", min: 0.0, max: 4.0}
+  agent_speech_after: {mark: "play_end:human_hello.wav", min: 0.0, max: 4.0}
+  max_overlap_with_playback: {asset: pixel_call_screen.wav, max_s: 0.5}

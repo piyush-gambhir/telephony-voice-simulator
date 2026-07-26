@@ -1,0 +1,28 @@
+# AI voice-to-text screener that asks the caller to identify itself and remain
+# connected while the response is relayed. It is a stay-on-the-line screener,
+# not voicemail. The agent must identify itself and remain on the call rather
+# than leave a message or hang up.
+name: robo_transcription_screener
+machine:
+  main:
+    - wait: 0.8
+    - play: robo_transcription_screener.wav
+    - wait: 10.0            # agent states who it is / why calling
+    - play: robo_transcription_followup.wav
+    - wait: 8.0
+    - play: human_hello.wav
+    - hold: 40
+config_overrides:
+  voicemail_detection: {screener_detection: true}
+expect:
+  webhook_received: true
+  detection_layer_prefix_any_of: [livekit-amd]
+  ended_reason_not:
+    - call.ending.machine-ivr
+    - call.ending.voicemail-left-message
+    - call.ending.voicemail-hangup
+  agent_spoke: true
+  first_agent_speech_after:
+    {mark: "play_end:robo_transcription_screener.wav", min: 0.0, max: 4.0}
+  agent_speech_after: {mark: "play_end:human_hello.wav", min: 0.0, max: 4.0}
+  max_overlap_with_playback: {asset: robo_transcription_screener.wav, max_s: 0.5}

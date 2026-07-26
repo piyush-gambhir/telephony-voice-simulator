@@ -1,0 +1,27 @@
+# Voice screening that uses a TONE: "please say your name after the tone"
+# (Google Voice-style caller announcement). "after the tone" is a
+# tone-adjacent VOICEMAIL phrase — the trap is leaving the canned voicemail
+# message as your "name". The agent must treat it as a screener (say who it
+# is), never drop the voicemail message.
+name: record_name_screen
+machine:
+  main:
+    - wait: 0.8
+    - play: record_name_screen.wav
+    - wait: 0.5
+    - tone: {freq: 440, duration: 0.3, amplitude: 10000}
+    - wait: 7.0                        # agent says its name/reason
+    - play: screen_connecting_thanks.wav
+    - wait: 1.0
+    - play: human_hello.wav
+    - hold: 40
+expect:
+  webhook_received: true
+  ended_reason_not:
+    - call.ending.voicemail-left-message
+    - call.ending.voicemail-hangup
+    - call.ending.machine-ivr
+  agent_spoke: true
+  first_agent_speech_after: {mark: tone_end, min: 0.0, max: 3.0}
+  max_overlap_with_playback: {asset: record_name_screen.wav, max_s: 0.5}
+  agent_speech_after: {mark: "play_end:human_hello.wav", min: 0.0, max: 4.0}

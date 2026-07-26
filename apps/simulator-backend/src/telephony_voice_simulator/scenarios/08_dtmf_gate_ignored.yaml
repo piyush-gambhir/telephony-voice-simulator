@@ -1,0 +1,16 @@
+# The same gate with a BROKEN keypress path (machine ignores DTMF, keeps
+# re-prompting). The post-press watchdog must re-press at most once more and
+# then hang up as machine-ivr — never strand into a silence-timeout tail.
+name: dtmf_gate_ignored
+machine:
+  main:
+    - wait: 0.8
+    - play: gate_press5_screening.wav
+    - wait: 6.0
+    - repeat_from: 1
+  on_dtmf: ignore
+expect:
+  webhook_received: true
+  dtmf_received: {digit: "5"}
+  dtmf_press_count_max: 2
+  ended_reason: call.ending.machine-ivr

@@ -1,0 +1,21 @@
+# PRECISION GUARD: a practiced receptionist answers with a complete business
+# greeting. Its cadence can sound like an IVR or recorded prompt, but it is a
+# live person. The agent must respond conversationally and never activate a
+# machine, DTMF, or voicemail path.
+name: business_receptionist_human
+machine:
+  main:
+    - wait: 0.8
+    - play: business_receptionist_human.wav
+    - hold: 35
+expect:
+  webhook_received: true
+  detection_layer_absent: true
+  ended_reason_not:
+    - call.ending.machine-ivr
+    - call.ending.voicemail-left-message
+    - call.ending.voicemail-hangup
+  agent_spoke: true
+  agent_speech_after:
+    {mark: "play_end:business_receptionist_human.wav", min: 0.0, max: 4.0}
+  max_overlap_with_playback: {asset: business_receptionist_human.wav, max_s: 0.5}

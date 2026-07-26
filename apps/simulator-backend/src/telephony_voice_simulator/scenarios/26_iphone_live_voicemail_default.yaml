@@ -1,0 +1,23 @@
+# iPhone / Live Voicemail-style stock prompt: short "forwarded to voicemail"
+# opening, then "not available", then "at the tone". This regression-locks
+# agent speech leaking into the greeting while AMD is still deciding.
+name: iphone_live_voicemail_default
+machine:
+  main:
+    - wait: 0.4
+    - play: iphone_live_voicemail_default.wav
+    - wait: 0.8
+    - tone: {freq: 1000, duration: 0.6, amplitude: 12000}
+    - hold: 45
+    - hangup: true
+config_overrides:
+  voicemail_detection: {beep_detection: true}
+expect:
+  webhook_received: true
+  ended_reason: call.ending.voicemail-left-message
+  detection_layer_prefix_any_of: [livekit-amd, phrase-fallback]
+  message_start_after: {mark: tone_end, min: 0.1, max: 3.0}
+  max_overlap_with_playback: {asset: iphone_live_voicemail_default.wav, max_s: 0.5}
+  message_content:
+    expected: "Hi, this is Emily from Apex Motors calling about your recent service enquiry. Please give us a call back whenever convenient. Thank you, and have a great day!"
+    min_recall: 0.75

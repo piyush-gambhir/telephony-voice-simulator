@@ -1,0 +1,34 @@
+{
+  "call_type": "outbound",
+  "call_id": "OVERRIDDEN-PER-RUN",
+  "room_name": "OVERRIDDEN-PER-RUN",
+  "webhook_url": "OVERRIDDEN-PER-RUN",
+  "phone_number": "+15550100001",
+  "first_message": "Hi, this is Emily calling from Apex Motors about your recent service enquiry. Is this a good time to talk?",
+  "instructions": "You are Emily, a warm and professional voice assistant calling on behalf of Apex Motors about the customer's recent service enquiry. Keep replies short and conversational, one or two sentences. If the customer is busy, offer to call back later. If you reach a receptionist or family member, politely ask when the customer will be available. Do not invent offers or prices.",
+  "session": {
+    "llm": {
+      "provider": "openai",
+      "model": "gpt-5.4-mini"
+    },
+    "stt": {
+      "provider": "deepgram",
+      "model": "nova-3",
+      "language": "multi"
+    },
+    "tts": {
+      "provider": "cartesia",
+      "model": "sonic-3"
+    }
+  },
+  "metadata": {
+    "team_id": "telephony-voice-simulator",
+    "enterprise_id": "telephony-voice-simulator",
+    "customer_name": "Sample Contact"
+  },
+  "voicemail_detection": {
+    "enabled": true,
+    "action": "leave_message",
+    "message": "Hi, this is Emily from Apex Motors calling about your recent service enquiry. Please give us a call back whenever convenient. Thank you, and have a great day!"
+  }
+}

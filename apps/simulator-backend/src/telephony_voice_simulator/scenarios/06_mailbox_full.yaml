@@ -1,0 +1,16 @@
+# Full mailbox: announce + machine-side hangup. Agent should classify
+# MACHINE_UNAVAILABLE (inbox full) and never leave a message.
+name: mailbox_full
+machine:
+  main:
+    - wait: 0.8
+    - play: greeting_mailbox_full.wav
+    - wait: 2.0
+    - hangup: true
+expect:
+  webhook_received: true
+  # Strict: the dedicated inbox-full reason is required (the dead-end phrase
+  # classifier stamps it at match time, surviving the machine-side hangup).
+  ended_reason: call.ending.voicemail-inbox-full
+  detection_layer_prefix_any_of: [phrase-fallback:mailbox-full]
+  ended_reason_not: [call.ending.voicemail-left-message]

@@ -1,0 +1,24 @@
+# iOS call-screening interaction shape where the device accepts the caller
+# after the agent identifies itself: capture identity, wait, then reach human.
+name: ios26_screening_to_human
+machine:
+  main:
+    - wait: 0.8
+    - play: ios26_name_reason_screen.wav
+    - wait: 7.0
+    - play: ios26_stay_on_line.wav
+    - wait: 1.5
+    - play: human_hello.wav
+    - hold: 40
+expect:
+  webhook_received: true
+  detection_layer_prefix_any_of: [livekit-amd]
+  ended_reason_not:
+    - call.ending.machine-ivr
+    - call.ending.voicemail-left-message
+    - call.ending.voicemail-hangup
+  agent_spoke: true
+  first_agent_speech_after:
+    {mark: "play_end:ios26_name_reason_screen.wav", min: 0.0, max: 4.0}
+  agent_speech_after: {mark: "play_end:human_hello.wav", min: 0.0, max: 4.0}
+  max_overlap_with_playback: {asset: ios26_name_reason_screen.wav, max_s: 0.5}

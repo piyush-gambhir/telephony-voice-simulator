@@ -1,0 +1,19 @@
+# AT&T-style dead end: customer unavailable AND the mailbox was never set up;
+# the carrier hangs up. No message can be left anywhere — the agent must not
+# try, and the call must end promptly.
+name: att_mailbox_not_setup
+machine:
+  main:
+    - wait: 0.8
+    - play: att_mailbox_not_setup.wav
+    - wait: 1.5
+    - hangup: true
+expect:
+  webhook_received: true
+  # Strict: the not-set-up dead end must classify (voicemail-hangup) and must
+  # never leave a message into the dead line.
+  ended_reason_any_of:
+    - call.ending.voicemail-hangup
+    - call.ending.voicemail-inbox-full
+  detection_layer_prefix_any_of: [phrase-fallback:not-set-up]
+  ended_reason_not: [call.ending.voicemail-left-message]

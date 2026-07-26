@@ -1,0 +1,22 @@
+# Long rambling custom greeting (>15s), NO beep at all, no stock phrasing
+# beyond a weak tail. Exercises the semantic layer / AMD on custom speech and
+# the silence-ready path; also regression for "8s cap must not speak
+# mid-greeting".
+name: custom_greeting_long_no_beep
+machine:
+  main:
+    - wait: 0.8
+    - play: greeting_custom_long.wav
+    - hold: 45            # mailbox record window
+    - hangup: true        # mailbox max-record timeout: it ends the call itself
+config_overrides:
+  voicemail_detection: {beep_detection: true, semantic_detection: true}
+expect:
+  webhook_received: true
+  ended_reason: call.ending.voicemail-left-message
+  detection_layer_prefix_any_of: [livekit-amd, phrase-fallback, semantic]
+  message_start_after: {mark: play_end, min: 0.5, max: 12.0}
+  max_overlap_with_playback: {asset: greeting_custom_long.wav, max_s: 6.0}
+  message_content:
+    expected: "Hi, this is Emily from Apex Motors calling about your recent service enquiry. Please give us a call back whenever convenient. Thank you, and have a great day!"
+    min_recall: 0.75

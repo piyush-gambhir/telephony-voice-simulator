@@ -1,0 +1,4 @@
+recursive-exclude src/telephony_voice_simulator/corpus/assets *.mp3
+recursive-exclude src/telephony_voice_simulator/corpus/assets *.wav
+include src/telephony_voice_simulator/corpus/assets_manifest.json
+include src/telephony_voice_simulator/corpus/public_release_allowlist.json

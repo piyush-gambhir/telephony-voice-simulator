@@ -1,0 +1,20 @@
+# Short, unusual first-person absence greeting with zero stock phrases and no
+# beep. Only the semantic layer (or a lucky AMD verdict) catches it. Precision
+# counterpart is scenario 09 (a live gatekeeper uses similar language and must
+# NOT trip it). The stable ID is retained for backward compatibility.
+name: jet_ski_weird_greeting
+machine:
+  main:
+    - wait: 0.8
+    - play: greeting_jet_ski.wav
+    - hold: 45            # mailbox record window
+    - hangup: true        # mailbox max-record timeout: it ends the call itself
+config_overrides:
+  voicemail_detection: {beep_detection: true, semantic_detection: true}
+expect:
+  webhook_received: true
+  ended_reason: call.ending.voicemail-left-message
+  detection_layer_prefix_any_of: [semantic, livekit-amd]
+  message_content:
+    expected: "Hi, this is Emily from Apex Motors calling about your recent service enquiry. Please give us a call back whenever convenient. Thank you, and have a great day!"
+    min_recall: 0.75

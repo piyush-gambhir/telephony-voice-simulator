@@ -1,0 +1,25 @@
+# iOS 17+ Live Voicemail: the callee watches a live transcription of the
+# message being left and can PICK UP MID-MESSAGE. The machine plays a normal
+# voicemail greeting + beep, lets the agent get ~6s into its message, then a
+# human interrupts. Ideal behavior: the agent notices the live human and
+# resumes the conversation instead of finishing the canned message and
+# hanging up.
+name: iphone_live_voicemail_pickup
+machine:
+  main:
+    - wait: 0.8
+    - play: greeting_stock_carrier.wav
+    - wait: 1.0
+    - tone: {freq: 1000, duration: 0.6, amplitude: 12000}
+    - hold: 6                          # agent is mid-message...
+    - play: live_vm_pickup.wav         # ...human picks up
+    - hold: 30
+expect:
+  webhook_received: true
+  ended_reason_not:
+    - call.ending.machine-ivr
+    - call.ending.voicemail-left-message
+  agent_spoke: true
+  message_start_after: {mark: tone_end, min: 0.1, max: 3.0}
+  max_overlap_with_playback: {asset: greeting_stock_carrier.wav, max_s: 0.5}
+  agent_speech_after: {mark: "play_end:live_vm_pickup.wav", min: 0.0, max: 4.0}

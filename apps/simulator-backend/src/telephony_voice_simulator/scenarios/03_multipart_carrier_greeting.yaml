@@ -1,0 +1,24 @@
+# Multi-part prompt (seen in real carrier traffic): personal greeting, 2.5s pocket of
+# silence, then the carrier's standard prompt, then the beep. The agent must
+# not fire in the silence pocket and talk over part B.
+name: multipart_carrier_greeting
+machine:
+  main:
+    - wait: 0.8
+    - play: greeting_multipart_a.wav
+    - wait: 2.5
+    - play: greeting_multipart_b.wav
+    - wait: 1.0
+    - tone: {freq: 1000, duration: 0.6, amplitude: 12000}
+    - hold: 45            # mailbox record window
+    - hangup: true        # mailbox max-record timeout: it ends the call itself
+config_overrides:
+  voicemail_detection: {beep_detection: true}
+expect:
+  webhook_received: true
+  ended_reason: call.ending.voicemail-left-message
+  message_start_after: {mark: tone_end, min: 0.1, max: 3.0}
+  max_overlap_with_playback: {asset: greeting_multipart_b.wav, max_s: 1.0}
+  message_content:
+    expected: "Hi, this is Emily from Apex Motors calling about your recent service enquiry. Please give us a call back whenever convenient. Thank you, and have a great day!"
+    min_recall: 0.75

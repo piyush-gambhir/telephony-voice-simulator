@@ -1,0 +1,30 @@
+# Clean-room prompt source for the optional Twilio Serverless IVR deployment.
+# Text in this file was authored for this simulator and is not transcribed from
+# a carrier, PBX vendor, or customer recording.
+version: 1
+license_note: Simulator-authored prompt text; generated audio inherits the selected TTS provider's terms.
+generation:
+  elevenlabs:
+    model_id: eleven_v3
+    voice_settings:
+      # ElevenLabs Robust v3 preset for neutral, consistent prompts.
+      stability: 1.0
+      style: 0.0
+      speed: 1.0
+prompts:
+  welcome:
+    text: Welcome. Enter the four digit extension you want to reach.
+  no_input:
+    text: No extension was entered. Please try again.
+  not_found:
+    text: That extension is not available. Please try again.
+  connecting:
+    text: Connecting your call now.
+  busy:
+    text: That extension is busy. Please call again later.
+  no_answer:
+    text: Nobody answered that extension. Please call again later.
+  failed:
+    text: The call could not be completed. Please try again later.
+  goodbye:
+    text: We could not complete your request. Goodbye.

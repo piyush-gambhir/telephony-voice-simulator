@@ -1,0 +1,18 @@
+# PRECISION GUARD: a live human uses voicemail-adjacent language while
+# offering to take a message. The agent must keep talking, never mute output,
+# and never leave the canned message.
+name: gatekeeper_human_take_message
+machine:
+  main:
+    - wait: 1.0
+    - play: gatekeeper_take_message.wav
+    - hold: 30
+config_overrides:
+  voicemail_detection: {semantic_detection: true}
+expect:
+  webhook_received: true
+  ended_reason_not:
+    - call.ending.voicemail-left-message
+    - call.ending.voicemail-hangup
+    - call.ending.machine-ivr
+  agent_spoke: true

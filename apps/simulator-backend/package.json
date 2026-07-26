@@ -1,0 +1,19 @@
+{
+  "name": "simulator-backend",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "uv run telephony-voice-sim serve",
+    "dev:pstn": "uv run telephony-voice-sim serve --with-pstn",
+    "dev:ivr": "uv run telephony-voice-sim serve --with-ivr",
+    "start": "uv run telephony-voice-sim serve --host 0.0.0.0",
+    "start:pstn": "uv run telephony-voice-sim serve --host 0.0.0.0 --with-pstn",
+    "start:ivr": "uv run telephony-voice-sim serve --host 0.0.0.0 --with-ivr",
+    "start:api": "uv run telephony-voice-sim serve --host 0.0.0.0",
+    "lint": "uv run ruff check .",
+    "test": "uv run pytest",
+    "license:check": "uv run python ../../scripts/check_python_licenses.py",
+    "uat:check": "uv run python scripts/uat_matrix.py --config config/uat.example.yaml --check",
+    "prompts:check": "uv run python scripts/generate_ivr_prompts.py --check"
+  }
+}

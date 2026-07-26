@@ -1,0 +1,23 @@
+# Verizon-style voicemail whose greeting ALSO announces key options ("press
+# one for more options"). It is a genuine voicemail: the agent must leave the
+# full message after the beep and must NOT press anything — the press
+# instruction is mailbox context, not a connect-gate.
+name: verizon_vm_press_options
+machine:
+  main:
+    - wait: 0.8
+    - play: verizon_vm_options.wav
+    - wait: 0.8
+    - tone: {freq: 1000, duration: 0.5, amplitude: 12000}
+    - hold: 45            # mailbox record window
+    - hangup: true        # mailbox max-record timeout: it ends the call itself
+config_overrides:
+  voicemail_detection: {beep_detection: true}
+expect:
+  webhook_received: true
+  ended_reason: call.ending.voicemail-left-message
+  dtmf_press_count_max: 0
+  message_start_after: {mark: tone_end, min: 0.1, max: 3.0}
+  message_content:
+    expected: "Hi, this is Emily from Apex Motors calling about your recent service enquiry. Please give us a call back whenever convenient. Thank you, and have a great day!"
+    min_recall: 0.75
