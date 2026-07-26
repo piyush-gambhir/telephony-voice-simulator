@@ -1,0 +1,49 @@
+name: telephony-voice-simulator
+
+# Optional local MySQL persistence.
+#
+# Start MySQL only:
+#   docker compose -f compose.yaml -f compose.mysql.yaml up -d mysql
+#
+# Start the complete stack on MySQL:
+#   docker compose -f compose.yaml -f compose.mysql.yaml up --build
+#
+# Override every local-development credential before using this outside a
+# loopback-only workstation.
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-telephony_voice_simulator}
+      MYSQL_USER: ${MYSQL_USER:-simulator}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-simulator-local}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root-local}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - simulator-mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mysqladmin ping
+          --host=127.0.0.1
+          --user=root
+          --password="$${MYSQL_ROOT_PASSWORD}"
+          --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+    restart: unless-stopped
+
+  simulator-backend:
+    environment:
+      SIMULATOR_DATABASE_URI: >-
+        ${SIMULATOR_MYSQL_URI:-mysql+pymysql://simulator:simulator-local@mysql:3306/telephony_voice_simulator}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  simulator-mysql-data:

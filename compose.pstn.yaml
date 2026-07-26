@@ -1,0 +1,33 @@
+# Add this overlay only when the backend is behind public HTTPS and all required
+# Twilio/operator secrets and a rights-reviewed private AMD corpus are present:
+# docker compose -f compose.yaml -f compose.pstn.yaml up --build
+services:
+  simulator-backend:
+    command:
+      - python
+      - -m
+      - telephony_voice_simulator.control.cli
+      - serve
+      - --host
+      - 0.0.0.0
+      - --with-pstn
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL to the public HTTPS origin}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:?Set TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:?Set TWILIO_AUTH_TOKEN}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      IVR_CALLER_ID: ${IVR_CALLER_ID:-}
+      BRIDGE_NUMBER: ${BRIDGE_NUMBER:-}
+      PSTN_DEFAULT_SCENARIO: ${PSTN_DEFAULT_SCENARIO:-stock_voicemail_beep_1000}
+      PSTN_NUMBER_MAP: ${PSTN_NUMBER_MAP:-{}}
+      PSTN_RECORD_ALL_CALLS: ${PSTN_RECORD_ALL_CALLS:-false}
+      PSTN_ALLOW_UNSIGNED_WEBHOOKS: "false"
+      PSTN_ACKNOWLEDGE_PUBLIC_AUDIO: ${PSTN_ACKNOWLEDGE_PUBLIC_AUDIO:?Set true only after every mounted AMD asset is approved for unauthenticated public serving}
+      SIMULATOR_CORPUS_ASSETS_DIR: /opt/telephony-voice-simulator/private-corpus/assets
+      SIMULATOR_CORPUS_MANIFEST: /opt/telephony-voice-simulator/private-corpus/assets_manifest.json
+      SIMULATOR_PUBLIC_AUDIO_ALLOWLIST: /opt/telephony-voice-simulator/private-corpus/public_audio_allowlist.json
+    volumes:
+      - type: bind
+        source: ${SIMULATOR_PRIVATE_CORPUS_DIR:?Set SIMULATOR_PRIVATE_CORPUS_DIR to a rights-reviewed local corpus directory}
+        target: /opt/telephony-voice-simulator/private-corpus
+        read_only: true

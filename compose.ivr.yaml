@@ -1,0 +1,19 @@
+# Public Twilio IVR overlay. Unlike compose.pstn.yaml, this mode does not load
+# the private AMD audio corpus.
+services:
+  simulator-backend:
+    command:
+      - python
+      - -m
+      - telephony_voice_simulator.control.cli
+      - serve
+      - --host
+      - 0.0.0.0
+      - --with-ivr
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL to the public HTTPS origin}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:?Set TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:?Set TWILIO_AUTH_TOKEN}
+      IVR_CALLER_ID: ${IVR_CALLER_ID:-}
+      PSTN_RECORD_ALL_CALLS: ${PSTN_RECORD_ALL_CALLS:-false}
+      PSTN_ALLOW_UNSIGNED_WEBHOOKS: "false"

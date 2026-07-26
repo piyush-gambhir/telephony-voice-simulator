@@ -1,0 +1,14 @@
+name: telephony-voice-simulator
+
+# Narrow public edge for local carrier testing. Point ngrok at port 8980, not
+# directly at the private control API on 8978.
+services:
+  public-ingress:
+    image: nginx:1.27-alpine
+    ports:
+      - "127.0.0.1:${PUBLIC_INGRESS_PORT:-8980}:8080"
+    volumes:
+      - ./deploy/public-ingress.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

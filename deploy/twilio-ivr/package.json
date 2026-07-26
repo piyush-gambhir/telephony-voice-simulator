@@ -1,0 +1,19 @@
+{
+  "name": "telephony-voice-simulator-twilio-ivr",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Optional standalone Twilio Functions deployment for the clean-room IVR.",
+  "scripts": {
+    "start": "twilio-run start",
+    "deploy": "twilio-run deploy",
+    "prompts": "python3 ../../apps/simulator-backend/scripts/generate_ivr_prompts.py --output assets",
+    "check:prompts": "python3 ../../apps/simulator-backend/scripts/generate_ivr_prompts.py --check",
+    "test": "node --check functions/ivr.protected.js",
+    "license:check": "python3 ../../scripts/check_javascript_licenses.py --project twilio",
+    "audit:ci": "npm audit --audit-level=critical"
+  },
+  "devDependencies": {
+    "twilio-run": "5.0.1"
+  }
+}
