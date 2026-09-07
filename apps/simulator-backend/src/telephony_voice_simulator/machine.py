@@ -40,6 +40,8 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from .scenario_validation import asset_path, validate_machine
+
 SAMPLE_RATE = 48000
 
 # Hard ceiling (seconds) on any single machine run — the universal
@@ -115,6 +117,14 @@ class SimulatedMachine:
     def now(self) -> float:
         return 0.0 if self._started_at is None else time.monotonic() - self._started_at
 
+    def start_clock(self) -> None:
+        """Establish the shared clock before a transport begins recording."""
+        if self._started_at is None:
+            self._started_at = time.monotonic()
+
+    def bind_audio(self, audio: AudioOut) -> None:
+        self._audio = audio
+
     def mark(self, event: str, **detail: Any) -> None:
         self.timeline.append(TimelineEvent(self.now(), event, detail))
 
@@ -139,7 +149,7 @@ class SimulatedMachine:
     def _load_asset(self, name: str) -> np.ndarray:
         import soundfile as sf
 
-        path = self._assets_dir / name
+        path = asset_path(self._assets_dir, name)
         if not path.is_file():
             raise FileNotFoundError(
                 f"corpus asset {name!r} is missing from {self._assets_dir}. "
@@ -148,11 +158,13 @@ class SimulatedMachine:
             )
         data, rate = sf.read(path, dtype="int16", always_2d=True)
         samples = data[:, 0]
+        if not samples.size:
+            raise ValueError(f"corpus asset {name!r} contains no audio")
         if rate != SAMPLE_RATE:
             # Linear resample — corpus assets are built at 48k, this is a
             # convenience for ad-hoc/imported files only.
             duration = samples.shape[0] / float(rate)
-            target_n = int(duration * SAMPLE_RATE)
+            target_n = max(1, int(duration * SAMPLE_RATE))
             x_old = np.linspace(0.0, duration, samples.shape[0])
             x_new = np.linspace(0.0, duration, target_n)
             samples = np.interp(x_new, x_old, samples.astype(np.float64)).astype(np.int16)
@@ -165,6 +177,23 @@ class SimulatedMachine:
             return True
         except asyncio.TimeoutError:
             return False
+
+    async def _play(self, samples: np.ndarray) -> bool:
+        """Play until completion or DTMF; always join both child tasks."""
+        playback = asyncio.create_task(self._audio.play(samples, SAMPLE_RATE))
+        interrupted = asyncio.create_task(self._interrupt.wait())
+        try:
+            done, _ = await asyncio.wait(
+                (playback, interrupted), return_when=asyncio.FIRST_COMPLETED
+            )
+            if playback in done:
+                await playback  # propagate transport failures
+                return True
+            return False
+        finally:
+            for task in (playback, interrupted):
+                task.cancel()
+            await asyncio.gather(playback, interrupted, return_exceptions=True)
 
     async def _run_step(self, step: dict[str, Any], index: int) -> int | None:
         """Execute one step; returns the next index (None = advance)."""
@@ -182,8 +211,12 @@ class SimulatedMachine:
             samples = self._load_asset(name)
             duration = samples.shape[0] / float(SAMPLE_RATE)
             self.mark("play_start", asset=name, duration=round(duration, 3))
-            await self._audio.play(samples, SAMPLE_RATE)
-            self.mark("play_end", asset=name)
+            try:
+                completed = await self._play(samples)
+            except BaseException:
+                self.mark("play_interrupted", asset=name)
+                raise
+            self.mark("play_end" if completed else "play_interrupted", asset=name)
             return None
         if "tone" in step:
             spec = step["tone"] or {}
@@ -192,10 +225,17 @@ class SimulatedMachine:
             amplitude = int(spec.get("amplitude", 12000))
             samples = synth_tone(freq, duration, amplitude)
             self.mark("tone_start", freq=freq, duration=duration)
-            await self._audio.play(samples, SAMPLE_RATE)
-            self.mark("tone_end", freq=freq)
+            try:
+                completed = await self._play(samples)
+            except BaseException:
+                self.mark("tone_interrupted", freq=freq)
+                raise
+            self.mark("tone_end" if completed else "tone_interrupted", freq=freq)
             return None
         if "repeat_from" in step:
+            # Yield even when the preceding steps complete synchronously, so
+            # cancellation and the hard deadline can always run.
+            await asyncio.sleep(0)
             return int(step["repeat_from"])
         if "hangup" in step:
             self.mark("machine_hangup")
@@ -220,13 +260,14 @@ class SimulatedMachine:
         """Run ``main``, following ``on_dtmf`` switches, until done/hangup."""
         sequence = "main"
         while True:
+            if self._switch_to:
+                sequence, self._switch_to = self._switch_to, None
+                self.mark("sequence_switch", to=sequence)
             self._interrupt.clear()
             await self._run_sequence(sequence)
             if self.hangup_requested.is_set():
                 return
             if self._switch_to:
-                sequence, self._switch_to = self._switch_to, None
-                self.mark("sequence_switch", to=sequence)
                 continue
             return  # main ran to completion with no switch
 
@@ -238,7 +279,8 @@ class SimulatedMachine:
         than the cap, a re-prompt loop the agent never clears, an agent that
         leaves a message but never sends BYE), the machine hangs up itself.
         """
-        self._started_at = time.monotonic()
+        validate_machine(self._spec, allow_dial=False)
+        self.start_clock()
         try:
             await asyncio.wait_for(self._run_scripted(), timeout=self._max_duration)
         except asyncio.TimeoutError:

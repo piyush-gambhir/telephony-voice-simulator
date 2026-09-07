@@ -13,6 +13,8 @@ machine:
     - wait: 1.0
     - hangup: true
 expect:
+  # A carrier SIT tri-tone plus operator recording: no person is reachable.
+  callee_class: machine
   webhook_received: true
   # Tolerant on the reason (the SIT tri-tone can garble STT of the operator
   # message), but a correctly heard greeting should classify as a dead end.

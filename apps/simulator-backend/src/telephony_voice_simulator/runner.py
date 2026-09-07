@@ -27,11 +27,12 @@ from typing import Any
 
 import yaml
 
-from .assertions import run_checks
+from .assertions import run_checks, summarize_checks
 from .bot import CalleeBot
 from .dispatch import build_metadata, create_dispatch, new_call_id
 from .machine import SimulatedMachine
 from .paths import ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR, TEMPLATES_DIR
+from .scenario_validation import validate_scenario
 from .webhook_sink import WebhookSink
 
 
@@ -44,11 +45,7 @@ def _env(name: str, default: str | None = None) -> str:
 
 
 def load_scenario(path: Path) -> dict[str, Any]:
-    scenario = yaml.safe_load(path.read_text())
-    for key in ("name", "machine", "expect"):
-        if key not in scenario:
-            raise ValueError(f"{path.name}: missing required key {key!r}")
-    return scenario
+    return validate_scenario(yaml.safe_load(path.read_text()), source=str(path))
 
 
 class _NullAudio:
@@ -62,6 +59,7 @@ async def run_scenario(
     sink: WebhookSink,
     results_root: Path,
 ) -> dict[str, Any]:
+    validate_scenario(scenario)
     name = scenario["name"]
     call_id, room_name = new_call_id(name)
     results_dir = results_root / name
@@ -118,7 +116,7 @@ async def run_scenario(
         recordings=bot_result.recordings,
         call_ended=call_ended,
     )
-    passed = all(c.passed for c in checks)
+    passed = summarize_checks(c.passed for c in checks)
     report = {
         "scenario": name,
         "call_id": call_id,
@@ -168,10 +166,10 @@ async def main() -> int:
                 continue
             print(f"→ {scenario['name']}")
             report = await run_scenario(scenario, sink=sink, results_root=results_root)
-            status = "PASS" if report["passed"] else "FAIL"
+            status = "PASS" if report["passed"] else "INDETERMINATE" if report["passed"] is None else "FAIL"
             print(f"  {status}  ({len(report['checks'])} checks)")
             for check in report["checks"]:
-                flag = "✓" if check["passed"] else "✗"
+                flag = "✓" if check["passed"] else "?" if check["passed"] is None else "✗"
                 print(f"    {flag} {check['check']}: {check['detail']}")
             reports.append(report)
     finally:

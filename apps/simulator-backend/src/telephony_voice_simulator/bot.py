@@ -37,17 +37,24 @@ class TrackAudioOut:
         self._source = source
 
     async def play(self, samples: np.ndarray, sample_rate: int) -> None:
-        for start in range(0, samples.shape[0], FRAME_SAMPLES):
-            chunk = samples[start : start + FRAME_SAMPLES]
-            if chunk.shape[0] < FRAME_SAMPLES:
-                chunk = np.pad(chunk, (0, FRAME_SAMPLES - chunk.shape[0]))
-            frame = rtc.AudioFrame(
-                data=chunk.tobytes(),
-                sample_rate=sample_rate,
-                num_channels=1,
-                samples_per_channel=chunk.shape[0],
-            )
-            await self._source.capture_frame(frame)
+        try:
+            for start in range(0, samples.shape[0], FRAME_SAMPLES):
+                chunk = samples[start : start + FRAME_SAMPLES]
+                if chunk.shape[0] < FRAME_SAMPLES:
+                    chunk = np.pad(chunk, (0, FRAME_SAMPLES - chunk.shape[0]))
+                frame = rtc.AudioFrame(
+                    data=chunk.tobytes(),
+                    sample_rate=sample_rate,
+                    num_channels=1,
+                    samples_per_channel=chunk.shape[0],
+                )
+                await self._source.capture_frame(frame)
+            # capture_frame queues audio. Timing marks must follow actual
+            # playout, otherwise beep/greeting timing can be a second early.
+            await self._source.wait_for_playout()
+        except BaseException:
+            self._source.clear_queue()
+            raise
 
 
 @dataclass
@@ -133,49 +140,58 @@ class CalleeBot:
             # The agent subscribed to OUR audio — the greeting can now be heard.
             subscribed.set()
 
-        await room.connect(self._url, self._token())
-        joined_at = time.monotonic()
-        source = rtc.AudioSource(SAMPLE_RATE, 1)
-        track = rtc.LocalAudioTrack.create_audio_track("callee-audio", source)
-        await room.local_participant.publish_track(
-            track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
-        )
-        self._machine._audio = TrackAudioOut(source)  # bind transport
-
-        # Don't start "talking" before the agent can hear us. A real callee's
-        # greeting starts after the media path is up; starting on join raced
-        # the agent's subscription under load and entire prompts went
-        # untranscribed (screener scenario flake). Bounded: proceed after 5s
-        # even if the event never fires (older SDKs), plus a short settle.
-        with contextlib.suppress(asyncio.TimeoutError):
-            await asyncio.wait_for(subscribed.wait(), timeout=5.0)
-        await asyncio.sleep(0.5)
-        self._machine.mark("audio_path_ready")
-
-        machine_task = asyncio.create_task(self._machine.run())
+        self._machine.start_clock()
+        source = None
+        tasks: list[asyncio.Task] = []
         try:
+            await room.connect(self._url, self._token())
+            joined_at = time.monotonic()
+            source = rtc.AudioSource(SAMPLE_RATE, 1)
+            track = rtc.LocalAudioTrack.create_audio_track("callee-audio", source)
+            await room.local_participant.publish_track(
+                track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
+            )
+            self._machine.bind_audio(TrackAudioOut(source))
+
+            # Wait for the agent to hear the greeting. All recordings and
+            # marks, including pre-greeting speech, already share one clock.
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(subscribed.wait(), timeout=5.0)
+            await asyncio.sleep(0.5)
+            self._machine.mark("audio_path_ready")
+
+            machine_task = asyncio.create_task(self._machine.run())
+            left_task = asyncio.create_task(agent_left.wait())
+            tasks.extend((machine_task, left_task))
             done, _ = await asyncio.wait(
-                [machine_task, asyncio.create_task(agent_left.wait())],
+                tasks,
                 timeout=call_timeout,
                 return_when=asyncio.FIRST_COMPLETED,
             )
+            if machine_task in done:
+                await machine_task
             if machine_task in done and self._machine.hangup_requested.is_set():
                 self._machine.mark("bot_leaving", reason="machine_hangup")
             elif machine_task not in done and agent_left.is_set():
                 self._machine.mark("agent_hangup_observed")
+            elif not done:
+                self._machine.mark("bot_leaving", reason="call_timeout")
             else:
                 # Give the agent a grace window to finish teardown after the
                 # machine script completed (e.g. it is speaking the message).
                 with contextlib.suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(agent_left.wait(), timeout=30.0)
         finally:
-            machine_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await machine_task
-            for recorder in self._recorders.values():
-                await recorder.stop()
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             with contextlib.suppress(Exception):
                 await room.disconnect()
+            try:
+                await asyncio.gather(*(recorder.stop() for recorder in self._recorders.values()))
+            finally:
+                if source is not None:
+                    await source.aclose()
 
         timeline = [ev.as_dict() for ev in self._machine.timeline]
         (self._results_dir / "timeline.json").write_text(json.dumps(timeline, indent=2))
@@ -212,9 +228,10 @@ class _TrackRecorder:
                 frame = event.frame
                 sample_rate = frame.sample_rate
                 frames.append(np.frombuffer(frame.data, dtype=np.int16))
-        except Exception:
-            pass
+        except Exception as error:
+            self._machine.mark("agent_track_recording_error", path=self.path.name, error=str(error))
         finally:
+            await stream.aclose()
             if frames:
                 sf.write(self.path, np.concatenate(frames), sample_rate, subtype="PCM_16")
                 self.path.with_suffix(".meta.json").write_text(

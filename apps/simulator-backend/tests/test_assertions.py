@@ -7,8 +7,9 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
+import pytest
 
-from telephony_voice_simulator.assertions import run_checks, speech_segments_from_wav
+from telephony_voice_simulator.assertions import run_checks, speech_segments_from_wav, summarize_checks
 from telephony_voice_simulator.machine import SAMPLE_RATE, synth_tone
 
 
@@ -245,3 +246,79 @@ def test_detection_layer_absent() -> None:
         call_ended=_base_webhook("call.ending.customer-ended-call", ""),
     )
     assert checks[0].passed
+
+
+def test_frame_zero_click_does_not_merge_into_later_speech(tmp_path: Path) -> None:
+    samples = np.zeros(SAMPLE_RATE * 2, dtype=np.int16)
+    samples[:960] = 9000
+    samples[SAMPLE_RATE:SAMPLE_RATE + 24000] = 9000
+    wav = tmp_path / "click.wav"
+    sf.write(wav, samples, SAMPLE_RATE, subtype="PCM_16")
+    segments = speech_segments_from_wav(wav)
+    assert len(segments) == 1
+    assert segments[0].start == pytest.approx(1.0)
+
+
+def test_overlap_counts_repeated_prompts_and_deduplicates_tracks(tmp_path: Path) -> None:
+    wav = _agent_wav(tmp_path, speech_at=[(5.1, 5.5)], total=7)
+    timeline = [
+        {"t": 1, "event": "play_start", "asset": "g.wav"},
+        {"t": 2, "event": "play_end", "asset": "g.wav"},
+        {"t": 5, "event": "play_start", "asset": "g.wav"},
+        {"t": 6, "event": "play_end", "asset": "g.wav"},
+    ]
+    for limit, passed in ((0.2, False), (0.6, True)):
+        checks = run_checks(
+            {"max_overlap_with_playback": {"asset": "g.wav", "max_s": limit}},
+            timeline=timeline, recordings={"a": wav, "duplicate": wav}, call_ended=None,
+        )
+        assert checks[0].passed is passed
+
+
+def test_reversed_marks_and_missing_webhook_are_not_passing_evidence(tmp_path: Path) -> None:
+    silence = _agent_wav(tmp_path, speech_at=[], total=3)
+    checks = run_checks({
+        "max_overlap_between_marks": {"start": "tone_start", "end": "tone_end"},
+        "ended_reason_not": ["voicemail"],
+        "detection_layer_absent": True,
+    }, timeline=[{"t": 2, "event": "tone_start"}, {"t": 1, "event": "tone_end"}],
+        recordings={"agent": silence}, call_ended=None)
+    assert all(check.passed is False for check in checks)
+
+
+def test_unavailable_room_check_and_empty_grades_are_indeterminate() -> None:
+    checks = run_checks({"message_content": {"expected": "Please call back"}},
+                        timeline=[], recordings={}, call_ended=None)
+    assert len(checks) == 1
+    assert summarize_checks(check.passed for check in checks) is None
+    assert summarize_checks([]) is None
+    assert summarize_checks([True, None]) is None
+    assert summarize_checks([False, None]) is False
+
+
+def test_explicit_false_webhook_expectations_are_evaluated() -> None:
+    checks = run_checks({"webhook_received": False, "detection_layer_absent": False},
+                        timeline=[], recordings={}, call_ended=_base_webhook("ended", "semantic"))
+    assert {check.name: check.passed for check in checks} == {
+        "webhook_received": False, "detection_layer_absent": True,
+    }
+
+
+def test_missing_audio_cannot_pass_silence_or_overlap_assertions() -> None:
+    checks = run_checks({
+        "agent_spoke": False,
+        "max_overlap_with_playback": {"asset": "g.wav", "max_s": 0.5},
+    }, timeline=[
+        {"t": 0, "event": "play_start", "asset": "g.wav"},
+        {"t": 1, "event": "play_end", "asset": "g.wav"},
+    ], recordings={}, call_ended=None)
+    assert len(checks) == 2
+    assert all(check.passed is None for check in checks)
+
+
+def test_failed_recording_does_not_pass_using_partial_audio(tmp_path: Path) -> None:
+    silence = _agent_wav(tmp_path, speech_at=[], total=1)
+    checks = run_checks({"agent_spoke": False},
+                        timeline=[{"t": 0.5, "event": "agent_track_recording_error"}],
+                        recordings={"agent": silence}, call_ended=None)
+    assert checks[0].passed is None

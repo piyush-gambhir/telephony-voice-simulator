@@ -120,6 +120,35 @@ def test_compile_hangup_scenario(assets: Path, tmp_path: Path) -> None:
     assert compiled.sequences["main"][0].terminal == "hangup"
 
 
+def test_compile_handles_machine_options_and_zero_wait(assets: Path, tmp_path: Path) -> None:
+    compiled = compile_scenario({
+        "name": "bounded", "machine": {"max_duration": 30, "main": [{"wait": 0}, {"hold": 10}]},
+        "expect": {},
+    }, assets_dir=assets, out_dir=tmp_path / "compiled")
+    assert set(compiled.sequences) == {"main"}
+    assert compiled.sequences["main"][0].audio_file is None
+    assert compiled.sequences["main"][0].terminal == "record"
+
+
+def test_corrupt_recording_cannot_pass_a_silence_expectation(tmp_path: Path) -> None:
+    recording = tmp_path / "broken.wav"
+    recording.write_text("not a WAV file")
+    analysis = analyze_call({"recording_files": [str(recording)]}, {"expect": {"agent_spoke": False}}, None)
+    assert analysis["passed"] is False
+    assert any(check["check"] == "recording_readable" and check["passed"] is False for check in analysis["checks"])
+
+
+def test_unavailable_content_check_keeps_grade_indeterminate(tmp_path: Path, monkeypatch) -> None:
+    recording = tmp_path / "mailbox.wav"
+    sf.write(recording, synth_tone(220, 1), SAMPLE_RATE, subtype="PCM_16")
+    monkeypatch.setattr("telephony_voice_simulator.pstn.analyze.transcribe_recording", lambda path: None)
+    analysis = analyze_call({"recording_files": [str(recording)]}, {"expect": {
+        "agent_spoke": True, "message_content": {"expected": "Please call me back"},
+    }}, None)
+    assert analysis["passed"] is None
+    assert next(check for check in analysis["checks"] if check["check"] == "agent_spoke")["passed"] is True
+
+
 async def _post_form(client, path: str, data: dict):
     resp = await client.post(path, data=data)
     assert resp.status == 200
@@ -1097,3 +1126,42 @@ async def test_pound_gate_captured_and_bridged(pstn_client, monkeypatch, assets,
     assert '<Dial answerOnBridge="true" callerId="+1555">' in body
     assert "<Number>+15559998888</Number>" in body
     assert state.calls["CA20"]["digits"][0]["digit"] == "#"
+
+
+def test_transcribe_prefers_elevenlabs_then_openai(monkeypatch, tmp_path) -> None:
+    """Backend selection must not depend on which key happens to be set."""
+    from telephony_voice_simulator.pstn import analyze
+
+    wav = tmp_path / "message.wav"
+    wav.write_bytes(b"RIFF")
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        analyze, "_transcribe_elevenlabs", lambda p, k: calls.append("11labs") or "eleven"
+    )
+    monkeypatch.setattr(
+        analyze, "_transcribe_openai", lambda p, k: calls.append("openai") or "open"
+    )
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_API_KEY", "y")
+    assert analyze.transcribe_recording(wav) == "eleven"
+    assert calls == ["11labs"]
+
+    # A flaky ElevenLabs call falls through rather than losing the check.
+    calls.clear()
+    monkeypatch.setattr(analyze, "_transcribe_elevenlabs", lambda p, k: None)
+    assert analyze.transcribe_recording(wav) == "open"
+    assert calls == ["openai"]
+
+    # No backend configured is indeterminate, not a failure.
+    monkeypatch.delenv("ELEVENLABS_API_KEY")
+    monkeypatch.delenv("OPENAI_API_KEY")
+    assert analyze.transcribe_recording(wav) is None
+
+
+def test_transcribe_returns_none_for_a_missing_file(tmp_path, monkeypatch) -> None:
+    from telephony_voice_simulator.pstn import analyze
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    assert analyze.transcribe_recording(tmp_path / "nope.wav") is None

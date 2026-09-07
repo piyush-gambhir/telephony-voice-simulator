@@ -8,34 +8,19 @@ from pathlib import Path
 import re
 
 import yaml
+import pytest
+
+from telephony_voice_simulator.scenario_validation import validate_scenario
 
 SIMULATOR = Path(__file__).parent.parent / "src" / "telephony_voice_simulator"
 SCENARIOS = sorted((SIMULATOR / "scenarios").glob("*.yaml"))
 ASSET_MANIFEST = SIMULATOR / "corpus" / "assets_manifest.json"
 PUBLIC_ALLOWLIST = SIMULATOR / "corpus" / "public_release_allowlist.json"
 
-STEP_KEYS = {"wait", "hold", "play", "tone", "repeat_from", "hangup", "dial"}
-EXPECT_KEYS = {
-    "webhook_received",
-    "ended_reason",
-    "ended_reason_any_of",
-    "ended_reason_not",
-    "detection_layer_prefix_any_of",
-    "detection_layer_absent",
-    "dtmf_received",
-    "dtmf_press_count_max",
-    "agent_spoke",
-    "first_agent_speech_after",
-    "agent_speech_after",
-    "message_start_after",
-    "max_overlap_with_playback",
-    "max_overlap_between_marks",
-    "message_content",
-}
-
-
-def test_scenarios_exist() -> None:
-    assert len(SCENARIOS) >= 10
+def test_catalog_has_unique_names() -> None:
+    assert SCENARIOS, "the bundled scenario catalog is empty"
+    names = [yaml.safe_load(path.read_text())["name"] for path in SCENARIOS]
+    assert len(names) == len(set(names)), "duplicate scenario names shadow each other"
 
 
 def test_corpus_assets_have_provenance_manifest() -> None:
@@ -92,8 +77,9 @@ def test_public_release_audio_is_explicitly_allowlisted() -> None:
 
     manifest = json.loads(ASSET_MANIFEST.read_text())
     allowlisted = load_public_allowlist(PUBLIC_ALLOWLIST)
-    assert not allowlisted, "the initial public release must not ship corpus binaries"
-    assert all(row["commit_allowed"] is False for row in manifest.values())
+    assert allowlisted <= manifest.keys(), "public audio must have provenance"
+    for asset in allowlisted:
+        assert manifest[asset]["commit_allowed"] is True, f"{asset}: missing release approval"
 
 
 def test_privacy_scrubbed_prompts_are_reserved_generic_and_checksum_bound() -> None:
@@ -152,38 +138,16 @@ def test_privacy_scrubbed_prompts_are_reserved_generic_and_checksum_bound() -> N
     assert template["metadata"]["customer_name"] == "Sample Contact"
 
 
-def test_scenarios_are_valid() -> None:
-    corpus_names = set()
+@pytest.mark.parametrize("path", SCENARIOS, ids=lambda path: path.stem)
+def test_scenarios_are_valid(path: Path) -> None:
     from telephony_voice_simulator.corpus.build_corpus import CORPUS
 
-    corpus_names.update(CORPUS.keys())
     manifest_names = set(json.loads(ASSET_MANIFEST.read_text()))
-
-    for path in SCENARIOS:
-        scenario = yaml.safe_load(path.read_text())
-        assert {"name", "machine", "expect"} <= set(scenario), path.name
-        machine = scenario["machine"]
-        assert "main" in machine, f"{path.name}: machine needs a 'main' sequence"
-        for seq_name, steps in machine.items():
-            if seq_name == "on_dtmf":
-                assert steps == "ignore" or "switch" in steps, path.name
-                continue
-            if seq_name == "max_duration":
-                assert isinstance(steps, (int, float)) and steps > 0, path.name
-                continue
-            for step in steps:
-                keys = set(step) & STEP_KEYS
-                assert keys, f"{path.name}: unknown step {step!r}"
-                if "play" in step:
-                    assert step["play"] in corpus_names, (
-                        f"{path.name}: asset {step['play']} not in corpus manifest"
-                    )
-                    assert step["play"] in manifest_names, (
-                        f"{path.name}: asset {step['play']} missing provenance manifest row"
-                    )
-        unknown = set(scenario["expect"]) - EXPECT_KEYS
-        assert not unknown, f"{path.name}: unknown expect keys {unknown}"
-        # on_dtmf switch targets must exist
-        on_dtmf = machine.get("on_dtmf")
-        if isinstance(on_dtmf, dict):
-            assert on_dtmf["switch"] in machine, f"{path.name}: missing switch target"
+    scenario = validate_scenario(yaml.safe_load(path.read_text()), source=path.name)
+    for steps in scenario["machine"].values():
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if "play" in step:
+                assert step["play"] in CORPUS, f"{path.name}: asset not in corpus"
+                assert step["play"] in manifest_names, f"{path.name}: missing asset provenance"

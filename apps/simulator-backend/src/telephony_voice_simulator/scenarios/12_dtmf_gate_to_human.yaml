@@ -17,4 +17,6 @@ machine:
   connected:
     - dial: bridge
 expect:
+  # A DTMF gate answers first, then connects a person.
+  callee_class: screener
   dtmf_received: {digit: "#"}

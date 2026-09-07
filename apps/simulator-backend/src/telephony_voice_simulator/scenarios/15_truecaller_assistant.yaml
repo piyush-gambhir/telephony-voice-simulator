@@ -12,6 +12,8 @@ machine:
     - play: human_hello.wav
     - hold: 40
 expect:
+  # An assistant answers first, then hands the call to the owner.
+  callee_class: screener
   webhook_received: true
   ended_reason_not:
     - call.ending.machine-ivr

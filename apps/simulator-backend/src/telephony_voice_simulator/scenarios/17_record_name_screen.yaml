@@ -16,6 +16,8 @@ machine:
     - play: human_hello.wav
     - hold: 40
 expect:
+  # A record-name gate answers first, then connects the owner.
+  callee_class: screener
   webhook_received: true
   ended_reason_not:
     - call.ending.voicemail-left-message

@@ -36,6 +36,9 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..scenario_validation import validate_expectations
+from ..assertions import summarize_checks
+
 # Twilio needs a beat to open the record buffer after <Play> ends.
 RECORD_START_SLACK = 0.8
 
@@ -104,19 +107,16 @@ def _allowed_identity_preamble(tokens: list[str], customer_name: str) -> bool:
     return bool(name) and tokens in (["hi", "is", "this", *name], ["hello", "is", "this", *name])
 
 
-def transcribe_recording(path: Path) -> str | None:
-    """Transcribe a mailbox recording via OpenAI; None when unavailable."""
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key or not path.exists():
-        return None
+def _transcribe_elevenlabs(path: Path, key: str) -> str | None:
     import httpx
 
+    model = os.environ.get("ELEVENLABS_STT_MODEL", "scribe_v2")
     try:
         with path.open("rb") as fh:
             resp = httpx.post(
-                "https://api.openai.com/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {key}"},
-                data={"model": "whisper-1", "language": "en"},
+                "https://api.elevenlabs.io/v1/speech-to-text",
+                headers={"xi-api-key": key},
+                data={"model_id": model},
                 files={"file": (path.name, fh, "audio/wav")},
                 timeout=120,
             )
@@ -124,6 +124,46 @@ def transcribe_recording(path: Path) -> str | None:
         return str(resp.json().get("text", "")).strip()
     except Exception:
         return None
+
+
+def _transcribe_openai(path: Path, key: str) -> str | None:
+    import httpx
+
+    try:
+        with path.open("rb") as fh:
+            resp = httpx.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {key}"},
+                data={"model": os.environ.get("OPENAI_STT_MODEL", "whisper-1"), "language": "en"},
+                files={"file": (path.name, fh, "audio/wav")},
+                timeout=120,
+            )
+        resp.raise_for_status()
+        return str(resp.json().get("text", "")).strip()
+    except Exception:
+        return None
+
+
+def transcribe_recording(path: Path) -> str | None:
+    """Transcribe a mailbox recording; None when no backend is configured.
+
+    ElevenLabs is tried first because a deployment that synthesizes the
+    scenario corpus already holds that key, so content grading costs no extra
+    credential. OpenAI stays as a fallback for setups configured the other way.
+    Returning None marks the check indeterminate rather than failed — a
+    missing or flaky transcriber is not evidence about the agent.
+    """
+    if not path.exists():
+        return None
+    elevenlabs = os.environ.get("ELEVENLABS_API_KEY")
+    if elevenlabs:
+        text = _transcribe_elevenlabs(path, elevenlabs)
+        if text:
+            return text
+    openai = os.environ.get("OPENAI_API_KEY")
+    if openai:
+        return _transcribe_openai(path, openai)
+    return None
 
 
 def _speech_segments(path: Path) -> list[tuple[float, float]]:
@@ -134,18 +174,24 @@ def _speech_segments(path: Path) -> list[tuple[float, float]]:
 
 def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
     expect: dict[str, Any] = raw_scenario.get("expect", {})
+    validate_expectations(expect)
     checks: list[dict[str, Any]] = []
 
     recording_key = (
         "analysis_recording_files" if "analysis_recording_files" in call else "recording_files"
     )
-    recordings = [Path(p) for p in call.get(recording_key, []) if Path(p).exists()]
+    recordings = [Path(p) for p in call.get(recording_key, [])]
     all_segments: list[tuple[float, float]] = []
+    segments_by_path: dict[Path, list[tuple[float, float]]] = {}
     for rec in recordings:
         try:
-            all_segments.extend(_speech_segments(rec))
-        except Exception:
-            pass
+            segments_by_path[rec] = _speech_segments(rec)
+            all_segments.extend(segments_by_path[rec])
+        except (OSError, ValueError, RuntimeError) as error:
+            checks.append({
+                "check": "recording_readable", "passed": False,
+                "detail": f"cannot analyze {rec.name}: {error}",
+            })
 
     def add(name: str, passed: bool, detail: str) -> None:
         checks.append({"check": name, "passed": passed, "detail": detail})
@@ -157,7 +203,7 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
         if not recordings:
             add("message_start_after", False, "no recording captured")
         else:
-            first = _speech_segments(recordings[0])
+            first = segments_by_path.get(recordings[0], [])
             if not first:
                 add("message_start_after", False, "no speech in recording (message not left?)")
             else:
@@ -173,7 +219,7 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
     if "message_content" in expect:
         spec = expect["message_content"] or {}
         expected = str(spec.get("expected", ""))
-        if not recordings:
+        if not recordings or recordings[0] not in segments_by_path:
             add("message_content", False, "no recording captured")
         elif not expected:
             add("message_content", False, "scenario has no expected text")
@@ -191,7 +237,7 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
                     {
                         "check": "message_content",
                         "passed": None,
-                        "detail": "transcription unavailable (transient); deferred to S3-side check",
+                        "detail": "transcription unavailable; message content is unverified",
                     }
                 )
             else:
@@ -254,12 +300,10 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
         or k == "agent_speech_after"
         or k == "webhook_received"
     ]
-    # passed=None checks are indeterminate (e.g. transient transcription
-    # failure) and do not fail the scenario; if EVERY check is indeterminate
-    # the machine grade itself is indeterminate.
-    decisive = [c for c in checks if c["passed"] is not None]
+    # An unavailable required check is not evidence of a pass. Preserve a
+    # known failure; otherwise leave the overall grade indeterminate.
     return {
-        "passed": all(c["passed"] for c in decisive) if decisive else None,
+        "passed": summarize_checks(c["passed"] for c in checks),
         "checks": checks,
         "skipped_webhook_side": skipped,
         "recordings_analyzed": [str(r) for r in recordings],

@@ -30,6 +30,7 @@ from typing import Any
 import numpy as np
 
 from ..machine import SAMPLE_RATE, synth_tone
+from ..scenario_validation import MACHINE_OPTIONS, asset_path, validate_scenario
 
 PSTN_RATE = 8000
 MAX_PROMPT_REPEATS = 3
@@ -75,8 +76,10 @@ def _resample_to_8k(samples: np.ndarray) -> np.ndarray:
 def _load_asset_48k(assets_dir: Path, name: str) -> np.ndarray:
     import soundfile as sf
 
-    data, rate = sf.read(assets_dir / name, dtype="int16", always_2d=True)
+    data, rate = sf.read(asset_path(assets_dir, name), dtype="int16", always_2d=True)
     samples = data[:, 0]
+    if not samples.size:
+        raise ValueError(f"corpus asset {name!r} contains no audio")
     if rate != SAMPLE_RATE:
         duration = samples.shape[0] / float(rate)
         n = int(duration * SAMPLE_RATE)
@@ -92,13 +95,14 @@ def compile_scenario(
     assets_dir: Path,
     out_dir: Path,
 ) -> CompiledScenario:
+    validate_scenario(scenario)
     out_dir.mkdir(parents=True, exist_ok=True)
     name = scenario["name"]
     machine: dict[str, Any] = scenario["machine"]
     sequences: dict[str, list[Segment]] = {}
 
     for seq_name, steps in machine.items():
-        if seq_name == "on_dtmf":
+        if seq_name in MACHINE_OPTIONS:
             continue
         segments: list[Segment] = []
         chunks: list[np.ndarray] = []
@@ -131,7 +135,8 @@ def compile_scenario(
         for step in steps:
             if "wait" in step:
                 seconds = float(step["wait"])
-                chunks.append(np.zeros(int(seconds * SAMPLE_RATE), dtype=np.int16))
+                if seconds > 0:
+                    chunks.append(np.zeros(max(1, int(seconds * SAMPLE_RATE)), dtype=np.int16))
                 elapsed += seconds
             elif "play" in step:
                 samples = _load_asset_48k(assets_dir, str(step["play"]))

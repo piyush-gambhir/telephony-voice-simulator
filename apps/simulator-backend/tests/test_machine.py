@@ -157,3 +157,64 @@ def test_synth_tone_shape() -> None:
     assert tone.dtype == np.int16
     assert abs(tone.shape[0] - SAMPLE_RATE // 2) <= 1
     assert np.abs(tone).max() <= 12000
+
+
+async def test_dtmf_interrupts_audio_without_claiming_completed_beep(tmp_path: Path) -> None:
+    machine, _ = _machine({
+        "main": [{"tone": {"duration": 5}}],
+        "on_dtmf": {"digits": ["5"], "switch": "connected"},
+        "connected": [{"hangup": True}],
+    }, tmp_path)
+    task = asyncio.create_task(machine.run())
+    await asyncio.sleep(0.02)
+    machine.on_dtmf("5")
+    await asyncio.wait_for(task, timeout=0.5)
+    assert _events(machine, "tone_interrupted")
+    assert not _events(machine, "tone_end")
+    assert _events(machine, "machine_hangup")
+
+
+async def test_run_preserves_transport_clock(tmp_path: Path, monkeypatch) -> None:
+    now = [10.0]
+    monkeypatch.setattr("telephony_voice_simulator.machine.time.monotonic", lambda: now[0])
+    machine, _ = _machine({"main": [{"hangup": True}]}, tmp_path)
+    machine.start_clock()
+    machine.mark("agent_track_recording_start")
+    now[0] = 12.0
+    machine.mark("audio_path_ready")
+    await machine.run()
+    assert _events(machine, "machine_hangup")[0]["t"] == 2.0
+
+
+async def test_audio_transport_failure_propagates(tmp_path: Path) -> None:
+    class FailingAudio:
+        async def play(self, samples, sample_rate):
+            raise RuntimeError("transport disconnected")
+
+    machine = SimulatedMachine({"main": [{"tone": {}}]}, assets_dir=tmp_path, audio_out=FailingAudio())
+    with pytest.raises(RuntimeError, match="transport disconnected"):
+        await machine.run()
+    assert not _events(machine, "tone_end")
+
+
+async def test_dtmf_before_media_ready_skips_the_gate(tmp_path: Path) -> None:
+    machine, _ = _machine({
+        "main": [{"wait": 45}],
+        "on_dtmf": {"digits": ["5"], "switch": "connected"},
+        "connected": [{"hangup": True}],
+    }, tmp_path)
+    machine.on_dtmf("5")
+    await asyncio.wait_for(machine.run(), timeout=0.5)
+    assert _events(machine, "sequence_start")[0]["sequence"] == "connected"
+    assert _events(machine, "machine_hangup")
+
+
+async def test_timeout_marks_incomplete_playback(tmp_path: Path) -> None:
+    import soundfile as sf
+
+    sf.write(tmp_path / "long.wav", synth_tone(300, 2), SAMPLE_RATE, subtype="PCM_16")
+    machine, _ = _machine({"main": [{"play": "long.wav"}], "max_duration": 0.02}, tmp_path)
+    await machine.run()
+    assert _events(machine, "play_interrupted")
+    assert not _events(machine, "play_end")
+    assert _events(machine, "machine_timeout")

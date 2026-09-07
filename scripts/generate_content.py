@@ -21,7 +21,6 @@ REPO = Path(__file__).resolve().parent.parent
 BACKEND = REPO / "apps" / "simulator-backend"
 BACKEND_SRC = BACKEND / "src"
 PACKAGE = BACKEND_SRC / "telephony_voice_simulator"
-SCENARIOS = PACKAGE / "scenarios"
 OUT = REPO / "apps" / "web-console" / "content" / "scenarios.json"
 PUBLIC_AUDIO = REPO / "apps" / "web-console" / "public" / "audio"
 PUBLIC_LICENSE = REPO / "apps" / "web-console" / "public" / "LICENSE"
@@ -38,6 +37,8 @@ from telephony_voice_simulator.corpus.release_policy import (  # noqa: E402
 )
 from telephony_voice_simulator.domains import scenario_definitions  # noqa: E402
 from telephony_voice_simulator.paths import ASSETS_DIR as ASSETS  # noqa: E402
+from telephony_voice_simulator.paths import SCENARIOS_DIR as SCENARIOS  # noqa: E402
+from telephony_voice_simulator.scenario_validation import validate_scenario  # noqa: E402
 
 CATEGORIES = [
     {
@@ -537,8 +538,10 @@ def build() -> dict:
 
     scenarios = {}
     for p in sorted(SCENARIOS.glob("*.yaml")):
-        s = yaml.safe_load(p.read_text())
+        s = validate_scenario(yaml.safe_load(p.read_text()), source=str(p))
         name = s["name"]
+        if name in scenarios:
+            raise ValueError(f"Duplicate scenario name {name!r} in {p}")
         scenarios[name] = {
             "name": name,
             "kind": "amd",

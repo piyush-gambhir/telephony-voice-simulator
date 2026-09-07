@@ -190,7 +190,7 @@ def cmd_smoke(args) -> int:
     return _grade_call(client, account, inbound[0]["sid"])
 
 
-def _grade_call(
+def grade_call_detail(
     client: httpx.Client,
     account: str,
     call_sid: str,
@@ -198,11 +198,16 @@ def _grade_call(
     expected_voicemail_message: str | None = None,
     allowed_identity_name: str | None = None,
     ignore_message_content: bool = False,
-) -> int:
+) -> dict | None:
+    """Grade one sim-side leg and return the full call record, or None.
+
+    ``_grade_call`` wraps this for the CLI's exit-code contract; batch callers
+    (the benchmark suite) need the structured analysis instead.
+    """
     doc = client.get(f"{SYNC}/Documents/call-{call_sid}")
     if doc.status_code != 200:
         print(f"{call_sid}: no sim state doc (was this a sim call?)")
-        return 1
+        return None
     call_state = doc.json()["data"]
     out_dir = PSTN_RESULTS_DIR / call_sid
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -257,15 +262,43 @@ def _grade_call(
         raw["expect"].pop("message_content", None)
     analysis = analyze_call(call, raw, compiled=None)
     call["analysis"] = analysis
+    call["artifacts_dir"] = str(out_dir)
     (out_dir / "call.json").write_text(json.dumps(call, indent=2))
-    print(f"\nscenario={call['scenario']} call={call_sid} passed={analysis['passed']}")
+    return call
+
+
+def _print_grade(call: dict) -> None:
+    analysis = call["analysis"]
+    print(f"\nscenario={call['scenario']} call={call['call_sid']} passed={analysis['passed']}")
     for check in analysis["checks"]:
         flag = "✓" if check["passed"] else "✗"
         print(f"  {flag} {check['check']}: {check['detail']}")
     if analysis.get("skipped_webhook_side"):
         print(f"  (webhook-side checks to verify in CI data: {analysis['skipped_webhook_side']})")
-    print(f"artifacts → {out_dir}")
-    return 0 if analysis["passed"] else 1
+    print(f"artifacts → {call['artifacts_dir']}")
+
+
+def _grade_call(
+    client: httpx.Client,
+    account: str,
+    call_sid: str,
+    *,
+    expected_voicemail_message: str | None = None,
+    allowed_identity_name: str | None = None,
+    ignore_message_content: bool = False,
+) -> int:
+    call = grade_call_detail(
+        client,
+        account,
+        call_sid,
+        expected_voicemail_message=expected_voicemail_message,
+        allowed_identity_name=allowed_identity_name,
+        ignore_message_content=ignore_message_content,
+    )
+    if call is None:
+        return 1
+    _print_grade(call)
+    return 0 if call["analysis"]["passed"] else 1
 
 
 def cmd_grade(args) -> int:

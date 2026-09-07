@@ -27,11 +27,14 @@ Scenario ``expect`` vocabulary (all keys optional):
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from .scenario_validation import validate_expectations
 
 # Simple energy VAD over the agent's recorded track. The agent's TTS is loud
 # and clean (it is the room's direct audio, not a mic), so a fixed int16 RMS
@@ -55,11 +58,19 @@ class SpeechSegment:
 @dataclass
 class CheckResult:
     name: str
-    passed: bool
+    passed: bool | None
     detail: str
 
     def as_dict(self) -> dict[str, Any]:
         return {"check": self.name, "passed": self.passed, "detail": self.detail}
+
+
+def summarize_checks(results: Iterable[bool | None]) -> bool | None:
+    """A failure takes precedence; missing evidence can never produce a pass."""
+    values = tuple(results)
+    if any(value is False for value in values):
+        return False
+    return True if values and all(value is True for value in values) else None
 
 
 def speech_segments_from_wav(wav_path: Path) -> list[SpeechSegment]:
@@ -89,15 +100,15 @@ def speech_segments_from_wav(wav_path: Path) -> list[SpeechSegment]:
             if start is None:
                 start = i
             last_voiced = i
-        elif start is not None and (i - (last_voiced or i)) * VAD_FRAME_S > VAD_MERGE_GAP_S:
+        elif start is not None and last_voiced is not None and (i - last_voiced) * VAD_FRAME_S > VAD_MERGE_GAP_S:
             segments.append(
-                SpeechSegment(offset + start * VAD_FRAME_S, offset + ((last_voiced or i) + 1) * VAD_FRAME_S)
+                SpeechSegment(offset + start * VAD_FRAME_S, offset + (last_voiced + 1) * VAD_FRAME_S)
             )
             start = None
             last_voiced = None
-    if start is not None:
+    if start is not None and last_voiced is not None:
         segments.append(
-            SpeechSegment(offset + start * VAD_FRAME_S, offset + ((last_voiced or start) + 1) * VAD_FRAME_S)
+            SpeechSegment(offset + start * VAD_FRAME_S, offset + (last_voiced + 1) * VAD_FRAME_S)
         )
     return [s for s in segments if s.duration >= VAD_MIN_SEGMENT_S]
 
@@ -107,7 +118,13 @@ def merged_agent_segments(recordings: dict[str, Path]) -> list[SpeechSegment]:
     for path in recordings.values():
         if path.exists():
             segments.extend(speech_segments_from_wav(path))
-    return sorted(segments, key=lambda s: s.start)
+    merged: list[SpeechSegment] = []
+    for segment in sorted(segments, key=lambda s: s.start):
+        if merged and segment.start <= merged[-1].end:
+            merged[-1].end = max(merged[-1].end, segment.end)
+        else:
+            merged.append(segment)
+    return merged
 
 
 def _timeline_marks(timeline: list[dict], event: str, **match: Any) -> list[float]:
@@ -123,12 +140,20 @@ def _timeline_marks(timeline: list[dict], event: str, **match: Any) -> list[floa
     return out
 
 
-def _playback_interval(timeline: list[dict], asset: str) -> tuple[float, float] | None:
-    starts = _timeline_marks(timeline, "play_start", asset=asset)
-    ends = _timeline_marks(timeline, "play_end", asset=asset)
-    if starts and ends:
-        return starts[0], ends[0]
-    return None
+def _playback_intervals(timeline: list[dict], asset: str) -> list[tuple[float, float]]:
+    intervals = []
+    start = None
+    for entry in timeline:
+        if entry.get("asset") != asset:
+            continue
+        if entry.get("event") == "play_start":
+            start = float(entry["t"])
+        elif entry.get("event") in {"play_end", "play_interrupted"} and start is not None:
+            end = float(entry["t"])
+            if end >= start:
+                intervals.append((start, end))
+            start = None
+    return intervals
 
 
 def run_checks(
@@ -138,8 +163,28 @@ def run_checks(
     recordings: dict[str, Path],
     call_ended: dict[str, Any] | None,
 ) -> list[CheckResult]:
+    validate_expectations(expect)
     results: list[CheckResult] = []
-    segments = merged_agent_segments(recordings)
+    audio_checks = set(expect) & {
+        "agent_spoke", "first_agent_speech_after", "agent_speech_after", "message_start_after",
+        "max_overlap_with_playback", "max_overlap_between_marks",
+    }
+    segments: list[SpeechSegment] = []
+    audio_error = None
+    if audio_checks:
+        if not recordings or any(not path.is_file() for path in recordings.values()):
+            audio_error = "Agent recording unavailable; silence and timing are unverified"
+        elif any(entry.get("event") == "agent_track_recording_error" for entry in timeline):
+            audio_error = "Agent recording failed; silence and timing are unverified"
+        else:
+            try:
+                segments = merged_agent_segments(recordings)
+            except (OSError, RuntimeError, ValueError) as error:
+                audio_error = f"Agent recording unreadable: {error}"
+    if audio_error:
+        for key in sorted(audio_checks):
+            results.append(CheckResult(key, None, audio_error))
+        expect = {key: value for key, value in expect.items() if key not in audio_checks}
     ended_reason = ""
     layer = ""
     if call_ended:
@@ -152,11 +197,12 @@ def run_checks(
             or ""
         )
 
-    def add(name: str, passed: bool, detail: str) -> None:
+    def add(name: str, passed: bool | None, detail: str) -> None:
         results.append(CheckResult(name, passed, detail))
 
-    if expect.get("webhook_received"):
-        add("webhook_received", call_ended is not None, f"call.ended={'yes' if call_ended else 'MISSING'}")
+    if "webhook_received" in expect:
+        received = call_ended is not None
+        add("webhook_received", received == expect["webhook_received"], f"call.ended={'yes' if received else 'MISSING'}")
 
     if "ended_reason" in expect:
         want = str(expect["ended_reason"])
@@ -166,14 +212,21 @@ def run_checks(
         add("ended_reason_any_of", ended_reason in want, f"want∈{want} got={ended_reason or '(none)'}")
     if "ended_reason_not" in expect:
         banned = [str(w) for w in expect["ended_reason_not"]]
-        add("ended_reason_not", ended_reason not in banned, f"banned={banned} got={ended_reason or '(none)'}")
+        add("ended_reason_not", bool(ended_reason) and ended_reason not in banned, f"banned={banned} got={ended_reason or '(none)'}")
 
     if "detection_layer_prefix_any_of" in expect:
         prefixes = [str(p) for p in expect["detection_layer_prefix_any_of"]]
         ok = any(layer.startswith(p) for p in prefixes)
         add("detection_layer", ok, f"want prefix∈{prefixes} got={layer or '(none)'}")
-    if expect.get("detection_layer_absent"):
-        add("detection_layer_absent", not layer, f"got={layer or '(none)'}")
+    if "detection_layer_absent" in expect:
+        absent = not layer
+        add("detection_layer_absent", call_ended is not None and absent == expect["detection_layer_absent"], f"got={layer or '(none)'} webhook={'yes' if call_ended is not None else 'MISSING'}")
+
+    # callee_class labels benchmark ground truth, rather than an assertion.
+    # Room mode has no isolated mailbox transcript; keep the requested
+    # content check visible instead of silently treating it as successful.
+    if "message_content" in expect:
+        add("message_content", None, "Message content requires PSTN recording/transcription grading")
 
     if "dtmf_received" in expect:
         spec = expect["dtmf_received"] or {}
@@ -251,19 +304,19 @@ def run_checks(
 
     if "max_overlap_with_playback" in expect:
         spec = expect["max_overlap_with_playback"]
-        interval = _playback_interval(timeline, str(spec["asset"]))
-        if interval is None:
+        intervals = _playback_intervals(timeline, str(spec["asset"]))
+        if not intervals:
             add("max_overlap_with_playback", False, f"asset {spec['asset']} never played")
         else:
-            a, b = interval
             overlap = sum(
-                max(0.0, min(s.end, b) - max(s.start, a)) for s in segments
+                max(0.0, min(s.end, b) - max(s.start, a))
+                for a, b in intervals for s in segments
             )
             limit = float(spec.get("max_s", 0.5))
             add(
                 "max_overlap_with_playback",
                 overlap <= limit,
-                f"overlap={overlap:.2f}s max={limit}s window=[{a:.2f},{b:.2f}]",
+                f"overlap={overlap:.2f}s max={limit}s playbacks={len(intervals)}",
             )
 
     if "max_overlap_between_marks" in expect:
@@ -272,15 +325,15 @@ def run_checks(
         end_name = str(spec.get("end", "tone_end"))
         starts = _timeline_marks(timeline, start_name)
         ends = _timeline_marks(timeline, end_name)
-        if not starts or not ends:
+        end = next((mark for mark in ends if starts and mark >= starts[-1]), None)
+        if not starts or end is None:
             add(
                 "max_overlap_between_marks",
                 False,
-                f"missing interval marks start={start_name} end={end_name}",
+                f"missing or reversed interval marks start={start_name} end={end_name}",
             )
         else:
             start = starts[-1]
-            end = next((mark for mark in ends if mark >= start), ends[-1])
             overlap = sum(
                 max(0.0, min(segment.end, end) - max(segment.start, start))
                 for segment in segments

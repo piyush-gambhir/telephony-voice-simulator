@@ -6,7 +6,6 @@ from pathlib import Path
 PACKAGE_ROOT = Path(__file__).resolve().parent
 BACKEND_ROOT = PACKAGE_ROOT.parents[1]
 
-SCENARIOS_DIR = PACKAGE_ROOT / "scenarios"
 CORPUS_DIR = PACKAGE_ROOT / "corpus"
 TEMPLATES_DIR = PACKAGE_ROOT / "templates"
 
@@ -25,6 +24,7 @@ def _configured_path(name: str, default: Path) -> Path:
 
 
 RUNTIME_ROOT = _configured_path("SIMULATOR_RUNTIME_DIR", _default_runtime_root)
+SCENARIOS_DIR = _configured_path("SIMULATOR_SCENARIOS_DIR", PACKAGE_ROOT / "scenarios")
 DATA_DIR = _configured_path("SIMULATOR_DATA_DIR", RUNTIME_ROOT / "data")
 RESULTS_DIR = _configured_path("SIMULATOR_RESULTS_DIR", RUNTIME_ROOT / "results")
 _source_assets_dir = CORPUS_DIR / "assets"

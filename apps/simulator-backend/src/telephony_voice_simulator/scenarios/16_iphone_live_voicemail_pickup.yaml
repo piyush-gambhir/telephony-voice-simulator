@@ -15,6 +15,8 @@ machine:
     - play: live_vm_pickup.wav         # ...human picks up
     - hold: 30
 expect:
+  # Voicemail starts recording, then the owner picks up mid-message.
+  callee_class: screener
   webhook_received: true
   ended_reason_not:
     - call.ending.machine-ivr
