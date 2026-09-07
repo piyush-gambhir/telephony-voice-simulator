@@ -339,6 +339,10 @@ def simulate_directory_call(
     """Run a free-form IVR directory call on the shared timeline model."""
     if re.fullmatch(r"\d{4}", extension) is None:
         raise ValueError("IVR extensions must contain exactly 4 digits")
+    if type(ring_timeout) is not int or not 5 <= ring_timeout <= 120:
+        raise ValueError("Ring timeout must be a whole number between 5 and 120 seconds")
+    if forced_disposition not in {"connected", "busy", "no_answer", "failed", "abandoned"}:
+        raise ValueError(f"Unsupported IVR disposition: {forced_disposition}")
     steps = [
         TimelineStep(
             "00:00",
@@ -441,9 +445,10 @@ def simulate_directory_call(
         return tuple(steps), "abandoned"
 
     outcome = f"dial_{forced_disposition}"
+    elapsed = 7 + ring_timeout if forced_disposition == "no_answer" else 8
     steps.append(
         TimelineStep(
-            "00:12",
+            f"{elapsed // 60:02d}:{elapsed % 60:02d}",
             "callee",
             "hangup",
             f"Destination {forced_disposition.replace('_', ' ')}",

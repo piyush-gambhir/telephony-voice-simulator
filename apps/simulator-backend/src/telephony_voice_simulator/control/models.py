@@ -30,10 +30,12 @@ class ProviderDescriptor:
     status: Literal["ready", "preview"]
     capabilities: ProviderCapabilities
     endpoint_kinds: tuple[EndpointKind, ...]
+    supported_scenario_kinds: tuple[str, ...] = ("amd", "ivr", "pbx")
 
     def as_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["endpoint_kinds"] = list(self.endpoint_kinds)
+        data["supported_scenario_kinds"] = list(self.supported_scenario_kinds)
         return data
 
 

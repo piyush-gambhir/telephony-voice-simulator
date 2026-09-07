@@ -9,8 +9,11 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from telephony_voice_simulator.control.api import build_app
+from telephony_voice_simulator.control.catalog import ScenarioCatalog
 from telephony_voice_simulator.control.service import SimulatorService, ValidationError
 from telephony_voice_simulator.control.store import SimulatorStore
+from telephony_voice_simulator.telephony.base import ProviderError
+from telephony_voice_simulator.telephony.providers.mock import MockProvider
 
 
 class FakeTwilioNumberManager:
@@ -57,6 +60,145 @@ class FakeTwilioNumberManager:
 @pytest.fixture()
 def service(tmp_path: Path) -> SimulatorService:
     return SimulatorService(store=SimulatorStore(tmp_path / "telephony_voice_simulator.db"))
+
+
+def test_custom_provider_validates_profiles_before_persistence(tmp_path: Path) -> None:
+    class RegionProvider(MockProvider):
+        def validate_connection(self, connection):
+            super().validate_connection(connection)
+            if connection.settings.get("region") != "local":
+                raise ProviderError("Region must be local")
+
+    service = SimulatorService(
+        store=SimulatorStore(tmp_path / "custom.db"), providers={"mock": RegionProvider()}
+    )
+    with pytest.raises(ValidationError, match="Region must be local"):
+        service.create_connection("mock", "Invalid", {"region": "remote"})
+    assert service.list_connections() == []
+
+    created = service.create_connection("mock", "Original", {"region": "local"})
+    with pytest.raises(ValidationError, match="Region must be local"):
+        service.update_connection(created["id"], name="Changed", settings={"region": "remote"})
+    assert service.list_connections() == [created]
+
+
+def test_catalog_validation_collects_bad_and_duplicate_files(tmp_path: Path) -> None:
+    (tmp_path / "one.yaml").write_text("name: example\nexpect: {}\nmachine:\n  main:\n    - hangup: true\n")
+    (tmp_path / "two.yaml").write_text("name: example\nexpect: {}\nmachine:\n  main:\n    - hangup: true\n")
+    (tmp_path / "invalid.yaml").write_text("name: invalid\nmachine:\n  main:\n    - wait: -1\n")
+    catalog = ScenarioCatalog(tmp_path)
+    report = catalog.validate()
+    assert report["valid"] is False
+    assert len(report["scenarios"]) == 3
+    errors = [entry["error"] for entry in report["scenarios"] if not entry["valid"]]
+    assert any("Duplicate scenario name" in error for error in errors)
+    assert any("nonnegative" in error for error in errors)
+    with pytest.raises(ValueError, match="nonnegative"):
+        catalog.get("invalid")
+    (tmp_path / "invalid.yaml").unlink()
+    with pytest.raises(ValueError, match="Duplicate scenario name"):
+        catalog.list()
+
+
+def test_catalog_reports_dtmf_behavior_and_default_tone_values() -> None:
+    catalog = ScenarioCatalog()
+    entry = catalog.describe({
+        "name": "dtmf_gate",
+        "machine": {
+            "main": [{"tone": None}],
+            "on_dtmf": {"digits": ["1"], "switch": "answered"},
+            "answered": [{"hangup": True}],
+        },
+    })
+    assert entry["has_dtmf"] is True
+    assert entry["sequences"][0]["steps"][0]["frequency_hz"] == 1000
+    assert entry["sequences"][0]["steps"][0]["duration_s"] == 0.5
+
+
+@pytest.mark.parametrize("timeout", [True, 5.9, None, [], "25.5"])
+def test_ring_timeout_never_silently_truncates(service: SimulatorService, timeout) -> None:
+    connection = service.create_connection("mock", "Local")
+    with pytest.raises(ValidationError, match="whole number"):
+        service.create_directory_entry(
+            connection_id=connection["id"], extension="1501", name="Desk",
+            destination="+15550101501", ring_timeout=timeout,
+        )
+    assert service.list_directory_entries() == []
+
+
+async def test_run_api_cancels_only_unclaimed_queue_assignments(service: SimulatorService) -> None:
+    connection = service.create_connection("mock", "Local")
+    endpoint = service.create_endpoint(
+        connection_id=connection["id"], name="Queue", kind="extension", address="1001"
+    )
+    queued = []
+    for _ in range(2):
+        run = service.store.create_run(endpoint["id"], "mock", "human")
+        service.store.update_run(run, status="queued", result={"mode": "pstn"})
+        service.store.enqueue_provider_run(
+            provider="mock", address=endpoint["address"], scenario=run.scenario, run_id=run.id
+        )
+        queued.append(run)
+    async with TestClient(TestServer(build_app(service))) as client:
+        response = await client.post(f"/api/runs/{queued[0].id}/cancel")
+        assert response.status == 200
+        cancelled = await response.json()
+        assert cancelled["status"] == "cancelled"
+        assert cancelled["completed_at"]
+        assert cancelled["result"]["mode"] == "pstn"
+        assert service.store.list_provider_queue("mock", endpoint["address"]) == [
+            {"scenario": "human", "run_id": queued[1].id}
+        ]
+        repeated = await client.post(f"/api/runs/{queued[0].id}/cancel")
+        assert await repeated.json() == cancelled
+        assert await (await client.get(f"/api/runs/{queued[0].id}")).json() == cancelled
+        assert (await client.get("/api/runs/missing")).status == 404
+
+        service.store.dequeue_provider_run("mock", endpoint["address"])
+        conflict = await client.post(
+            f"/api/runs/{queued[1].id}/cancel", headers={"Origin": "http://localhost:3000"}
+        )
+        assert conflict.status == 409
+        assert conflict.headers["Access-Control-Allow-Origin"] == "http://localhost:3000"
+        assert service.store.get_run(queued[1].id).status == "queued"
+
+
+@pytest.mark.parametrize("field,value", [("name", None), ("provider", []), ("description", 10)])
+async def test_api_rejects_wrong_types_without_creating_profiles(
+    service: SimulatorService, field: str, value,
+) -> None:
+    async with TestClient(TestServer(build_app(service))) as client:
+        body = {"provider": "mock", "name": "Valid", field: value}
+        response = await client.post("/api/providers", json=body)
+        assert response.status == 400
+        assert (await response.json())["error"] == f"{field} must be a string"
+    assert service.list_connections() == []
+
+
+@pytest.mark.parametrize("field", ["connection_id", "kind", "routing_mode"])
+def test_endpoint_updates_reject_empty_configuration_instead_of_ignoring_it(
+    service: SimulatorService, field: str,
+) -> None:
+    connection = service.create_connection("mock", "Local")
+    endpoint = service.create_endpoint(
+        connection_id=connection["id"], name="Desk", kind="extension", address="1001"
+    )
+    with pytest.raises(ValidationError):
+        service.update_endpoint(endpoint["id"], **{field: ""})
+    assert service.list_endpoints() == [endpoint]
+
+
+async def test_amd_number_validates_before_applying_carrier_changes(tmp_path: Path) -> None:
+    manager = FakeTwilioNumberManager()
+    service = SimulatorService(store=SimulatorStore(tmp_path / "numbers.db"), twilio_numbers=manager)
+    number = (await service.sync_amd_numbers())[0]
+    original_name = manager.numbers[0]["friendly_name"]
+    with pytest.raises(ValidationError, match="Unknown scenario"):
+        await service.update_amd_number(
+            number["id"], friendly_name="Do not apply", default_scenario="missing"
+        )
+    assert manager.numbers[0]["friendly_name"] == original_name
+    assert service.list_amd_numbers()[0]["friendly_name"] == original_name
 
 
 async def test_mock_provider_run_is_available_without_ui_or_credentials(
@@ -140,7 +282,7 @@ def test_free_form_ivr_unknown_extension_is_a_failed_run(service: SimulatorServi
     assert run["result"]["outcome"] == "failed"
     assert run["result"]["destination"] is None
     assert run["outcome"] == "failed"
-    assert run["duration_seconds"] == 4
+    assert run["duration_seconds"] == 7
 
 
 def test_free_form_ivr_supports_abandoned_and_no_answer_duration(
@@ -176,11 +318,12 @@ def test_free_form_ivr_supports_abandoned_and_no_answer_duration(
     )
 
     assert abandoned["outcome"] == "abandoned"
-    assert abandoned["duration_seconds"] == 4
+    assert abandoned["duration_seconds"] == 12
     assert abandoned["result"]["outcome"] == "abandoned"
     assert abandoned["timeline"][-1]["actor"] == "caller"
     assert no_answer["outcome"] == "no_answer"
-    assert no_answer["duration_seconds"] == 37
+    assert no_answer["duration_seconds"] == 44
+    assert no_answer["timeline"][-1]["at"] == "00:44"
     assert no_answer["result"]["outcome"] == "dial_no_answer"
 
 

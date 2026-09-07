@@ -8,10 +8,15 @@ parameters and upsert syntax used by the SQLite implementation.
 from __future__ import annotations
 
 import re
-from typing import Any
+import time
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from .database import parse_mysql_uri
+from .models import CallRecording, IncomingCall, SimulationRun
 from .store import SQLiteSimulatorStore, StoreConflictError
+
+_Result = TypeVar("_Result")
 
 
 def _mysql_sql(statement: str) -> str:
@@ -42,6 +47,10 @@ class _MySQLConnection:
 
     def execute(self, statement: str, parameters: tuple[object, ...] = ()) -> Any:
         if statement.strip().upper() == "BEGIN IMMEDIATE":
+            # Tombstone locking reads must protect an absent row's gap as well
+            # as an existing marker. READ COMMITTED disables that protection;
+            # set the isolation level for this transaction before BEGIN.
+            self.cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
             self.raw.begin()
             return self.cursor
         try:
@@ -239,6 +248,62 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
                 db.execute(statement)
 
     def dequeue_provider_run(
+        self,
+        provider: str,
+        address: str,
+    ) -> dict[str, str | None] | None:
+        return self._retry_deadlocked_transaction(
+            lambda: self._dequeue_provider_run(provider, address)
+        )
+
+    def cancel_queued_run(self, run_id: str) -> SimulationRun | None:
+        cancel = super().cancel_queued_run
+        return self._retry_deadlocked_transaction(lambda: cancel(run_id))
+
+    def _call_is_deleted_for_write(self, db: _MySQLConnection, call_id: str) -> bool:
+        # A current locking read prevents a late callback from using an old
+        # snapshot after a deletion commits. BEGIN IMMEDIATE guarantees the
+        # repeatable-read gap lock when the tombstone does not exist yet.
+        return db.execute(
+            "SELECT 1 FROM deleted_incoming_calls WHERE id = ? FOR UPDATE", (call_id,)
+        ).fetchone() is not None
+
+    def upsert_incoming_call(self, **values: Any) -> IncomingCall | None:
+        upsert = super().upsert_incoming_call
+        return self._retry_deadlocked_transaction(lambda: upsert(**values))
+
+    def upsert_recording(self, **values: Any) -> CallRecording | None:
+        upsert = super().upsert_recording
+        return self._retry_deadlocked_transaction(lambda: upsert(**values))
+
+    def tombstone_incoming_call(self, call_id: str) -> None:
+        tombstone = super().tombstone_incoming_call
+        self._retry_deadlocked_transaction(lambda: tombstone(call_id))
+
+    def delete_incoming_call(self, call_id: str) -> bool:
+        delete = super().delete_incoming_call
+        return self._retry_deadlocked_transaction(lambda: delete(call_id))
+
+    def _retry_deadlocked_transaction(self, transaction: Callable[[], _Result]) -> _Result:
+        """Restart a complete rolled-back transaction, at most four attempts.
+
+        InnoDB error 1213 rolls back the entire transaction. Retrying a single
+        statement could lose its earlier writes or locks, so each attempt must
+        open a new connection and repeat the operation from BEGIN. Connection
+        failures, lock timeouts, and other errors are deliberately not retried.
+        """
+
+        attempt = 0
+        while True:
+            try:
+                return transaction()
+            except self._pymysql.err.OperationalError as exc:
+                attempt += 1
+                if exc.args[:1] != (1213,) or attempt >= 4:
+                    raise
+                time.sleep(0.01 * 2 ** (attempt - 1))
+
+    def _dequeue_provider_run(
         self,
         provider: str,
         address: str,

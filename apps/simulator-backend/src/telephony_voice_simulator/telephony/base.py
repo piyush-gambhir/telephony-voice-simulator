@@ -77,7 +77,7 @@ class ProviderAdapter(ABC):
             )
 
     def supports_scenario(self, scenario: dict[str, Any]) -> bool:
-        return True
+        return scenario.get("kind") in self.descriptor.supported_scenario_kinds
 
     def endpoint_identity(self, kind: str, address: str) -> str:
         """Return the provider-specific identity used for uniqueness checks."""

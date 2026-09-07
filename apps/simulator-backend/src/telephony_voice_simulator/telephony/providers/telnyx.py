@@ -33,6 +33,7 @@ class TelnyxProvider(ProviderAdapter):
             dtmf=True, recording=True, bridge=True, number_management=True, sip=True
         ),
         endpoint_kinds=("phone_number", "sip_uri"),
+        supported_scenario_kinds=(),
     )
 
     def runtime_status(self, connection: ProviderConnection | None = None) -> dict[str, object]:

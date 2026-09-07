@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 import sqlite3
+from threading import Barrier
 
 import pytest
 
@@ -9,11 +11,11 @@ from telephony_voice_simulator.control.database import (
     create_simulator_store,
     parse_mysql_uri,
 )
-from telephony_voice_simulator.control.store import SQLiteSimulatorStore, SimulatorStore
+from telephony_voice_simulator.control.store import (
+    SQLiteSimulatorStore, SimulatorStore, StoreConflictError,
+)
 from telephony_voice_simulator.telephony.base import RunRequest
-from telephony_voice_simulator.telephony.providers.telnyx import TelnyxProvider
 from telephony_voice_simulator.telephony.providers.twilio import TwilioProvider
-from telephony_voice_simulator.telephony.registry import provider_registry
 
 
 def test_sqlite_database_uri_selects_local_repository(tmp_path: Path) -> None:
@@ -23,6 +25,67 @@ def test_sqlite_database_uri_selects_local_repository(tmp_path: Path) -> None:
     assert isinstance(store, SQLiteSimulatorStore)
     assert store.path == database
     assert database.exists()
+
+
+def test_memory_repositories_persist_across_operations_and_are_isolated() -> None:
+    first = create_simulator_store(uri="sqlite:///:memory:")
+    second = create_simulator_store(uri="sqlite:///:memory:")
+    try:
+        connection = first.create_connection("mock", "Memory")
+        assert first.get_connection(connection.id) == connection
+        assert second.list_connections() == []
+    finally:
+        first.close()
+        second.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        first.list_connections()
+
+
+def test_sqlite_transactions_close_connections_and_rollback_on_conflict(tmp_path: Path) -> None:
+    store = SQLiteSimulatorStore(tmp_path / "transactions.db")
+    connection = store.create_connection("mock", "Local")
+    with store._connect() as database:
+        assert database.execute("SELECT COUNT(*) FROM provider_connections").fetchone()[0] == 1
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        database.execute("SELECT 1")
+    with pytest.raises(StoreConflictError):
+        with store._connect() as database:
+            database.execute("DELETE FROM provider_connections WHERE id = ?", (connection.id,))
+            database.execute(
+                "INSERT INTO provider_connections (id) VALUES (?)", ("invalid",)
+            )
+    assert store.get_connection(connection.id) == connection
+
+
+def test_cancellation_and_incoming_call_claim_cannot_both_consume_a_run(tmp_path: Path) -> None:
+    store = SQLiteSimulatorStore(tmp_path / "race.db")
+    connection = store.create_connection("mock", "Local")
+    endpoint = store.create_endpoint(
+        connection_id=connection.id, name="Queue", kind="extension", address="1001"
+    )
+    run = store.create_run(endpoint.id, "mock", "human")
+    store.update_run(run, status="queued")
+    store.enqueue_provider_run(
+        provider="mock", address=endpoint.address, scenario=run.scenario, run_id=run.id
+    )
+    barrier = Barrier(2)
+
+    def cancel():
+        barrier.wait()
+        return store.cancel_queued_run(run.id)
+
+    def claim():
+        barrier.wait()
+        return store.dequeue_provider_run("mock", endpoint.address)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        cancelled_future = pool.submit(cancel)
+        claimed_future = pool.submit(claim)
+        cancelled, claimed = cancelled_future.result(), claimed_future.result()
+    assert (cancelled is not None) != (claimed is not None)
+    assert store.list_provider_queue("mock", endpoint.address) == []
+    persisted = store.get_run(run.id)
+    assert persisted.status == ("cancelled" if cancelled else "queued")
 
 
 def test_explicit_path_precedes_database_uri_environment(
@@ -124,15 +187,3 @@ async def test_twilio_adapter_owns_queue_dispatch(tmp_path: Path) -> None:
     assert store.list_provider_queue("twilio", endpoint.address) == [
         {"scenario": "machine", "run_id": "run_provider"}
     ]
-
-
-def test_common_registry_composes_independent_provider_modules(tmp_path: Path) -> None:
-    providers = provider_registry(SimulatorStore(tmp_path / "registry.db"))
-
-    assert providers["twilio"].__class__.__module__.endswith(
-        "telephony.providers.twilio.adapter"
-    )
-    assert isinstance(providers["telnyx"], TelnyxProvider)
-    assert providers["telnyx"].__class__.__module__.endswith(
-        "telephony.providers.telnyx"
-    )

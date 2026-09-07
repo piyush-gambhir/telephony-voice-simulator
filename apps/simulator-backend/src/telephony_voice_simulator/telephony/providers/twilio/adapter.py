@@ -32,6 +32,7 @@ class TwilioProvider(ProviderAdapter):
             dtmf=True, recording=True, bridge=True, number_management=True, sip=False
         ),
         endpoint_kinds=("phone_number",),
+        supported_scenario_kinds=("amd",),
     )
 
     def __init__(
@@ -58,9 +59,6 @@ class TwilioProvider(ProviderAdapter):
                 else "Set Twilio credentials and PUBLIC_BASE_URL before receiving PSTN calls."
             ),
         }
-
-    def supports_scenario(self, scenario: dict[str, object]) -> bool:
-        return scenario.get("kind") == "amd"
 
     def endpoint_identity(self, kind: str, address: str) -> str:
         return normalize_e164(address)

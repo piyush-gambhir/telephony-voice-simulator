@@ -6,6 +6,8 @@ import json
 import os
 import sqlite3
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,13 +42,43 @@ class SQLiteSimulatorStore:
         configured = path or os.environ.get("SIMULATOR_DB_PATH")
         self.path = Path(configured) if configured else DATA_DIR / "telephony_voice_simulator.db"
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # Keep an anchor connection for this repository's private shared-memory
+        # database. Individual transactions still get independent connections.
+        self._database = (
+            f"file:simulator_{uuid.uuid4().hex}?mode=memory&cache=shared"
+            if str(self.path) == ":memory:"
+            else str(self.path)
+        )
+        self._memory_anchor = (
+            sqlite3.connect(self._database, uri=True)
+            if str(self.path) == ":memory:"
+            else None
+        )
+        self._closed = False
         self._migrate()
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path)
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        if self._closed:
+            raise RuntimeError("The simulator repository is closed")
+        connection = sqlite3.connect(self._database, uri=self._memory_anchor is not None)
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        try:
+            connection.execute("PRAGMA foreign_keys = ON")
+            with connection:
+                yield connection
+        except sqlite3.IntegrityError as exc:
+            raise StoreConflictError("Database uniqueness or relationship conflict") from exc
+        finally:
+            connection.close()
+
+    def close(self) -> None:
+        """Release an in-memory repository; file-backed connections close per operation."""
+
+        if getattr(self, "_memory_anchor", None) is not None:
+            self._memory_anchor.close()
+            self._memory_anchor = None
+        self._closed = True
 
     def _migrate(self) -> None:
         with self._connect() as db:
@@ -1024,6 +1056,39 @@ class SQLiteSimulatorStore:
             row = db.execute("SELECT * FROM simulation_runs WHERE id = ?", (run_id,)).fetchone()
         return self._run(row) if row else None
 
+    def cancel_queued_run(self, run_id: str) -> SimulationRun | None:
+        """Cancel only work that has not been claimed by an incoming call.
+
+        Deleting the queue assignment first arbitrates with concurrent consumers
+        on both SQLite and MySQL. A claimed assignment can never be cancelled.
+        """
+
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            deleted = db.execute(
+                "DELETE FROM telephony_run_queue WHERE run_id = ?", (run_id,)
+            ).rowcount
+            if not deleted:
+                return None
+            row = db.execute(
+                "SELECT * FROM simulation_runs WHERE id = ?", (run_id,)
+            ).fetchone()
+            if row is None or row["status"] != "queued" or row["completed_at"] is not None:
+                # Raising rolls back the assignment deletion as well.
+                raise StoreConflictError("Only queued runs can be cancelled")
+            result = json.loads(row["result_json"])
+            result.update({"graded": False, "summary": "Cancelled before an incoming call arrived."})
+            timestamp = _now()
+            db.execute(
+                """UPDATE simulation_runs
+                   SET status = 'cancelled', result_json = ?, completed_at = ?
+                   WHERE id = ?""",
+                (json.dumps(result), timestamp, run_id),
+            )
+        return replace(
+            self._run(row), status="cancelled", result=result, completed_at=timestamp
+        )
+
     def create_run(
         self,
         endpoint_id: str,
@@ -1170,9 +1235,7 @@ class SQLiteSimulatorStore:
             # Serialize the tombstone check with all call writes. This prevents
             # a late callback racing a deletion in another server process.
             db.execute("BEGIN IMMEDIATE")
-            if db.execute(
-                "SELECT 1 FROM deleted_incoming_calls WHERE id = ?", (call_id,)
-            ).fetchone():
+            if self._call_is_deleted_for_write(db, call_id):
                 return None
             db.execute(
                 """
@@ -1233,9 +1296,7 @@ class SQLiteSimulatorStore:
         timestamp = _now()
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            if db.execute(
-                "SELECT 1 FROM deleted_incoming_calls WHERE id = ?", (call_id,)
-            ).fetchone():
+            if self._call_is_deleted_for_write(db, call_id):
                 return None
             db.execute(
                 """
@@ -1290,6 +1351,13 @@ class SQLiteSimulatorStore:
                 "SELECT 1 FROM deleted_incoming_calls WHERE id = ?", (call_id,)
             ).fetchone()
         return row is not None
+
+    def _call_is_deleted_for_write(self, db: sqlite3.Connection, call_id: str) -> bool:
+        """Check under the active write transaction's database-specific lock."""
+
+        return db.execute(
+            "SELECT 1 FROM deleted_incoming_calls WHERE id = ?", (call_id,)
+        ).fetchone() is not None
 
     def tombstone_incoming_call(self, call_id: str) -> None:
         """Persist a deletion marker for a process-local call without a row."""

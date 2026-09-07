@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from collections.abc import Mapping
+from dataclasses import replace
 import os
 import re
 import shutil
@@ -25,12 +27,28 @@ from .store import SimulatorStore, StoreConflictError
 _UNSET = object()
 
 
+def _ring_timeout(value: int | str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValidationError("Ring timeout must be a whole number")
+    try:
+        timeout = int(value)
+    except ValueError as exc:
+        raise ValidationError("Ring timeout must be a whole number") from exc
+    if not 5 <= timeout <= 120:
+        raise ValidationError("Ring timeout must be between 5 and 120 seconds")
+    return timeout
+
+
 class NotFoundError(LookupError):
     pass
 
 
 class ValidationError(ValueError):
     pass
+
+
+class ConflictError(RuntimeError):
+    """An operation conflicts with the current resource state."""
 
 
 class SimulatorService:
@@ -40,10 +58,14 @@ class SimulatorService:
         catalog: ScenarioCatalog | None = None,
         recordings_root: str | Path | None = None,
         twilio_numbers: TwilioNumberManager | None = None,
+        providers: Mapping[str, ProviderAdapter] | None = None,
     ) -> None:
         self.store = store or SimulatorStore()
         self.catalog = catalog or ScenarioCatalog()
-        self.providers = provider_registry(self.store)
+        self.providers = dict(providers) if providers is not None else provider_registry(self.store)
+        for key, provider in self.providers.items():
+            if key != provider.descriptor.key:
+                raise ValueError(f"Provider registry key {key} does not match its descriptor")
         self.recordings_root = Path(recordings_root or RESULTS_DIR / "pstn").resolve()
         self.twilio_numbers = twilio_numbers or TwilioNumberManager()
 
@@ -115,6 +137,11 @@ class SimulatorService:
             raise ValidationError("Connection name is required")
         if status not in {"ready", "needs_setup", "disabled"}:
             raise ValidationError("Status must be ready, needs_setup, or disabled")
+        candidate = ProviderConnection(
+            id="", provider=provider_key, name=name.strip(), settings=settings or {},
+            status=status, description=description.strip(), enabled=status != "disabled",
+        )
+        self._validate_connection(provider, candidate)
         connection = self.store.create_connection(
             provider_key,
             name.strip(),
@@ -122,8 +149,14 @@ class SimulatorService:
             status=status,
             description=description.strip(),
         )
-        provider.validate_connection(connection)
         return self._connection_view(connection)
+
+    @staticmethod
+    def _validate_connection(provider: ProviderAdapter, connection: ProviderConnection) -> None:
+        try:
+            provider.validate_connection(connection)
+        except ProviderError as exc:
+            raise ValidationError(str(exc)) from exc
 
     def update_connection(
         self,
@@ -146,6 +179,15 @@ class SimulatorService:
             raise ValidationError("Connection name is required")
         if selected_status not in {"ready", "needs_setup", "disabled"}:
             raise ValidationError("Status must be ready, needs_setup, or disabled")
+        self._validate_connection(
+            self.providers[current.provider],
+            replace(
+                current, name=selected_name, status=selected_status,
+                description=selected_description,
+                settings=current.settings if settings is None else settings,
+                enabled=selected_status != "disabled",
+            ),
+        )
         updated = self.store.update_connection(
             connection_id,
             name=selected_name,
@@ -154,7 +196,6 @@ class SimulatorService:
             settings=current.settings if settings is None else settings,
         )
         assert updated is not None
-        self.providers[current.provider].validate_connection(updated)
         if updated.status == "disabled":
             for endpoint in self.store.list_endpoints():
                 if endpoint.connection_id == updated.id:
@@ -224,12 +265,10 @@ class SimulatorService:
                 routing_mode=routing_mode,
                 default_scenario=default_scenario or None,
             )
-        except Exception as exc:
-            if isinstance(exc, StoreConflictError) or "UNIQUE constraint failed" in str(exc):
-                raise ValidationError(
-                    f"Endpoint address {selected_address} already exists for this connection"
-                ) from exc
-            raise
+        except StoreConflictError as exc:
+            raise ValidationError(
+                f"Endpoint address {selected_address} already exists for this connection"
+            ) from exc
         provider.register_endpoint(self.store, endpoint)
         return {
             **endpoint.as_dict(),
@@ -252,15 +291,15 @@ class SimulatorService:
         current = self.store.get_endpoint(endpoint_id)
         if current is None:
             raise NotFoundError(f"Unknown endpoint: {endpoint_id}")
-        selected_connection = connection_id or current.connection_id
+        selected_connection = current.connection_id if connection_id is None else connection_id
         connection = self.store.get_connection(selected_connection)
         if connection is None:
             raise ValidationError("Select a valid provider connection")
-        selected_kind = kind or current.kind
+        selected_kind = current.kind if kind is None else kind
         provider = self.providers[connection.provider]
         if selected_kind not in provider.descriptor.endpoint_kinds:
             raise ValidationError(f"{provider.descriptor.name} does not support {selected_kind}")
-        selected_routing = routing_mode or current.routing_mode
+        selected_routing = current.routing_mode if routing_mode is None else routing_mode
         if selected_routing not in ("fixed", "queued"):
             raise ValidationError("Routing mode must be fixed or queued")
         selected_name = current.name if name is None else name.strip()
@@ -289,12 +328,10 @@ class SimulatorService:
                 default_scenario=str(selected_scenario) if selected_scenario else None,
                 enabled=current.enabled if enabled is None else bool(enabled),
             )
-        except Exception as exc:
-            if isinstance(exc, StoreConflictError) or "UNIQUE constraint failed" in str(exc):
-                raise ValidationError(
-                    f"Endpoint address {selected_address} already exists for this connection"
-                ) from exc
-            raise
+        except StoreConflictError as exc:
+            raise ValidationError(
+                f"Endpoint address {selected_address} already exists for this connection"
+            ) from exc
         assert endpoint is not None
         current_connection = self.store.get_connection(current.connection_id)
         provider.register_endpoint(self.store, endpoint)
@@ -364,12 +401,7 @@ class SimulatorService:
             raise ValidationError(
                 "Destination must be a canonical E.164 number or sip:/sips: URI"
             )
-        try:
-            timeout = int(ring_timeout)
-        except (TypeError, ValueError) as exc:
-            raise ValidationError("Ring timeout must be a whole number") from exc
-        if not 5 <= timeout <= 120:
-            raise ValidationError("Ring timeout must be between 5 and 120 seconds")
+        timeout = _ring_timeout(ring_timeout)
         try:
             entry = self.store.create_directory_entry(
                 connection_id=connection_id,
@@ -379,10 +411,8 @@ class SimulatorService:
                 department=department.strip(),
                 ring_timeout=timeout,
             )
-        except Exception as exc:
-            if isinstance(exc, StoreConflictError) or "UNIQUE constraint failed" in str(exc):
-                raise ValidationError(f"Extension {extension} already exists") from exc
-            raise
+        except StoreConflictError as exc:
+            raise ValidationError(f"Extension {extension} already exists") from exc
         return {
             **entry.as_dict(),
             "provider": connection.provider,
@@ -404,7 +434,7 @@ class SimulatorService:
         current = self.store.get_directory_entry(entry_id)
         if current is None:
             raise NotFoundError(f"Unknown directory entry: {entry_id}")
-        selected_connection = connection_id or current.connection_id
+        selected_connection = current.connection_id if connection_id is None else connection_id
         connection = self.store.get_connection(selected_connection)
         if connection is None:
             raise ValidationError("Select a valid provider connection")
@@ -420,12 +450,7 @@ class SimulatorService:
             raise ValidationError(
                 "Destination must be a canonical E.164 number or sip:/sips: URI"
             )
-        try:
-            timeout = current.ring_timeout if ring_timeout is None else int(ring_timeout)
-        except (TypeError, ValueError) as exc:
-            raise ValidationError("Ring timeout must be a whole number") from exc
-        if not 5 <= timeout <= 120:
-            raise ValidationError("Ring timeout must be between 5 and 120 seconds")
+        timeout = current.ring_timeout if ring_timeout is None else _ring_timeout(ring_timeout)
         try:
             entry = self.store.update_directory_entry(
                 entry_id,
@@ -437,10 +462,8 @@ class SimulatorService:
                 ring_timeout=timeout,
                 enabled=current.enabled if enabled is None else bool(enabled),
             )
-        except Exception as exc:
-            if isinstance(exc, StoreConflictError) or "UNIQUE constraint failed" in str(exc):
-                raise ValidationError(f"Extension {selected_extension} already exists") from exc
-            raise
+        except StoreConflictError as exc:
+            raise ValidationError(f"Extension {selected_extension} already exists") from exc
         assert entry is not None
         return {
             **entry.as_dict(),
@@ -458,15 +481,46 @@ class SimulatorService:
     def list_runs(self) -> list[dict[str, Any]]:
         return [run.as_dict() for run in self.store.list_runs()]
 
+    def get_run(self, run_id: str) -> dict[str, Any]:
+        run = self.store.get_run(run_id)
+        if run is None:
+            raise NotFoundError(f"Unknown run: {run_id}")
+        return run.as_dict()
+
+    def cancel_run(self, run_id: str) -> dict[str, Any]:
+        run = self.store.get_run(run_id)
+        if run is None:
+            raise NotFoundError(f"Unknown run: {run_id}")
+        if run.status == "cancelled":
+            return run.as_dict()
+        try:
+            cancelled = self.store.cancel_queued_run(run_id)
+        except StoreConflictError as exc:
+            raise ConflictError(str(exc)) from exc
+        if cancelled is None:
+            raise ConflictError("Only queued runs that have not been claimed can be cancelled")
+        return cancelled.as_dict()
+
     def list_calls(self) -> list[dict[str, Any]]:
         return [call.as_dict() for call in self.store.list_incoming_calls()]
 
     @staticmethod
     def _is_hosted_amd_number(remote: dict[str, Any]) -> bool:
+        """Does this Twilio number already answer with an AMD callee runtime?
+
+        Two shapes count. ``/machine?mode=voice`` is the optional Twilio
+        Serverless deployment. ``/twilio/voice`` is the local runtime, and is
+        exactly the ``target_voice_url`` this service attaches numbers to —
+        without it, a fresh database can never adopt a number, because
+        discovery would only ever match the Serverless deployment.
+        """
         voice_url = str(remote.get("voice_url") or "")
         parsed = urlparse(voice_url)
+        path = parsed.path.rstrip("/")
+        if path == "/twilio/voice":
+            return True
         query = parse_qs(parsed.query)
-        return parsed.path.rstrip("/") == "/machine" and query.get("mode") == ["voice"]
+        return path == "/machine" and query.get("mode") == ["voice"]
 
     def _amd_connection(self):
         connection = next(
@@ -614,6 +668,17 @@ class SimulatorService:
         )
         if endpoint is None:
             raise ValidationError("The AMD number is not linked to an endpoint.")
+        # Validate the whole update before changing anything at the carrier.
+        if routing_mode is not None and routing_mode not in {"fixed", "queued"}:
+            raise ValidationError("Routing mode must be fixed or queued")
+        for label, value in (("enabled", enabled), ("record_full_calls", record_full_calls)):
+            if value is not None and not isinstance(value, bool):
+                raise ValidationError(f"{label} must be a boolean")
+        if default_scenario is not _UNSET and default_scenario is not None:
+            if not isinstance(default_scenario, str):
+                raise ValidationError("default_scenario must be a string or null")
+            if default_scenario:
+                self._validated_scenario(self.providers[number.provider], default_scenario)
         selected_name = number.friendly_name
         if friendly_name is not None:
             selected_name = friendly_name.strip()
@@ -640,8 +705,6 @@ class SimulatorService:
             enabled=enabled,
         )
         if record_full_calls is not None:
-            if not isinstance(record_full_calls, bool):
-                raise ValidationError("Full-call recording must be true or false.")
             configuration = {
                 **number.configuration,
                 "record_full_calls": record_full_calls,
@@ -866,9 +929,6 @@ class SimulatorService:
         )
         if not selected:
             raise ValidationError("Select a scenario or configure a default on the endpoint")
-        scenario = self.catalog.get(selected)
-        if scenario is None:
-            raise ValidationError(f"Unknown scenario: {selected}")
         provider = self.providers[connection.provider]
         scenario = self._validated_scenario(provider, selected)
         run = self.store.create_run(endpoint.id, connection.provider, selected)
@@ -952,15 +1012,10 @@ class SimulatorService:
             "failed": "failed",
             "abandoned": "abandoned",
         }[outcome]
-        duration_seconds = (
-            142
-            if call_outcome == "connected"
-            else entry.ring_timeout
-            if call_outcome == "no_answer" and entry
-            else 8
-            if call_outcome == "busy"
-            else 4
-        )
+        # A model run ends at its final timeline event (including time spent in
+        # the menu). Do not invent a conversation length after the bridge.
+        minutes, seconds = steps[-1].at.split(":")
+        duration_seconds = int(minutes) * 60 + int(seconds)
         run = self.store.create_run(
             endpoint.id,
             route_connection.provider if destination and route_connection else connection.provider,

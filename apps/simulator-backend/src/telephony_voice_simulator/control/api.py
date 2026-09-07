@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 
 from aiohttp import web
 
-from .service import NotFoundError, SimulatorService, ValidationError
+from .service import ConflictError, NotFoundError, SimulatorService, ValidationError
 
 SERVICE_KEY = web.AppKey("simulator_service", SimulatorService)
 CALL_EVICTOR_KEY = web.AppKey("simulator_call_evictor", Callable[[str], None])
@@ -34,6 +34,8 @@ async def errors(
         return web.json_response({"error": str(exc)}, status=400)
     except NotFoundError as exc:
         return web.json_response({"error": str(exc)}, status=404)
+    except ConflictError as exc:
+        return web.json_response({"error": str(exc)}, status=409)
 
 
 @web.middleware
@@ -65,6 +67,19 @@ async def _json_object(request: web.Request) -> dict[str, object]:
     return body
 
 
+def _string(body: dict[str, object], key: str, default: str = "") -> str:
+    value = body.get(key, default)
+    if not isinstance(value, str):
+        raise ValidationError(f"{key} must be a string")
+    return value
+
+
+def _optional_string(body: dict[str, object], key: str) -> str | None:
+    if body.get(key) is None:
+        return None
+    return _string(body, key) or None
+
+
 async def health(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "service": "telephony-voice-simulator"})
 
@@ -83,6 +98,14 @@ async def sync_amd_numbers(request: web.Request) -> web.Response:
 
 async def update_amd_number(request: web.Request) -> web.Response:
     body = await _json_object(request)
+    for key in ("friendly_name", "routing_mode"):
+        if key in body:
+            _string(body, key)
+    if "default_scenario" in body:
+        _optional_string(body, "default_scenario")
+    for key in ("enabled", "record_full_calls"):
+        if key in body and not isinstance(body[key], bool):
+            raise ValidationError(f"{key} must be a boolean")
     kwargs: dict[str, object] = {}
     for key in (
         "friendly_name",
@@ -115,7 +138,7 @@ async def restore_amd_number(request: web.Request) -> web.Response:
 
 async def queue_amd_number(request: web.Request) -> web.Response:
     body = await _json_object(request)
-    scenario = str(body.get("scenario") or "").strip()
+    scenario = _string(body, "scenario").strip()
     if not scenario:
         raise ValidationError("Select an AMD scenario.")
     return web.json_response(
@@ -137,11 +160,11 @@ async def create_connection(request: web.Request) -> web.Response:
     if not isinstance(settings, dict):
         raise ValidationError("Provider settings must be a JSON object")
     result = _service(request).create_connection(
-        str(body.get("provider", "")),
-        str(body.get("name", "")),
+        _string(body, "provider"),
+        _string(body, "name"),
         settings,
-        status=str(body.get("status", "ready")),
-        description=str(body.get("description", "")),
+        status=_string(body, "status", "ready"),
+        description=_string(body, "description"),
     )
     return web.json_response(result, status=201)
 
@@ -182,12 +205,12 @@ async def list_endpoints(request: web.Request) -> web.Response:
 async def create_endpoint(request: web.Request) -> web.Response:
     body = await _json_object(request)
     result = _service(request).create_endpoint(
-        connection_id=str(body.get("connection_id", "")),
-        name=str(body.get("name", "")),
-        kind=str(body.get("kind", "phone_number")),
-        address=str(body.get("address", "")),
-        routing_mode=str(body.get("routing_mode", "fixed")),
-        default_scenario=str(body.get("default_scenario") or "") or None,
+        connection_id=_string(body, "connection_id"),
+        name=_string(body, "name"),
+        kind=_string(body, "kind", "phone_number"),
+        address=_string(body, "address"),
+        routing_mode=_string(body, "routing_mode", "fixed"),
+        default_scenario=_optional_string(body, "default_scenario"),
     )
     return web.json_response(result, status=201)
 
@@ -243,11 +266,11 @@ async def list_directory(request: web.Request) -> web.Response:
 async def create_directory_entry(request: web.Request) -> web.Response:
     body = await _json_object(request)
     result = _service(request).create_directory_entry(
-        connection_id=str(body.get("connection_id", "")),
-        extension=str(body.get("extension", "")),
-        name=str(body.get("name", "")),
-        destination=str(body.get("destination", "")),
-        department=str(body.get("department", "General")),
+        connection_id=_string(body, "connection_id"),
+        extension=_string(body, "extension"),
+        name=_string(body, "name"),
+        destination=_string(body, "destination"),
+        department=_string(body, "department", "General"),
         ring_timeout=body.get("ring_timeout", 25),
     )
     return web.json_response(result, status=201)
@@ -286,6 +309,14 @@ async def list_runs(request: web.Request) -> web.Response:
     return web.json_response(_service(request).list_runs())
 
 
+async def get_run(request: web.Request) -> web.Response:
+    return web.json_response(_service(request).get_run(request.match_info["run_id"]))
+
+
+async def cancel_run(request: web.Request) -> web.Response:
+    return web.json_response(_service(request).cancel_run(request.match_info["run_id"]))
+
+
 async def list_calls(request: web.Request) -> web.Response:
     return web.json_response(_service(request).list_calls())
 
@@ -298,8 +329,8 @@ async def recording_media(request: web.Request) -> web.StreamResponse:
 async def create_run(request: web.Request) -> web.Response:
     body = await _json_object(request)
     result = await _service(request).create_run(
-        str(body.get("endpoint_id", "")),
-        str(body.get("scenario") or "") or None,
+        _string(body, "endpoint_id"),
+        _optional_string(body, "scenario"),
     )
     return web.json_response(result, status=201)
 
@@ -307,10 +338,10 @@ async def create_run(request: web.Request) -> web.Response:
 async def create_ivr_simulation(request: web.Request) -> web.Response:
     body = await _json_object(request)
     result = _service(request).create_ivr_simulation(
-        endpoint_id=str(body.get("endpoint_id", "")),
-        caller_number=str(body.get("caller_number", "")),
-        extension=str(body.get("extension", "")),
-        disposition=str(body.get("disposition", "")),
+        endpoint_id=_string(body, "endpoint_id"),
+        caller_number=_string(body, "caller_number"),
+        extension=_string(body, "extension"),
+        disposition=_string(body, "disposition"),
     )
     return web.json_response(result, status=201)
 
@@ -404,6 +435,8 @@ def register_control_routes(app: web.Application) -> None:
     app.router.add_get("/api/scenarios", list_scenarios)
     app.router.add_get("/api/runs", list_runs)
     app.router.add_post("/api/runs", create_run)
+    app.router.add_get("/api/runs/{run_id}", get_run)
+    app.router.add_post("/api/runs/{run_id}/cancel", cancel_run)
     app.router.add_post("/api/ivr/simulations", create_ivr_simulation)
     app.router.add_post("/api/simulations", create_legacy_simulation)
     app.router.add_get("/api/calls", list_calls)
