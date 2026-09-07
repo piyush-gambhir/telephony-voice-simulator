@@ -12,6 +12,43 @@ from telephony_voice_simulator.control.cli import (
 )
 
 
+def test_validation_cli_reports_all_errors_without_creating_database(
+    tmp_path: Path, monkeypatch, capsys,
+) -> None:
+    database = tmp_path / "unused.db"
+    (tmp_path / "bad.yaml").write_text("name: bad\nmachine:\n  main:\n    - wait: -1\n")
+    (tmp_path / "broken.yaml").write_text("machine: [")
+    monkeypatch.setenv("SIMULATOR_DB_PATH", str(database))
+    monkeypatch.setattr(
+        "sys.argv",
+        ["telephony-voice-sim", "validate", "--all", "--scenarios-dir", str(tmp_path)],
+    )
+    assert main() == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["valid"] is False
+    assert len(report["scenarios"]) == 2
+    assert all(entry.get("error") for entry in report["scenarios"])
+    assert not database.exists()
+
+
+@pytest.mark.parametrize("selection", ["example", "file"])
+def test_validation_cli_accepts_named_or_file_scenarios(
+    tmp_path: Path, monkeypatch, capsys, selection: str,
+) -> None:
+    scenario = tmp_path / "custom.yaml"
+    scenario.write_text("name: example\nexpect: {}\nmachine:\n  main:\n    - hangup: true\n")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["telephony-voice-sim", "validate", "--scenario",
+         str(scenario) if selection == "file" else selection,
+         "--scenarios-dir", str(tmp_path)],
+    )
+    assert main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["valid"] is True
+    assert report["scenarios"][0]["name"] == "example"
+
+
 def test_zero_setup_cli_runs_every_ivr_model_without_creating_a_database(
     tmp_path: Path,
     monkeypatch,

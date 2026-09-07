@@ -27,7 +27,23 @@ from ..pstn.config import (
     is_truthy,
 )
 from ..paths import ASSETS_DIR, CORPUS_MANIFEST, SCENARIOS_DIR
+from ..pbxsim import (
+    CASES as DEALER_CASES,
+)
+from ..pbxsim import (
+    CallRequest,
+    TransferAttempt,
+    attempt_transfer,
+    capacity_report,
+    default_group,
+    get_case,
+    route,
+    run_case,
+    run_suite,
+    transfer_matrix,
+)
 from .api import build_app
+from .catalog import ScenarioCatalog
 from .service import SimulatorService
 
 
@@ -191,6 +207,11 @@ def parser() -> argparse.ArgumentParser:
     add_provider.add_argument("--description", default="")
 
     commands.add_parser("scenarios", help="list simulator scenarios")
+    validate = commands.add_parser("validate", help="validate AMD scenario files without placing calls")
+    selection = validate.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--all", action="store_true", help="validate every scenario file")
+    selection.add_argument("--scenario", help="scenario name or path to a YAML file")
+    validate.add_argument("--scenarios-dir", type=Path, default=SCENARIOS_DIR)
     commands.add_parser("endpoints", help="list configured endpoints")
     add_endpoint = commands.add_parser("add-endpoint", help="create an endpoint")
     add_endpoint.add_argument("connection_id")
@@ -246,13 +267,198 @@ def parser() -> argparse.ArgumentParser:
         metavar="EXTENSION=STATE",
         help="override a PBX extension state for this run; may be repeated",
     )
+    commands.add_parser(
+        "dealer-map",
+        help="print the simulated dealer-group dial plan, trunks, and transfer matrix",
+    )
+    dealer_call = commands.add_parser(
+        "dealer-call",
+        help="route one call through the simulated dealer-group PBX",
+    )
+    dealer_call.add_argument("--to", required=True, help="dialed number, E.164")
+    dealer_call.add_argument("--from", dest="from_number", default="+14085550131")
+    dealer_call.add_argument(
+        "--day",
+        default="tue",
+        choices=("mon", "tue", "wed", "thu", "fri", "sat", "sun"),
+    )
+    dealer_call.add_argument("--time", default="10:30", help="local time as HH:MM")
+    dealer_call.add_argument("--date", default=None, help="MM-DD, to hit a holiday branch")
+    dealer_call.add_argument(
+        "--digits",
+        action="append",
+        default=[],
+        metavar="ENTRY",
+        help="DTMF entry the caller makes; repeat for each menu level",
+    )
+    dealer_call.add_argument("--intent", default="")
+    dealer_call.add_argument("--patience", type=int, default=600, help="hold tolerance, seconds")
+    dealer_call.add_argument(
+        "--presence",
+        action="append",
+        default=[],
+        metavar="EXT=STATE",
+        help="override a station: available|busy|with_customer|offline|dnd",
+    )
+    dealer_call.add_argument(
+        "--occupied",
+        action="append",
+        default=[],
+        metavar="TRUNK=N",
+        help="mark N channels of a trunk as already in use",
+    )
+    dealer_call.add_argument(
+        "--glare",
+        action="append",
+        default=[],
+        metavar="TRUNK",
+        help="force a seize collision on a tie trunk",
+    )
+    dealer_call.add_argument(
+        "--transfer-method",
+        choices=("blind_refer", "attended_refer", "bridge", "dtmf_redial", "sip_302"),
+        help="after the call is answered, have an agent attempt this transfer",
+    )
+    dealer_call.add_argument("--transfer-target", help="destination ref, e.g. ext:1200")
+    dealer_call.add_argument("--transfer-agent", default="bdc-overflow")
+    dealer_case = commands.add_parser(
+        "dealer-case",
+        help="run one named dealer-group case",
+    )
+    dealer_case.add_argument("case", nargs="?", help="case id; omit to list them")
+    commands.add_parser(
+        "dealer-suite",
+        help="run every dealer-group case and report pass/fail",
+    )
+    dealer_capacity = commands.add_parser(
+        "dealer-capacity",
+        help="how many concurrent agent calls a site supports per integration pattern",
+    )
+    dealer_capacity.add_argument("--site", default="ford", help="site id from dealer-map")
+    dealer_capacity.add_argument(
+        "--channels",
+        type=int,
+        default=None,
+        help="override the trunk size with a real dealership's line count",
+    )
     commands.add_parser("runs", help="list recent runs")
+    cancel = commands.add_parser("cancel-run", help="cancel a run awaiting an incoming call")
+    cancel.add_argument("run_id")
     commands.add_parser("calls", help="list incoming PSTN calls and recordings")
     return root
 
 
+def _dealer_pairs(values: list[str], label: str) -> dict[str, str]:
+    pairs: dict[str, str] = {}
+    for value in values:
+        key, separator, item = value.partition("=")
+        if not separator:
+            raise SystemExit(f"Invalid {label} '{value}'. Expected KEY=VALUE.")
+        pairs[key] = item
+    return pairs
+
+
+def _dealer_map() -> dict[str, Any]:
+    group = default_group()
+    return {
+        "group": group.label,
+        "intersite_prefix": group.intersite_prefix,
+        "sites": [
+            {
+                "id": site.id,
+                "label": site.label,
+                "platform": site.platform,
+                "border_element": site.border_element,
+                "main_did": site.main_did,
+                "extension_range": f"{site.numbering_prefix}xxx",
+                "attendant": site.attendant,
+                "trunks": list(site.trunks),
+                "night_target": site.night_target,
+                "notes": site.notes,
+            }
+            for site in group.sites
+        ],
+        "trunks": [
+            {
+                "id": trunk.id,
+                "label": trunk.label,
+                "site": trunk.site,
+                "peer_site": trunk.peer_site,
+                "kind": trunk.kind,
+                "signaling": trunk.signaling,
+                "channels": trunk.channels,
+                "dtmf_mode": trunk.dtmf_mode,
+                "glare_prone": trunk.glare_prone,
+            }
+            for trunk in group.trunks
+        ],
+        "dids": [
+            {
+                "number": did.number,
+                "label": did.label,
+                "site": did.site,
+                "target": did.target,
+                "tracking_source": did.tracking_source,
+            }
+            for did in group.dids
+        ],
+        "agents": [
+            {
+                "id": agent.id,
+                "label": agent.label,
+                "site": agent.site,
+                "ingress": agent.ingress,
+                "address": agent.address,
+                "reached_via": agent.reached_via,
+                "receives_diversion": agent.receives_diversion,
+                "notes": agent.notes,
+            }
+            for agent in group.agents
+        ],
+        "transfer_matrix": transfer_matrix(group),
+    }
+
+
+def _dealer_call(args: argparse.Namespace) -> dict[str, Any]:
+    group = default_group()
+    occupied = {
+        key: int(value) for key, value in _dealer_pairs(args.occupied, "--occupied").items()
+    }
+    request = CallRequest(
+        to_number=args.to,
+        from_number=args.from_number,
+        day=args.day,
+        time=args.time,
+        date=args.date,
+        digits=tuple(args.digits),
+        intent=args.intent,
+        patience_seconds=args.patience,
+        presence=_dealer_pairs(args.presence, "--presence"),  # type: ignore[arg-type]
+        occupied_channels=occupied,
+        glare_trunks=tuple(args.glare),
+    )
+    payload: dict[str, Any] = {"call": route(group, request).as_dict()}
+    if args.transfer_method:
+        if not args.transfer_target:
+            raise SystemExit("--transfer-method requires --transfer-target")
+        payload["transfer"] = attempt_transfer(
+            group,
+            TransferAttempt(
+                agent=args.transfer_agent,
+                method=args.transfer_method,
+                target=args.transfer_target,
+                call=request,
+            ),
+        ).as_dict()
+    return payload
+
+
 def main() -> int:
     args = parser().parse_args()
+    if args.command == "validate":
+        report = ScenarioCatalog(args.scenarios_dir).validate(args.scenario)
+        _print(report)
+        return 0 if report["valid"] else 1
     if args.command in {"simulate", "sim"}:
         overrides = _model_overrides(args.set)
         _print(
@@ -263,6 +469,49 @@ def main() -> int:
             )
         )
         return 0
+    if args.command == "dealer-map":
+        _print(_dealer_map())
+        return 0
+    if args.command == "dealer-call":
+        _print(_dealer_call(args))
+        return 0
+    if args.command == "dealer-case":
+        if not args.case:
+            _print(
+                [
+                    {"id": case.id, "title": case.title, "teaches": case.teaches}
+                    for case in DEALER_CASES
+                ]
+            )
+            return 0
+        case = get_case(args.case)
+        if case is None:
+            known = ", ".join(item.id for item in DEALER_CASES)
+            raise SystemExit(f"Unknown dealer case '{args.case}'. Known: {known}")
+        _print(run_case(case))
+        return 0
+    if args.command == "dealer-capacity":
+        _print(capacity_report(default_group(), args.site, channels=args.channels))
+        return 0
+    if args.command == "dealer-suite":
+        results = run_suite()
+        _print(
+            {
+                "total": len(results),
+                "passed": sum(1 for item in results if item["passed"]),
+                "cases": [
+                    {
+                        "id": item["id"],
+                        "title": item["title"],
+                        "passed": item["passed"],
+                        "outcome": item["actual_outcome"],
+                        "transfer": item["actual_transfer"],
+                    }
+                    for item in results
+                ],
+            }
+        )
+        return 0 if all(item["passed"] for item in results) else 1
     service = SimulatorService()
     if args.command == "serve":
         if args.with_pstn or args.with_ivr:
@@ -335,6 +584,8 @@ def main() -> int:
         )
     elif args.command == "runs":
         _print(service.list_runs())
+    elif args.command == "cancel-run":
+        _print(service.cancel_run(args.run_id))
     elif args.command == "calls":
         _print(service.list_calls())
     return 0

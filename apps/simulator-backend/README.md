@@ -83,6 +83,28 @@ deprecation header; new clients should use `POST /api/ivr/simulations`.
 Persistence defaults to SQLite. Set
 `SIMULATOR_DATABASE_URI=mysql+pymysql://user:password@host:3306/database` to
 use MySQL; the URI takes precedence over the legacy `SIMULATOR_DB_PATH`.
+`sqlite:///:memory:` creates an isolated in-memory store for embedded use and
+tests. Call `store.close()` when finished with an embedded store.
+
+Inspect an individual run with `GET /api/runs/{run_id}`. Cancel an assignment
+before its incoming call arrives with `POST /api/runs/{run_id}/cancel` or
+`telephony-voice-sim cancel-run <run-id>`. Cancellation removes only that
+assignment, preserves its history with status `cancelled`, and is idempotent.
+If a call has already claimed the assignment, the API returns `409` and leaves
+the active call untouched.
+
+Validate authored AMD scenarios without opening a database or starting calls:
+
+```bash
+uv run telephony-voice-sim validate --all
+uv run telephony-voice-sim validate --scenario stock_voicemail_beep_1000
+uv run telephony-voice-sim validate --scenario /path/to/custom.yaml
+uv run telephony-voice-sim validate --all --scenarios-dir /path/to/scenarios
+```
+
+Validation reports each file's result, rejects duplicate names, and exits with
+status `1` if any file is invalid. It checks the authored scenario structure;
+audio release approval and agent behavior remain separate checks.
 
 Local call deletion is available through `DELETE /api/calls/{call_id}` in the
 control API and from the console. It removes database metadata and only the exact
@@ -146,6 +168,19 @@ src/telephony_voice_simulator/
 
 The local simulator executes every scenario domain. Twilio executes AMD callee
 scenarios and the shared live IVR; PBX scenarios remain deterministic models.
+
+Provider descriptors expose `supported_scenario_kinds` alongside endpoint kinds
+and capabilities. Clients should use that catalog instead of hardcoding carrier
+names. To add a provider, implement `telephony.base.ProviderAdapter`, declare its
+supported domains, validate connection settings, and implement `dispatch`.
+Register it in `telephony.registry.provider_registry`, or inject a complete
+mapping with `SimulatorService(providers={"custom": adapter}, store=store)` for
+an embedded application. Connection validation runs before persistence; adapters
+use the `ProviderRuntimeStore` port for durable queues rather than database SQL.
+
+Free-form IVR durations measure simulated time through the last timeline event:
+menu handling plus the configured ring timeout for unanswered calls, or time
+until the bridge for answered calls. They do not estimate conversation length.
 
 ## Tests
 
