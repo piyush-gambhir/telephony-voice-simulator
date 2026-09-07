@@ -104,7 +104,7 @@ function NumberCard({
           <div>
             <p className="text-sm font-medium">Number configuration</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Saved in MySQL and reconciled with the Twilio number.
+              Save the default behavior and recording settings for this number.
             </p>
           </div>
 
@@ -302,7 +302,7 @@ export function AmdNumberManager({
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             These are the dedicated Twilio lines used by the simulator. Names,
             routing, default behavior, live queues, and webhook ownership are
-            managed here and persisted in MySQL.
+            managed here.
           </p>
         </div>
         <Button type="button" variant="outline" disabled={busy} onClick={onSync}>
@@ -315,10 +315,10 @@ export function AmdNumberManager({
         <Card className="bg-muted/35">
           <CardContent className="flex min-h-72 flex-col items-center justify-center p-8 text-center">
             <PhoneCall className="size-7 text-primary" />
-            <p className="mt-4 font-medium">Import the four AMD lines</p>
+            <p className="mt-4 font-medium">Import your AMD lines</p>
             <p className="mt-1 max-w-lg text-sm text-muted-foreground">
               The import reads the numbers currently attached to the hosted AMD
-              Function, creates their MySQL records, and links each one to a
+              Function and links each one to a
               provider-neutral endpoint.
             </p>
             <Button type="button" className="mt-5" disabled={busy} onClick={onSync}>
@@ -331,7 +331,7 @@ export function AmdNumberManager({
         <div className="space-y-4">
           {numbers.map((number) => (
             <NumberCard
-              key={`${number.id}:${number.updated_at}:${number.pending_runs}`}
+              key={`${number.id}:${number.updated_at}`}
               number={number}
               scenarios={scenarios}
               busy={busy}

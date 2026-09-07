@@ -18,6 +18,7 @@ export type ProviderDescriptor = {
   status: "ready" | "preview";
   endpoint_kinds: Array<"phone_number" | "sip_uri" | "extension">;
   capabilities: Record<string, boolean>;
+  supported_scenario_kinds: Array<Scenario["kind"]>;
   runtime: RuntimeStatus;
 };
 
@@ -182,26 +183,53 @@ export type IncomingCall = {
   updated_at: string;
 };
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${SIMULATOR_API_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Simulator API returned ${response.status}`);
+export class SimulatorApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "SimulatorApiError";
   }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, 15_000);
+  init?.signal?.addEventListener("abort", abort, { once: true });
+  if (init?.signal?.aborted) controller.abort();
+  try {
+    const headers = new Headers(init?.headers);
+    headers.set("Accept", "application/json");
+    if (init?.body) headers.set("Content-Type", "application/json");
+    const response = await fetch(`${SIMULATOR_API_URL.replace(/\/+$/, "")}${path}`, {
+      ...init,
+      headers,
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: unknown };
+      throw new SimulatorApiError(
+        typeof body.error === "string" ? body.error : `Simulator API returned ${response.status}`,
+        response.status,
+      );
+    }
+    if (response.status === 204) return undefined as T;
+    return await response.json() as T;
+  } catch (cause) {
+    if (controller.signal.aborted && !init?.signal?.aborted) {
+      throw new Error("Simulator API timed out. Check that the backend is running.");
+    }
+    throw cause;
+  } finally {
+    clearTimeout(timeout);
+    init?.signal?.removeEventListener("abort", abort);
+  }
 }
 
 export const simulatorApi = {
-  providerCatalog: () =>
-    request<ProviderDescriptor[]>("/api/providers/catalog"),
-  amdNumbers: () => request<ManagedNumber[]>("/api/amd-numbers"),
+  providerCatalog: (signal?: AbortSignal) =>
+    request<ProviderDescriptor[]>("/api/providers/catalog", { signal }),
+  amdNumbers: (signal?: AbortSignal) => request<ManagedNumber[]>("/api/amd-numbers", { signal }),
   syncAmdNumbers: () =>
     request<ManagedNumber[]>("/api/amd-numbers/sync", { method: "POST" }),
   updateAmdNumber: (
@@ -236,7 +264,7 @@ export const simulatorApi = {
         body: JSON.stringify({ scenario }),
       }
     ),
-  connections: () => request<ProviderConnection[]>("/api/providers"),
+  connections: (signal?: AbortSignal) => request<ProviderConnection[]>("/api/providers", { signal }),
   createConnection: (body: {
     provider: string;
     name: string;
@@ -265,7 +293,7 @@ export const simulatorApi = {
     request<void>(`/api/providers/${encodeURIComponent(connectionId)}`, {
       method: "DELETE",
     }),
-  endpoints: () => request<Endpoint[]>("/api/endpoints"),
+  endpoints: (signal?: AbortSignal) => request<Endpoint[]>("/api/endpoints", { signal }),
   createEndpoint: (body: {
     connection_id: string;
     name: string;
@@ -301,7 +329,7 @@ export const simulatorApi = {
     request<void>(`/api/endpoints/${encodeURIComponent(endpointId)}`, {
       method: "DELETE",
     }),
-  directory: () => request<DirectoryEntry[]>("/api/directory"),
+  directory: (signal?: AbortSignal) => request<DirectoryEntry[]>("/api/directory", { signal }),
   createDirectoryEntry: (body: {
     connection_id: string;
     extension: string;
@@ -337,9 +365,9 @@ export const simulatorApi = {
     request<void>(`/api/directory/${encodeURIComponent(entryId)}`, {
       method: "DELETE",
     }),
-  scenarios: () => request<Scenario[]>("/api/scenarios"),
-  runs: () => request<SimulationRun[]>("/api/runs"),
-  calls: () => request<IncomingCall[]>("/api/calls"),
+  scenarios: (signal?: AbortSignal) => request<Scenario[]>("/api/scenarios", { signal }),
+  runs: (signal?: AbortSignal) => request<SimulationRun[]>("/api/runs", { signal }),
+  calls: (signal?: AbortSignal) => request<IncomingCall[]>("/api/calls", { signal }),
   deleteCall: (callId: string) =>
     request<{
       deleted: string;
@@ -353,15 +381,20 @@ export const simulatorApi = {
     }>(`/api/calls/${encodeURIComponent(callId)}`, {
       method: "DELETE",
     }),
-  recordingMedia: async (recordingId: string) => {
+  recordingMedia: async (recordingId: string, signal?: AbortSignal) => {
     const response = await fetch(
-      `${SIMULATOR_API_URL}/api/recordings/${encodeURIComponent(recordingId)}/media`
+      `${SIMULATOR_API_URL.replace(/\/+$/, "")}/api/recordings/${encodeURIComponent(recordingId)}/media`,
+      { signal },
     );
     if (!response.ok) {
       throw new Error(`Recording API returned ${response.status}`);
     }
     return response.blob();
   },
+  cancelRun: (runId: string) =>
+    request<SimulationRun>(`/api/runs/${encodeURIComponent(runId)}/cancel`, {
+      method: "POST",
+    }),
   createRun: (body: { endpoint_id: string; scenario: string }) =>
     request<SimulationRun>("/api/runs", {
       method: "POST",

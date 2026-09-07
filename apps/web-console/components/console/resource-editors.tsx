@@ -3,6 +3,8 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Loader2, Save, X } from "lucide-react";
 
+import { scenariosForProvider } from "@/lib/scenario-compatibility";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -176,14 +178,6 @@ export function ProviderConnectionEditor({
   );
 }
 
-function scenariosForProvider(scenarios: Scenario[], provider?: string): Scenario[] {
-  if (provider === "twilio") {
-    return scenarios.filter((scenario) => scenario.kind === "amd");
-  }
-  if (provider === "telnyx") return [];
-  return scenarios;
-}
-
 export function EndpointEditor({
   endpoint,
   connections,
@@ -216,8 +210,8 @@ export function EndpointEditor({
     catalog.find((item) => item.key === selectedConnection?.provider)?.endpoint_kinds ??
     ["phone_number"];
   const compatibleScenarios = useMemo(
-    () => scenariosForProvider(scenarios, selectedConnection?.provider),
-    [scenarios, selectedConnection?.provider]
+    () => scenariosForProvider(scenarios, selectedConnection?.provider, catalog),
+    [scenarios, selectedConnection?.provider, catalog]
   );
 
   function selectConnection(value: string) {
@@ -227,7 +221,7 @@ export function EndpointEditor({
       catalog.find((item) => item.key === connection?.provider)?.endpoint_kinds ??
       ["phone_number"];
     if (!nextKinds.includes(kind)) setKind(nextKinds[0]);
-    const nextScenarios = scenariosForProvider(scenarios, connection?.provider);
+    const nextScenarios = scenariosForProvider(scenarios, connection?.provider, catalog);
     if (
       defaultScenario !== NO_SCENARIO &&
       !nextScenarios.some((scenario) => scenario.name === defaultScenario)

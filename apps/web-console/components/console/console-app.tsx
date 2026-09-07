@@ -1,13 +1,12 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
   Cable,
   Check,
   CircleAlert,
-  Clock3,
   ContactRound,
   Database,
   FlaskConical,
@@ -17,6 +16,7 @@ import {
   Play,
   Plus,
   RadioTower,
+  RefreshCw,
   Route,
   Server,
   Trash2,
@@ -54,7 +54,11 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { AmdNumberManager } from "@/components/console/amd-number-manager";
-import { RecordingPlayer } from "@/components/console/recording-player";
+import { RunHistory } from "@/components/console/run-history";
+import { CallHistory } from "@/components/console/call-history";
+import { runDuration, runOutcome, statusBadge } from "@/components/console/console-status";
+import { useConsoleData } from "@/hooks/use-console-data";
+import { scenariosForProvider } from "@/lib/scenario-compatibility";
 import { PageShell } from "@/components/page-shell";
 import {
   DirectoryEntryEditor,
@@ -71,7 +75,6 @@ import {
   IncomingCall,
   ManagedNumber,
   ProviderConnection,
-  ProviderDescriptor,
   Scenario,
   SIMULATOR_API_URL,
   SimulationRun,
@@ -89,10 +92,14 @@ type View =
   | "calls";
 
 const NAV: Array<{ id: View; label: string; icon: typeof Activity }> = [
+  { id: "overview", label: "Overview", icon: Activity },
   { id: "numbers", label: "AMD numbers", icon: PhoneCall },
   { id: "scenarios", label: "Scenarios", icon: Workflow },
   { id: "runs", label: "Runs", icon: FlaskConical },
   { id: "calls", label: "Calls & recordings", icon: PhoneCall },
+  { id: "providers", label: "Providers", icon: Cable },
+  { id: "endpoints", label: "Endpoints", icon: Route },
+  { id: "directory", label: "Directory", icon: ContactRound },
 ];
 
 const OVERVIEW_STATS: Array<{
@@ -119,51 +126,6 @@ const OVERVIEW_STATS: Array<{
   { label: "Incoming calls", value: ({ calls }) => calls.length, icon: PhoneCall },
 ];
 
-function statusBadge(status: string) {
-  if (["completed", "connected", "bridged"].includes(status)) {
-    return <Badge variant="success">{status.replaceAll("_", " ")}</Badge>;
-  }
-  if (status === "failed") return <Badge variant="destructive">Failed</Badge>;
-  if (status === "abandoned") return <Badge variant="destructive">Abandoned</Badge>;
-  if (status === "queued") return <Badge variant="warning">Queued</Badge>;
-  if (["busy", "no_answer", "dial_busy", "dial_no_answer"].includes(status)) {
-    return (
-      <Badge variant="warning">
-        {status.replace("dial_", "").replaceAll("_", " ")}
-      </Badge>
-    );
-  }
-  return <Badge variant="secondary">{status}</Badge>;
-}
-
-function runStatusBadge(run: SimulationRun) {
-  if (run.result.graded && run.result.passed === true) {
-    return <Badge variant="success">Checks passed</Badge>;
-  }
-  if (run.result.graded && run.result.passed === false) {
-    return <Badge variant="destructive">Checks failed</Badge>;
-  }
-  return statusBadge(run.status);
-}
-
-function timelineStepLabel(step: SimulationRun["timeline"][number]): string {
-  if (step.label?.trim()) return step.label;
-  const value = step.event ?? step.state ?? step.kind;
-  if (!value) return "Call event";
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
-    .replace(/\b(Pstn|Amd|Ivr|Dtmf|Pbx)\b/g, (term) => term.toUpperCase());
-}
-
-function runOutcome(run: SimulationRun): string {
-  return run.outcome ?? run.result.call_outcome ?? run.result.outcome ?? "";
-}
-
-function runDuration(run: SimulationRun): number {
-  return run.duration_seconds ?? run.result.duration_seconds ?? 0;
-}
-
 function EmptyState({
   icon: Icon,
   title,
@@ -183,18 +145,13 @@ function EmptyState({
 }
 
 export function ConsoleApp() {
-  const [view, setView] = useState<View>("numbers");
-  const [amdNumbers, setAmdNumbers] = useState<ManagedNumber[]>([]);
-  const [catalog, setCatalog] = useState<ProviderDescriptor[]>([]);
-  const [connections, setConnections] = useState<ProviderConnection[]>([]);
-  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
-  const [directory, setDirectory] = useState<DirectoryEntry[]>([]);
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [runs, setRuns] = useState<SimulationRun[]>([]);
-  const [calls, setCalls] = useState<IncomingCall[]>([]);
-  const [online, setOnline] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<View>("overview");
   const [busy, setBusy] = useState(false);
+  const {
+    data: { catalog, amdNumbers, connections, endpoints, directory, scenarios, runs, calls },
+    updateData, loading, refreshing, online, refreshError, lastUpdatedAt,
+    autoRefresh, setAutoRefresh, refresh: loadConsoleData,
+  } = useConsoleData({ paused: busy });
   const [error, setError] = useState<string | null>(null);
   const [providerType, setProviderType] = useState("mock");
   const [providerName, setProviderName] = useState("Local simulator");
@@ -204,16 +161,16 @@ export function ConsoleApp() {
     "Local deterministic call execution."
   );
   const [providerSettings, setProviderSettings] = useState("{}");
-  const [endpointConnection, setEndpointConnection] = useState("");
+  const [endpointConnectionId, setEndpointConnection] = useState("");
   const [endpointName, setEndpointName] = useState("Test line");
   const [endpointKind, setEndpointKind] = useState<Endpoint["kind"]>("phone_number");
   const [endpointAddress, setEndpointAddress] = useState("+15550100001");
-  const [endpointScenario, setEndpointScenario] = useState("");
+  const [endpointScenarioName, setEndpointScenario] = useState("");
   const [endpointRoutingMode, setEndpointRoutingMode] =
     useState<Endpoint["routing_mode"]>("fixed");
-  const [runEndpoint, setRunEndpoint] = useState("");
-  const [runScenario, setRunScenario] = useState("");
-  const [directoryConnection, setDirectoryConnection] = useState("");
+  const [runEndpointId, setRunEndpoint] = useState("");
+  const [runScenarioName, setRunScenario] = useState("");
+  const [directoryConnectionId, setDirectoryConnection] = useState("");
   const [directoryExtension, setDirectoryExtension] = useState("1501");
   const [directoryName, setDirectoryName] = useState("Front desk");
   const [directoryDestination, setDirectoryDestination] = useState("+15550101501");
@@ -227,84 +184,13 @@ export function ConsoleApp() {
   const [editingEndpointId, setEditingEndpointId] = useState<string | null>(null);
   const [editingDirectoryId, setEditingDirectoryId] = useState<string | null>(null);
 
-  const loadConsoleData = useCallback(async () => {
-    setError(null);
-    try {
-      const [
-        providerCatalog,
-        managedAmdNumbers,
-        providerConnections,
-        endpointList,
-        directoryList,
-        scenarioList,
-        runList,
-        callList,
-      ] =
-        await Promise.all([
-          simulatorApi.providerCatalog(),
-          simulatorApi.amdNumbers(),
-          simulatorApi.connections(),
-          simulatorApi.endpoints(),
-          simulatorApi.directory(),
-          simulatorApi.scenarios(),
-          simulatorApi.runs(),
-          simulatorApi.calls(),
-        ]);
-      setCatalog(providerCatalog);
-      setAmdNumbers(managedAmdNumbers);
-      setConnections(providerConnections);
-      setEndpoints(endpointList);
-      setDirectory(directoryList);
-      setScenarios(scenarioList);
-      setRuns(runList);
-      setCalls(callList);
-      setOnline(true);
-      if (!endpointConnection && providerConnections[0]) {
-        setEndpointConnection(providerConnections[0].id);
-      }
-      if (!directoryConnection && providerConnections[0]) {
-        setDirectoryConnection(providerConnections[0].id);
-      }
-      if (!runEndpoint && endpointList[0]) setRunEndpoint(endpointList[0].id);
-      if (!runScenario && endpointList[0]) {
-        const firstCompatible =
-          endpointList[0].provider === "twilio"
-            ? scenarioList.find((scenario) => scenario.kind === "amd")
-            : endpointList[0].provider === "telnyx"
-              ? undefined
-              : scenarioList[0];
-        setRunScenario(firstCompatible?.name ?? "");
-      }
-      if (!endpointScenario && providerConnections[0]) {
-        const firstCompatible =
-          providerConnections[0].provider === "twilio"
-            ? scenarioList.find((scenario) => scenario.kind === "amd")
-            : providerConnections[0].provider === "telnyx"
-              ? undefined
-              : scenarioList[0];
-        setEndpointScenario(firstCompatible?.name ?? "");
-      }
-    } catch (cause) {
-      setOnline(false);
-      setError(cause instanceof Error ? cause.message : "Simulator API is unavailable");
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    directoryConnection,
-    endpointConnection,
-    endpointScenario,
-    runEndpoint,
-    runScenario,
-  ]);
-
-  useEffect(() => {
-    // The first render hydrates state from the external simulator API.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadConsoleData();
-    // Initial data load only; form selections should not reload console data.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const endpointConnection = connections.some((item) => item.id === endpointConnectionId)
+    ? endpointConnectionId : connections[0]?.id ?? "";
+  const directoryConnection = connections.some((item) => item.id === directoryConnectionId)
+    ? directoryConnectionId : connections[0]?.id ?? "";
+  const runEndpoint = endpoints.some((item) => item.id === runEndpointId)
+    ? runEndpointId : endpoints.find((item) => item.enabled && item.provider === "mock")?.id
+      ?? endpoints.find((item) => item.enabled)?.id ?? "";
 
   const selectedDescriptor = useMemo(
     () => catalog.find((provider) => provider.key === providerType),
@@ -321,20 +207,22 @@ export function ConsoleApp() {
     () => endpoints.find((endpoint) => endpoint.id === runEndpoint),
     [endpoints, runEndpoint]
   );
-  const runScenarios = useMemo(() => {
-    if (selectedRunEndpoint?.provider === "twilio") {
-      return scenarios.filter((scenario) => scenario.kind === "amd");
-    }
-    if (selectedRunEndpoint?.provider === "telnyx") return [];
-    return scenarios;
-  }, [scenarios, selectedRunEndpoint]);
-  const endpointScenarios = useMemo(() => {
-    if (selectedConnection?.provider === "twilio") {
-      return scenarios.filter((scenario) => scenario.kind === "amd");
-    }
-    if (selectedConnection?.provider === "telnyx") return [];
-    return scenarios;
-  }, [scenarios, selectedConnection]);
+  const runScenarios = useMemo(
+    () => scenariosForProvider(scenarios, selectedRunEndpoint?.provider, catalog),
+    [scenarios, selectedRunEndpoint?.provider, catalog],
+  );
+  const endpointScenarios = useMemo(
+    () => scenariosForProvider(scenarios, selectedConnection?.provider, catalog),
+    [scenarios, selectedConnection?.provider, catalog],
+  );
+  const fixedRunScenario = selectedRunEndpoint?.routing_mode === "fixed"
+    ? selectedRunEndpoint.default_scenario : null;
+  const runScenario = fixedRunScenario ?? (runScenarios.some((item) => item.name === runScenarioName)
+    ? runScenarioName : runScenarios[0]?.name ?? "");
+  const endpointScenario = endpointScenarios.some((item) => item.name === endpointScenarioName)
+    ? endpointScenarioName : endpointScenarios[0]?.name ?? "";
+  const runConnection = connections.find((item) => item.id === selectedRunEndpoint?.connection_id);
+  const runAvailable = Boolean(selectedRunEndpoint?.enabled && runConnection?.enabled);
   const editingConnection = connections.find(
     (connection) => connection.id === editingConnectionId
   );
@@ -370,7 +258,7 @@ export function ConsoleApp() {
         description: providerDescription,
         settings: parseSettingsJson(providerSettings),
       });
-      setConnections((current) => [...current, connection]);
+      updateData("connections", (current) => [...current, connection]);
       setEndpointConnection(connection.id);
       setProviderName("");
       setProviderDescription("");
@@ -395,7 +283,7 @@ export function ConsoleApp() {
         routing_mode: endpointRoutingMode,
         default_scenario: endpointScenario,
       });
-      setEndpoints((current) => [...current, endpoint]);
+      updateData("endpoints", (current) => [...current, endpoint]);
       setRunEndpoint(endpoint.id);
       setEndpointName("");
       setEndpointAddress("");
@@ -415,10 +303,25 @@ export function ConsoleApp() {
         endpoint_id: runEndpoint,
         scenario: runScenario,
       });
-      setRuns((current) => [run, ...current]);
+      updateData("runs", (current) => [run, ...current]);
       setView("runs");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not start run");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelRun(runId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await simulatorApi.cancelRun(runId);
+      updateData("runs", (current) => current.map((run) => run.id === updated.id ? updated : run));
+      await loadConsoleData(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not cancel queued run");
+      await loadConsoleData(true);
     } finally {
       setBusy(false);
     }
@@ -437,7 +340,7 @@ export function ConsoleApp() {
         department: directoryDepartment,
         ring_timeout: Number(directoryTimeout),
       });
-      setDirectory((current) =>
+      updateData("directory", (current) =>
         [...current, entry].sort((left, right) =>
           left.extension.localeCompare(right.extension)
         )
@@ -459,7 +362,7 @@ export function ConsoleApp() {
     setError(null);
     try {
       await simulatorApi.deleteDirectoryEntry(entryId);
-      setDirectory((current) => current.filter((entry) => entry.id !== entryId));
+      updateData("directory", (current) => current.filter((entry) => entry.id !== entryId));
       if (editingDirectoryId === entryId) setEditingDirectoryId(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not delete directory route");
@@ -475,7 +378,7 @@ export function ConsoleApp() {
       const updated = await simulatorApi.updateDirectoryEntry(entry.id, {
         enabled: !entry.enabled,
       });
-      setDirectory((current) =>
+      updateData("directory", (current) =>
         current.map((item) => (item.id === updated.id ? updated : item))
       );
     } catch (cause) {
@@ -492,7 +395,7 @@ export function ConsoleApp() {
       const updated = await simulatorApi.updateEndpoint(endpoint.id, {
         enabled: !endpoint.enabled,
       });
-      setEndpoints((current) =>
+      updateData("endpoints", (current) =>
         current.map((item) => (item.id === updated.id ? updated : item))
       );
     } catch (cause) {
@@ -510,17 +413,17 @@ export function ConsoleApp() {
     setError(null);
     try {
       const updated = await simulatorApi.updateConnection(connectionId, values);
-      setConnections((current) =>
+      updateData("connections", (current) =>
         current.map((item) => (item.id === updated.id ? updated : item))
       );
-      setEndpoints((current) =>
+      updateData("endpoints", (current) =>
         current.map((item) =>
           item.connection_id === updated.id
             ? { ...item, connection_name: updated.name }
             : item
         )
       );
-      setDirectory((current) =>
+      updateData("directory", (current) =>
         current.map((item) =>
           item.connection_id === updated.id
             ? { ...item, connection_name: updated.name }
@@ -544,7 +447,7 @@ export function ConsoleApp() {
     setError(null);
     try {
       const updated = await simulatorApi.updateEndpoint(endpointId, values);
-      setEndpoints((current) =>
+      updateData("endpoints", (current) =>
         current.map((item) => (item.id === updated.id ? updated : item))
       );
       return true;
@@ -565,7 +468,7 @@ export function ConsoleApp() {
     try {
       const previous = directory.find((entry) => entry.id === entryId);
       const updated = await simulatorApi.updateDirectoryEntry(entryId, values);
-      setDirectory((current) =>
+      updateData("directory", (current) =>
         current
           .map((item) => (item.id === updated.id ? updated : item))
           .sort((left, right) => left.extension.localeCompare(right.extension))
@@ -595,7 +498,7 @@ export function ConsoleApp() {
     try {
       await simulatorApi.deleteConnection(connectionId);
       if (editingConnectionId === connectionId) setEditingConnectionId(null);
-      await loadConsoleData();
+      await loadConsoleData(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not delete provider");
     } finally {
@@ -616,7 +519,7 @@ export function ConsoleApp() {
     try {
       await simulatorApi.deleteEndpoint(endpointId);
       if (editingEndpointId === endpointId) setEditingEndpointId(null);
-      await loadConsoleData();
+      await loadConsoleData(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not delete endpoint");
     } finally {
@@ -636,7 +539,7 @@ export function ConsoleApp() {
     setError(null);
     try {
       await simulatorApi.deleteCall(callId);
-      setCalls((current) => current.filter((call) => call.id !== callId));
+      updateData("calls", (current) => current.filter((call) => call.id !== callId));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not delete call");
     } finally {
@@ -655,7 +558,7 @@ export function ConsoleApp() {
         extension: ivrExtension,
         disposition: ivrDisposition,
       });
-      setRuns((current) => [run, ...current]);
+      updateData("runs", (current) => [run, ...current]);
       setView("runs");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not run IVR simulation");
@@ -665,7 +568,7 @@ export function ConsoleApp() {
   }
 
   function replaceAmdNumber(updated: ManagedNumber) {
-    setAmdNumbers((current) =>
+    updateData("amdNumbers", (current) =>
       current.map((number) => (number.id === updated.id ? updated : number))
     );
   }
@@ -675,13 +578,13 @@ export function ConsoleApp() {
     setError(null);
     try {
       const imported = await simulatorApi.syncAmdNumbers();
-      setAmdNumbers(imported);
+      updateData("amdNumbers", imported);
       const [providerConnections, endpointList] = await Promise.all([
         simulatorApi.connections(),
         simulatorApi.endpoints(),
       ]);
-      setConnections(providerConnections);
-      setEndpoints(endpointList);
+      updateData("connections", providerConnections);
+      updateData("endpoints", endpointList);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not sync Twilio AMD numbers");
     } finally {
@@ -704,7 +607,7 @@ export function ConsoleApp() {
     try {
       const updated = await simulatorApi.updateAmdNumber(numberId, update);
       replaceAmdNumber(updated);
-      setEndpoints((current) =>
+      updateData("endpoints", (current) =>
         current.map((endpoint) =>
           endpoint.id === updated.endpoint.id ? updated.endpoint : endpoint
         )
@@ -722,7 +625,7 @@ export function ConsoleApp() {
     try {
       const result = await simulatorApi.queueAmdNumber(numberId, scenario);
       replaceAmdNumber(result.number);
-      setRuns((current) => [result.run, ...current]);
+      updateData("runs", (current) => [result.run, ...current]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not queue AMD scenario");
     } finally {
@@ -756,7 +659,7 @@ export function ConsoleApp() {
 
   return (
     <PageShell className="min-h-[calc(100svh-3rem)]">
-      <div className="mb-5">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
             <RadioTower className="size-4" />
@@ -770,10 +673,21 @@ export function ConsoleApp() {
               )}
             />
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight">AMD simulator console</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Telephony simulator console</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage the four Twilio simulator numbers, choose their behavior, and inspect calls.
+            Run local simulations, manage provider endpoints, and inspect inbound calls.
           </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" checked={autoRefresh} onChange={(event) => setAutoRefresh(event.target.checked)} />
+            Auto-refresh · 10s
+          </label>
+          <Button variant="outline" disabled={refreshing || busy} onClick={() => { setError(null); void loadConsoleData(true); }}>
+            <RefreshCw className={cn(refreshing && "animate-spin")} />
+            Refresh
+          </Button>
+          {lastUpdatedAt && <span className="basis-full text-right text-xs text-muted-foreground">Updated {lastUpdatedAt.toLocaleTimeString()}</span>}
         </div>
       </div>
 
@@ -784,7 +698,7 @@ export function ConsoleApp() {
       >
         <TabsList className="h-auto w-max min-w-full justify-start">
           {NAV.map((item) => (
-            <TabsTrigger key={item.id} value={item.id} className="gap-2">
+            <TabsTrigger key={item.id} value={item.id} id={`console-tab-${item.id}`} aria-controls={`console-panel-${item.id}`} className="gap-2">
               <item.icon className="size-4" />
               {item.label}
             </TabsTrigger>
@@ -792,19 +706,20 @@ export function ConsoleApp() {
         </TabsList>
       </Tabs>
 
-      {error && (
+      {(error || refreshError) && (
         <Alert variant="destructive" className="mb-5">
           <CircleAlert />
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <AlertTitle className="mb-0">Console could not complete the request:</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error ?? refreshError}{!online && " Start the backend, then select Refresh to reconnect."}</AlertDescription>
           </div>
         </Alert>
       )}
 
+      <div role="tabpanel" id={`console-panel-${view}`} aria-labelledby={`console-tab-${view}`}>
           {loading ? (
             <Card className="flex min-h-96 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading console" />
             </Card>
           ) : (
             <>
@@ -889,7 +804,7 @@ export function ConsoleApp() {
                     </Card>
                   </div>
 
-                  <div className="grid gap-5 xl:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-base">Run a scenario</CardTitle>
@@ -907,12 +822,7 @@ export function ConsoleApp() {
                                 onValueChange={(value) => {
                                   setRunEndpoint(value);
                                   const endpoint = endpoints.find((item) => item.id === value);
-                                  const compatible =
-                                    endpoint?.provider === "twilio"
-                                      ? scenarios.filter((scenario) => scenario.kind === "amd")
-                                      : endpoint?.provider === "telnyx"
-                                        ? []
-                                        : scenarios;
+                                  const compatible = scenariosForProvider(scenarios, endpoint?.provider, catalog);
                                   setRunScenario(compatible[0]?.name ?? "");
                                 }}
                               >
@@ -933,6 +843,7 @@ export function ConsoleApp() {
                               <Select
                                 value={runScenario}
                                 onValueChange={setRunScenario}
+                                disabled={Boolean(fixedRunScenario)}
                               >
                                 <SelectTrigger id="run-scenario">
                                   <SelectValue placeholder="Select scenario" />
@@ -948,11 +859,15 @@ export function ConsoleApp() {
                             </div>
                             <Button
                               className="mt-1 w-fit"
-                              disabled={busy || !runScenario || runScenarios.length === 0}
+                              disabled={busy || !runAvailable || !runScenario || !runScenarios.some((item) => item.name === runScenario)}
                             >
                               {busy ? <Loader2 className="animate-spin" /> : <Play />}
                               Start run
                             </Button>
+                            {fixedRunScenario && (
+                              <p className="text-xs text-muted-foreground">This fixed endpoint uses its default scenario. Change its default or routing mode in Endpoints to run a different scenario.</p>
+                            )}
+                            {!runAvailable && <p className="text-xs text-warning">Enable this endpoint and its provider connection before starting a run.</p>}
                             {selectedRunEndpoint?.provider === "twilio" && (
                               <p className="text-xs text-muted-foreground">
                                 Catalog dispatch queues AMD callee scenarios. Twilio allows one
@@ -992,6 +907,7 @@ export function ConsoleApp() {
                             <div className="grid gap-2">
                               <Label htmlFor="ivr-caller">Caller number</Label>
                               <Input
+                                required minLength={5} maxLength={40}
                                 id="ivr-caller"
                                 value={ivrCaller}
                                 onChange={(event) => setIvrCaller(event.target.value)}
@@ -1010,7 +926,7 @@ export function ConsoleApp() {
                                         {entry.extension} · {entry.name}
                                       </SelectItem>
                                     ))}
-                                    <SelectItem value="9999">9999 · Unknown</SelectItem>
+                                    {!directory.some((entry) => entry.extension === "9999") && <SelectItem value="9999">9999 · Unknown</SelectItem>}
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -1042,7 +958,7 @@ export function ConsoleApp() {
                                 </Select>
                               </div>
                             </div>
-                            <Button disabled={busy || !runEndpoint || !ivrExtension}>
+                            <Button disabled={busy || !runAvailable || !/^[0-9]{4}$/.test(ivrExtension) || ivrCaller.trim().length < 5}>
                               {busy ? <Loader2 className="animate-spin" /> : <PhoneCall />}
                               Simulate inbound call
                             </Button>
@@ -1059,8 +975,8 @@ export function ConsoleApp() {
 
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-base">Architecture status</CardTitle>
-                        <CardDescription>The UI is a client, never a runtime dependency.</CardDescription>
+                        <CardTitle className="text-base">Runtime status</CardTitle>
+                        <CardDescription>Local API connectivity and available provider adapters.</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {[
@@ -1069,7 +985,7 @@ export function ConsoleApp() {
                             title: "Simulator API",
                             detail: online ? `Online at ${SIMULATOR_API_URL}` : "Not reachable",
                           },
-                          { icon: Database, title: "SQLite store", detail: "Owned by the Python package" },
+                          { icon: Database, title: "Persistent state", detail: "Managed by the simulator backend" },
                           { icon: Cable, title: "Provider adapters", detail: `${catalog.length} registered` },
                         ].map(({ icon: Icon, title, detail }) => (
                           <div className="flex items-center gap-3" key={title}>
@@ -1309,13 +1225,13 @@ export function ConsoleApp() {
               )}
 
               {view === "endpoints" && (
-                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-                  <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+                  <div className="min-w-0 space-y-4">
                     {endpoints.length ? (
                       endpoints.map((endpoint) => (
                         <Card key={endpoint.id}>
                           <CardContent className="p-5 md:p-6">
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="font-medium">{endpoint.name}</p>
@@ -1325,7 +1241,7 @@ export function ConsoleApp() {
                                   {endpoint.address}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <Badge variant="secondary">{endpoint.provider}</Badge>
                                 <Button
                                   type="button"
@@ -1416,12 +1332,7 @@ export function ConsoleApp() {
                                 const connection = connections.find((item) => item.id === value);
                                 const kinds = catalog.find((item) => item.key === connection?.provider)?.endpoint_kinds;
                                 if (kinds?.[0]) setEndpointKind(kinds[0]);
-                                const compatible =
-                                  connection?.provider === "twilio"
-                                    ? scenarios.filter((scenario) => scenario.kind === "amd")
-                                    : connection?.provider === "telnyx"
-                                      ? []
-                                      : scenarios;
+                                const compatible = scenariosForProvider(scenarios, connection?.provider, catalog);
                                 setEndpointScenario(compatible[0]?.name ?? "");
                               }}
                             >
@@ -1786,224 +1697,11 @@ export function ConsoleApp() {
                 </div>
               )}
 
-              {view === "runs" && (
-                <div className="space-y-4">
-                  {runs.length ? (
-                    runs.map((run) => (
-                      <Card key={run.id}>
-                        <CardContent className="p-5 md:p-6">
-                          <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-medium">{run.scenario.replaceAll("_", " ")}</p>
-                                {runStatusBadge(run)}
-                                <Badge variant="outline">{run.provider}</Badge>
-                              </div>
-                              <p className="mt-2 text-sm text-muted-foreground">
-                                {run.result.error ?? run.result.summary ?? "Waiting for call activity."}
-                              </p>
-                              {runOutcome(run) && (
-                                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-                                  <span>
-                                    Caller:{" "}
-                                    <strong className="font-medium text-foreground">
-                                      {run.caller_number ?? run.result.caller_number ?? "—"}
-                                    </strong>
-                                  </span>
-                                  <span>
-                                    Extension:{" "}
-                                    <strong className="font-mono font-medium text-foreground">
-                                      {run.extension ?? run.result.extension ?? "—"}
-                                    </strong>
-                                  </span>
-                                  <span>
-                                    Destination:{" "}
-                                    <strong className="font-mono font-medium text-foreground">
-                                      {run.destination ?? run.result.destination ?? "—"}
-                                    </strong>
-                                  </span>
-                                  <span>
-                                    Outcome:{" "}
-                                    <strong className="font-medium text-foreground">
-                                      {runOutcome(run).replaceAll("_", " ")}
-                                    </strong>
-                                  </span>
-                                  <span>
-                                    Duration:{" "}
-                                    <strong className="font-medium text-foreground">
-                                      {runDuration(run)}s
-                                    </strong>
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Clock3 className="h-3.5 w-3.5" />
-                              {new Date(run.created_at).toLocaleString()}
-                            </div>
-                          </div>
-                          {(run.timeline.length > 0 ||
-                            (run.result.analysis?.checks?.length ?? 0) > 0) && (
-                            <div className="mt-5 space-y-3">
-                              {run.timeline.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                  {run.timeline.map((step, index) => (
-                                    <div
-                                      className="flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-xs"
-                                      key={`${run.id}-${index}`}
-                                    >
-                                      <Check className="h-3.5 w-3.5 shrink-0 text-success" />
-                                      <span>{timelineStepLabel(step)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {(run.result.analysis?.checks?.length ?? 0) > 0 && (
-                                <div className="grid gap-2 md:grid-cols-2">
-                                  {run.result.analysis?.checks?.map((check, index) => (
-                                    <div
-                                      className="flex min-w-0 items-start gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs"
-                                      key={`${run.id}-check-${index}`}
-                                    >
-                                      {check.passed === true ? (
-                                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-                                      ) : (
-                                        <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
-                                      )}
-                                      <div className="min-w-0">
-                                        <p className="font-medium">
-                                          {(check.check ?? check.name ?? `AMD check ${index + 1}`)
-                                            .replaceAll("_", " ")}
-                                        </p>
-                                        {check.detail && (
-                                          <p className="mt-0.5 text-muted-foreground">
-                                            {check.detail}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <EmptyState icon={FlaskConical} title="No runs yet" body="Run a scenario from Overview to create the first local result." />
-                  )}
-                </div>
-              )}
-
-              {view === "calls" && (
-                <Card>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base">Incoming calls</CardTitle>
-                        <CardDescription className="mt-1">
-                          Review the complete call and the isolated voicemail left after the beep.
-                        </CardDescription>
-                      </div>
-                      <Badge variant="secondary">
-                        <RadioTower className="mr-1 h-3 w-3" />
-                        Configured per number
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {calls.length ? (
-                      <div className="space-y-4">
-                        {calls.map((call) => {
-                          const availableRecordings = call.recordings.filter(
-                            (recording) => recording.local_path
-                          );
-                          return (
-                            <div className="rounded-xl bg-muted/30 p-4 md:p-5" key={call.id}>
-                              <div className="flex flex-wrap items-start justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="font-medium">
-                                      {call.from_address || "Unknown caller"}
-                                    </p>
-                                    <span className="text-muted-foreground">→</span>
-                                    <p className="font-medium">{call.to_address || "—"}</p>
-                                    {statusBadge(call.status)}
-                                  </div>
-                                  <p className="mt-1 font-mono text-xs text-muted-foreground">
-                                    {call.id}
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  disabled={busy}
-                                  aria-label={`Delete call ${call.id}`}
-                                  onClick={() => void removeCall(call.id)}
-                                >
-                                  <Trash2 />
-                                </Button>
-                              </div>
-
-                              <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                                <span>
-                                  <span className="text-muted-foreground">Scenario: </span>
-                                  {call.scenario?.replaceAll("_", " ") ??
-                                    "No scenario assigned"}
-                                </span>
-                                <span>
-                                  <span className="text-muted-foreground">Duration: </span>
-                                  {call.duration_s == null
-                                    ? "—"
-                                    : `${Math.round(call.duration_s)}s`}
-                                </span>
-                                <span>
-                                  <span className="text-muted-foreground">Started: </span>
-                                  {new Date(call.started_at).toLocaleString()}
-                                </span>
-                              </div>
-
-                              {availableRecordings.length ? (
-                                <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                                  {availableRecordings.map((recording) => (
-                                    <RecordingPlayer
-                                      key={recording.id}
-                                      recordingId={recording.id}
-                                      label={
-                                        recording.kind === "full_call"
-                                          ? "Complete call"
-                                          : "Voicemail left after the beep"
-                                      }
-                                    />
-                                  ))}
-                                </div>
-                              ) : (
-                                <div className="mt-5 rounded-lg bg-background/45 px-4 py-3 text-sm text-muted-foreground">
-                                  {call.recording_status === "disabled"
-                                    ? "This older call was made before recording was enabled."
-                                    : call.recording_status === "failed"
-                                      ? "Twilio could not provide the call recording."
-                                      : "Waiting for Twilio to finish and deliver the recordings."}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <EmptyState
-                        icon={PhoneCall}
-                        title="No incoming calls yet"
-                        body="Call a configured AMD number. The complete call and any voicemail left after the beep will appear here."
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+              {view === "runs" && <RunHistory runs={runs} endpoints={endpoints} busy={busy} onCancel={cancelRun} />}
+              {view === "calls" && <CallHistory calls={calls} busy={busy} onDelete={removeCall} />}
             </>
           )}
+      </div>
     </PageShell>
   );
 }
