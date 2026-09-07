@@ -1,0 +1,53 @@
+# AMD benchmark suite.
+#
+#   python -m telephony_voice_simulator.benchmark --suite config/benchmark.example.yaml --dry-run
+#
+# Every entry places a REAL outbound PSTN call through the agent's own API and
+# a real inbound leg at the simulator line. Cost and wall-clock scale with
+# scenarios x repeat; start small and widen once a run is green.
+version: 1
+name: amd-core
+
+# Attempts per scenario. AMD is probabilistic: a single pass proves the path
+# works, it does not measure a rate. Use 3+ before quoting a number.
+repeat: 3
+
+# Seconds a lane waits between its OWN calls. The scenario queue is per-number,
+# so lanes never race each other; this only paces one line.
+pace_seconds: 20
+
+# How long to wait for the agent's call record to reach a terminal status.
+call_timeout_seconds: 300
+
+# One concurrent lane per line. List every simulator line the run may use;
+# omit the block entirely to fall back to SIM_NUMBER and a single lane.
+# Two suites running at once (e.g. UAT vs prod) MUST get disjoint lists.
+# numbers:
+#   - "+15550100000"
+#   - "+15550100001"
+#
+# Lanes to actually use, capped at the line count. Omit to use every line.
+# concurrency: 5
+
+# `scenarios: all` runs the whole catalog. This shortlist is the smallest set
+# that still covers both error directions and the awkward middle.
+scenarios:
+  # machine, and the agent must leave a message after the beep
+  - stock_voicemail_beep_1000
+  - stock_voicemail_beep_1400_late
+  - multipart_carrier_greeting
+  - custom_greeting_long_no_beep
+  - tone_only_voicemail
+  # machine, but must NOT leave a message
+  - mailbox_full
+  - att_mailbox_not_setup
+  # gates and screeners: navigate, do not classify as voicemail
+  - dtmf_gate_honored
+  - pixel_call_screen
+  - ios26_screening_to_human
+  # precision guards: a human must never be scored as a machine
+  - business_receptionist_human
+  - silent_then_human
+  - gatekeeper_human_take_message
+
+exclude: []

@@ -1,0 +1,10 @@
+{
+  "_comment": "Request body the simulator POSTs to AGENT_API_TRIGGER_URL. Every string value is scanned for {sim_number}, {scenario} and {run_id}. Copy this next to your own untracked profile and replace the fields with whatever your agent's outbound API expects.",
+  "destination": "{sim_number}",
+  "agentId": "replace-with-your-agent-id",
+  "metadata": {
+    "source": "telephony-voice-simulator",
+    "benchmarkScenario": "{scenario}",
+    "benchmarkRunId": "{run_id}"
+  }
+}
