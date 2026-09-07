@@ -56,10 +56,18 @@ The backend also includes:
 - A live Twilio AMD callee runtime, DTMF relay, call capture, grading, and an
   optional Twilio Serverless deployment.
 - LiveKit room-mode and deployed-agent runners.
+- A vendor-neutral REST agent adapter that asks the agent's own backend to
+  place the call, plus an AMD benchmark suite that scores the agent over
+  repeats and reports a machine/human/screener confusion matrix.
 - Generic multi-step UAT orchestration with retries, captured values, grading,
   and artifact collection.
 - Opt-in recordings with private-control-plane playback and deletion of
   simulator-managed metadata and local artifacts.
+- A dealer-group PBX model (`pbxsim`) with a declarative three-rooftop
+  configuration on legacy on-prem switches, a deterministic router, agent
+  transfer evaluation, and 30 cases. See
+  [`docs/DEALER_GROUP_PBX.md`](docs/DEALER_GROUP_PBX.md) and the `dealer-map`,
+  `dealer-call`, `dealer-case`, and `dealer-suite` CLI commands.
 
 PBX is a deterministic routing model, not a production SIP registrar. Telnyx
 configuration is visible as a preview; live Telnyx Call Control execution is
@@ -116,6 +124,7 @@ Useful commands:
 ```bash
 pnpm lint
 pnpm test
+pnpm scenarios:check
 pnpm build
 pnpm uat:check
 pnpm prompts:check
@@ -131,7 +140,16 @@ uv run telephony-voice-sim sim --kind pbx
 Start with the [high-level design](docs/HLD.md) for the complete system and
 end-to-end call flows. See [Deployment](docs/DEPLOYMENT.md) for containers and live Twilio setup,
 [Configuration](docs/CONFIGURATION.md) for every environment variable, and
-[UAT](docs/UAT.md) for portable end-to-end agent testing.
+[UAT](docs/UAT.md) for portable end-to-end agent testing, and
+[Benchmark](docs/BENCHMARK.md) for scoring an agent's answering-machine
+detection over repeats.
+
+See [Extending the simulator](docs/EXTENDING.md) for adding private scenario
+packs, provider adapters, PBX models, and console features. The console exposes
+provider, endpoint, directory, and local simulation workflows, with automatic
+refresh, searchable run/call history, JSON export, and queued-run cancellation.
+The [project review](docs/PROJECT_REVIEW.md) records the improvements,
+verification, and remaining integration boundaries.
 
 ## Migration and open-source status
 

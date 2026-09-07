@@ -22,6 +22,7 @@ canonical inventory.
 | `SIMULATOR_RUNTIME_DIR` | source app or `./.telephony-voice-simulator` | Writable root for installed/runtime state |
 | `SIMULATOR_DATA_DIR` | `<runtime>/data` | Override SQLite and other mutable data |
 | `SIMULATOR_RESULTS_DIR` | `<runtime>/results` | Override call and grading artifacts |
+| `SIMULATOR_SCENARIOS_DIR` | bundled `scenarios` directory | Replace the AMD catalog with an external directory of validated YAML scenarios; restart the API and regenerate web content after changing it |
 | `SIMULATOR_COMPILED_ASSETS_DIR` | `<data>/compiled-assets` | Override generated PSTN prompt segments |
 | `SIMULATOR_DATABASE_URI` | empty | Preferred database selector: `sqlite://` or `mysql+pymysql://` |
 | `SIMULATOR_DB_PATH` | package data directory | Legacy SQLite path when no database URI is set |

@@ -12,6 +12,7 @@
     "start:api": "uv run telephony-voice-sim serve --host 0.0.0.0",
     "lint": "uv run ruff check .",
     "test": "uv run pytest",
+    "scenarios:check": "uv run telephony-voice-sim validate --all",
     "license:check": "uv run python ../../scripts/check_python_licenses.py",
     "uat:check": "uv run python scripts/uat_matrix.py --config config/uat.example.yaml --check",
     "prompts:check": "uv run python scripts/generate_ivr_prompts.py --check"

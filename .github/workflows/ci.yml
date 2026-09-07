@@ -15,6 +15,23 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: simulator_test
+          MYSQL_USER: simulator_test
+          MYSQL_PASSWORD: ci-test-only
+          MYSQL_ROOT_PASSWORD: ci-root-test-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=ci-root-test-only --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=30
+    env:
+      SIMULATOR_TEST_MYSQL_URI: mysql+pymysql://simulator_test:ci-test-only@127.0.0.1:3306/simulator_test
     defaults:
       run:
         working-directory: apps/simulator-backend
@@ -27,6 +44,7 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run pytest
+      - run: uv run telephony-voice-sim validate --all
       - run: uv run python ../../scripts/check_python_licenses.py
       - run: uv run python scripts/uat_matrix.py --config config/uat.example.yaml --check
       - run: uv run python scripts/generate_ivr_prompts.py --check

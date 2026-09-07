@@ -22,6 +22,18 @@ Keep provider-specific behavior behind an adapter. AMD, IVR, and PBX scenarios
 should continue to use the shared catalog and timeline vocabulary rather than
 introducing another control plane or database.
 
+See [Extending the simulator](docs/EXTENDING.md) for scenario validation,
+external scenario packs, provider injection, grading semantics, and console
+extension points. Run `pnpm scenarios:check` before exercising a new AMD scenario.
+
+The backend CI job also starts a disposable MySQL 8.4 service. To run those
+integration tests locally, point `SIMULATOR_TEST_MYSQL_URI` at a dedicated test
+database and run `uv run pytest tests/test_mysql_integration.py` from the backend
+directory. These checks exercise persistence, rollback, recording upserts, and
+concurrent queue/callback operations. They are skipped when the variable is
+unset; normal SQLite and stubbed provider tests still run. Do not point test
+configuration at an operational database.
+
 ## Audio and scenario contributions
 
 Every corpus entry must have a matching `assets_manifest.json` row containing

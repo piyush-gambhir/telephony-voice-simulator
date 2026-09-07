@@ -19,6 +19,7 @@
     "lint": "pnpm -r --if-present lint && pnpm ui:check",
     "ui:check": "python3 scripts/check_web_theme.py",
     "test": "pnpm -r --if-present test",
+    "scenarios:check": "pnpm --filter simulator-backend scenarios:check",
     "license:check": "pnpm -r --if-present license:check && npm --prefix deploy/twilio-ivr run license:check",
     "public-release:check": "uv run --project apps/simulator-backend python scripts/check_public_release.py",
     "uat:check": "pnpm --filter simulator-backend uat:check",
