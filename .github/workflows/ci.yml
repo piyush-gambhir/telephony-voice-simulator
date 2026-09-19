@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     services:
       mysql:
         image: mysql:8.4
@@ -52,7 +52,7 @@ jobs:
       - run: uv run python ../../scripts/check_public_release.py --archives-in dist
 
   web-console:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
@@ -76,7 +76,7 @@ jobs:
       - run: python3 scripts/check_public_release.py
 
   deployment-config:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
