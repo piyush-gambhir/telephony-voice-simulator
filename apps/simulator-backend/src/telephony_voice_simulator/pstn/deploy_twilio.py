@@ -271,7 +271,7 @@ def deploy(
             {"name": "twilio", "version": "^4.23.0"},
             {"name": "@twilio/runtime-handler", "version": "2.0.3"},
         ]),
-        "Runtime": "node22",
+        "Runtime": "node24",
     }
     resp = client.post(f"{API}/Services/{service_sid}/Builds", data=data)
     resp.raise_for_status()

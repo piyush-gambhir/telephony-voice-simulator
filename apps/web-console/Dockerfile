@@ -1,7 +1,7 @@
-FROM node:22-alpine AS build
+FROM node:24.21.0-alpine AS build
 
 RUN apk add --no-cache python3 py3-yaml ffmpeg
-RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+RUN corepack enable && corepack prepare pnpm@12.11.2 --activate
 
 WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
