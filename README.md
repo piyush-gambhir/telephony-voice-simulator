@@ -75,7 +75,7 @@ not represented as complete.
 
 ## Run locally
 
-Requirements are Node 24 (24.21.0 or newer), pnpm 12.11.2, Python 3.11+, `uv`, and `ffmpeg`.
+Requirements are Node 24 (24.21.0 or newer), pnpm 12.11.2, Python 3.14, `uv`, and `ffmpeg`.
 
 ```bash
 pnpm install
