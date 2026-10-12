@@ -3,7 +3,7 @@ name = "telephony-voice-simulator"
 version = "0.1.0"
 description = "Telephony and voice scenario simulator for AMD, IVR, PBX, routing, and call grading."
 license = "Apache-2.0"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "livekit>=1.0.0",
     "livekit-api>=1.0.0",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.17"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -52,7 +52,25 @@ telephony_voice_simulator = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py314"
+
+[tool.ruff.lint]
+# Ruff 0.16 dropped these from its default set; keep enforcing them as before.
+extend-select = [
+    "E401", "E402", "E701", "E702", "E703", "E711", "E712", "E713", "E714",
+    "E721", "E731", "E741", "E742", "E743", "F403", "F405", "F722",
+]
+# Newly default in ruff 0.16/0.17 and flagged by existing code; not adopted yet.
+extend-ignore = [
+    "BLE001", "EXE001", "I001", "ISC004", "PIE810", "PLW1510", "PYI034",
+    "RUF015", "SIM102", "SIM117", "TRY004", "UP035", "UP041",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# B023 false positives: each closure is called and finishes inside the same
+# loop iteration, so it never sees a later value of the loop variable.
+"src/telephony_voice_simulator/pstn/compile.py" = ["B023"]
+"tests/test_mysql_integration.py" = ["B023"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
