@@ -1230,6 +1230,12 @@ def register_routes(
     include_ivr: bool = True,
 ) -> None:
     if include_amd:
+        from ....pstn.customer_agent import register_routes as register_customer_routes
+
+        register_customer_routes(app)
+        from ....pstn.sms_receiver import register_routes as register_sms_routes
+
+        register_sms_routes(app)
         app.router.add_post("/twilio/voice", handle_voice)
         app.router.add_post("/twilio/step", handle_step)
         app.router.add_get("/assets/{file}", handle_asset)

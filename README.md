@@ -37,9 +37,9 @@ telephony-voice-simulator/
 
 ## What is included
 
-The catalog currently contains 43 scenarios:
+The catalog currently contains 44 scenarios:
 
-- 32 AMD/callee-machine scenarios covering voicemail, unusual beeps,
+- 33 AMD/callee-machine scenarios covering voicemail, unusual beeps,
   multipart and no-beep greetings, screeners, DTMF gates, dead ends, multiple
   languages, human-answer guards, and a clean-room segmented PBX voicemail.
 - 7 IVR scenarios covering valid routing, invalid input, retry, silence, busy,
@@ -139,7 +139,8 @@ uv run telephony-voice-sim sim --kind pbx
 
 Start with the [high-level design](docs/HLD.md) for the complete system and
 end-to-end call flows. See [Deployment](docs/DEPLOYMENT.md) for containers and live Twilio setup,
-[Configuration](docs/CONFIGURATION.md) for every environment variable, and
+[Configuration](docs/CONFIGURATION.md) for every environment variable,
+[Human role-play](docs/HUMAN_ROLEPLAY.md) for handset-backed customer tests, and
 [UAT](docs/UAT.md) for portable end-to-end agent testing, and
 [Benchmark](docs/BENCHMARK.md) for scoring an agent's answering-machine
 detection over repeats.

@@ -174,3 +174,17 @@ def test_standalone_pstn_entrypoint_uses_public_audio_gate(
 
     with pytest.raises(SystemExit, match="PSTN_ACKNOWLEDGE_PUBLIC_AUDIO"):
         server.main()
+
+
+@pytest.mark.parametrize("module", [
+    "telephony_voice_simulator.pstn.server",
+    "telephony_voice_simulator.telephony.registry",
+])
+def test_carrier_entrypoints_import_in_a_fresh_process(module):
+    import subprocess
+    import sys
+    result = subprocess.run(
+        [sys.executable, "-c", f"import {module}; from telephony_voice_simulator.control import SimulatorService"],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr

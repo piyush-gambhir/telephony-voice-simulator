@@ -1250,7 +1250,10 @@ class SQLiteSimulatorStore:
                     to_address = CASE WHEN excluded.to_address = '' THEN to_address
                                       ELSE excluded.to_address END,
                     scenario = COALESCE(excluded.scenario, scenario),
-                    status = excluded.status,
+                    status = CASE
+                        WHEN incoming_calls.status IN ('completed','failed','busy','no-answer','canceled')
+                         AND excluded.status NOT IN ('completed','failed','busy','no-answer','canceled')
+                        THEN incoming_calls.status ELSE excluded.status END,
                     recording_status = CASE
                         WHEN excluded.recording_status = 'not_started' THEN recording_status
                         ELSE excluded.recording_status END,

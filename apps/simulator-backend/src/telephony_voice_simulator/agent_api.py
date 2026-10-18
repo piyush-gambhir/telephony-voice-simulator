@@ -16,6 +16,8 @@ Environment:
   AGENT_API_TRIGGER_METHOD       default POST
   AGENT_API_AUTHORIZATION        Authorization header value, sent verbatim
   AGENT_API_BODY                 path to a JSON body template (see below)
+  AGENT_API_ALLOWED_DESTINATIONS comma-separated E.164 destination allowlist
+  AGENT_API_DESTINATION_PATH     dotted request-body path checked against SIM_NUMBER
   AGENT_API_CALL_ID_PATH         dotted path to the call id      (default callId)
   AGENT_API_RECORD_URL           GET template containing {call_id}
   AGENT_API_RECORD_AUTHORIZATION defaults to AGENT_API_AUTHORIZATION
@@ -42,6 +44,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import time
 import uuid
@@ -121,8 +124,15 @@ class AgentApiConfig:
     detection_layer_paths: list[str] = field(default_factory=list)
     amd_paths: list[str] = field(default_factory=list)
     timeout: float = 30.0
+    allowed_destinations: tuple[str, ...] = ()
+    destination_path: str = ""
 
     def __post_init__(self) -> None:
+        if self.allowed_destinations:
+            if not self.destination_path:
+                raise ValueError("destination_path is required with allowed_destinations")
+            if any(not re.fullmatch(r"\+[1-9]\d{6,14}", n) for n in self.allowed_destinations):
+                raise ValueError("allowed_destinations must contain canonical E.164 numbers")
         if not isinstance(self.body_template, dict):
             raise ValueError("agent API body template must be a JSON object")
         if not math.isfinite(self.timeout) or self.timeout <= 0:
@@ -196,6 +206,11 @@ def load_config(*, require_trigger: bool = True) -> AgentApiConfig:
             ["voicemailDetectionLayer", "voicemail_detection_layer"],
         ),
         amd_paths=_split_paths("AGENT_API_AMD_PATH", ["amdResult", "amd_result"]),
+        allowed_destinations=tuple(
+            n.strip() for n in os.environ.get("AGENT_API_ALLOWED_DESTINATIONS", "").split(",")
+            if n.strip()
+        ),
+        destination_path=os.environ.get("AGENT_API_DESTINATION_PATH", "").strip(),
     )
 
 
@@ -219,6 +234,11 @@ def trigger_call(
         config.body_template,
         {"sim_number": number, "scenario": scenario, "run_id": run_id},
     )
+    if config.allowed_destinations:
+        if number not in config.allowed_destinations:
+            raise ValueError("call destination is outside the configured test allowlist")
+        if dotted(body, config.destination_path) != number:
+            raise ValueError("rendered call destination does not match the requested test number")
     response = httpx.request(
         config.trigger_method,
         config.trigger_url,

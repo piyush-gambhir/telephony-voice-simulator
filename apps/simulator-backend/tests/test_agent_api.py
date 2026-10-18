@@ -261,3 +261,42 @@ def test_record_only_config_does_not_require_a_trigger(monkeypatch):
     monkeypatch.delenv("AGENT_API_BODY", raising=False)
     monkeypatch.setenv("AGENT_API_RECORD_URL", "https://agent.test/calls/{call_id}")
     assert agent_api.load_config(require_trigger=False).body_template == {}
+
+
+@pytest.mark.parametrize("number,body", [
+    ("+15555550199", {"destination": "{sim_number}"}),
+    ("+15555550100", {"destination": "+15555550199"}),
+    ("+15555550100", {}),
+])
+def test_destination_guard_refuses_unapproved_or_mismatched_calls(monkeypatch, number, body):
+    def unexpected_request(*args, **kwargs):
+        pytest.fail("a blocked test call must never reach the network")
+    monkeypatch.setattr(agent_api.httpx, "request", unexpected_request)
+    config = agent_api.AgentApiConfig(
+        trigger_url="https://agent.example.test/calls", body_template=body,
+        allowed_destinations=("+15555550100",), destination_path="destination",
+    )
+    with pytest.raises(ValueError):
+        agent_api.trigger_call(config, scenario="test", number=number)
+
+
+def test_destination_guard_allows_the_matching_test_number(monkeypatch):
+    sent = []
+    def request(method, url, **kwargs):
+        sent.append(kwargs["json"])
+        return httpx.Response(200, json={"callId": "test-call"})
+    monkeypatch.setattr(agent_api.httpx, "request", request)
+    config = agent_api.AgentApiConfig(
+        trigger_url="https://agent.example.test/calls",
+        body_template={"customer": {"phone": "{sim_number}"}},
+        allowed_destinations=("+15555550100",), destination_path="customer.phone",
+    )
+    call_id, _ = agent_api.trigger_call(config, scenario="test", number="+15555550100")
+    assert call_id == "test-call"
+    assert sent == [{"customer": {"phone": "+15555550100"}}]
+
+
+def test_destination_guard_requires_an_explicit_payload_path():
+    with pytest.raises(ValueError, match="destination_path"):
+        agent_api.AgentApiConfig(trigger_url="https://agent.example.test/calls",
+                                body_template={}, allowed_destinations=("+15555550100",))

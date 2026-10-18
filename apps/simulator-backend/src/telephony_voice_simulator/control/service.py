@@ -732,10 +732,24 @@ class SimulatorService:
             configuration.setdefault("previous_voice_url", number.voice_url)
             configuration.setdefault("previous_voice_method", number.voice_method)
         try:
+            if "previous_status_callback" not in configuration:
+                inventory = await self.twilio_numbers.list_numbers()
+                current = next(
+                    (item for item in inventory if item.get("sid") == number.provider_resource_id),
+                    None,
+                )
+                if current is None:
+                    raise ValidationError("Twilio number is missing from the account inventory.")
+                configuration["previous_status_callback"] = str(current.get("status_callback") or "")
+                configuration["previous_status_callback_method"] = str(
+                    current.get("status_callback_method") or "POST"
+                )
             remote = await self.twilio_numbers.update_number(
                 number.provider_resource_id,
                 voice_url=target,
                 voice_method="POST",
+                status_callback=f"{public_base_url}/twilio/status",
+                status_callback_method="POST",
             )
         except TwilioManagementError as exc:
             raise ValidationError(str(exc)) from exc
@@ -763,12 +777,18 @@ class SimulatorService:
                 number.provider_resource_id,
                 voice_url=previous_url,
                 voice_method=previous_method,
+                status_callback=number.configuration.get("previous_status_callback"),
+                status_callback_method=str(
+                    number.configuration.get("previous_status_callback_method") or "POST"
+                ),
             )
         except TwilioManagementError as exc:
             raise ValidationError(str(exc)) from exc
         configuration = dict(number.configuration)
         configuration.pop("previous_voice_url", None)
         configuration.pop("previous_voice_method", None)
+        configuration.pop("previous_status_callback", None)
+        configuration.pop("previous_status_callback_method", None)
         updated = self.store.update_provider_number(
             number.id,
             voice_url=str(remote.get("voice_url") or previous_url),

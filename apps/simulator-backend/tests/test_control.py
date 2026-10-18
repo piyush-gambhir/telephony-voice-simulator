@@ -25,6 +25,8 @@ class FakeTwilioNumberManager:
                 "friendly_name": "amd-simulator-line",
                 "voice_url": "https://old-sim.twil.io/machine?mode=voice",
                 "voice_method": "POST",
+                "status_callback": "https://old-sim.twil.io/status",
+                "status_callback_method": "GET",
                 "capabilities": {"voice": True},
             },
             {
@@ -47,6 +49,8 @@ class FakeTwilioNumberManager:
         friendly_name: str | None = None,
         voice_url: str | None = None,
         voice_method: str = "POST",
+        status_callback: str | None = None,
+        status_callback_method: str = "POST",
     ):
         number = next(item for item in self.numbers if item["sid"] == provider_resource_id)
         if friendly_name is not None:
@@ -54,6 +58,9 @@ class FakeTwilioNumberManager:
         if voice_url is not None:
             number["voice_url"] = voice_url
             number["voice_method"] = voice_method
+        if status_callback is not None:
+            number["status_callback"] = status_callback
+            number["status_callback_method"] = status_callback_method
         return number
 
 
@@ -1219,6 +1226,9 @@ async def test_amd_number_inventory_is_persisted_configured_and_queued(
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://voice-simulator.example")
     attached = await service.attach_amd_number(number["id"])
     assert attached["attached_to_runtime"] is True
+    assert manager.numbers[0]["status_callback"] == "https://voice-simulator.example/twilio/status"
+    assert manager.numbers[0]["status_callback_method"] == "POST"
+    await service.attach_amd_number(number["id"])
     assert attached["configuration"]["previous_voice_url"] == (
         "https://old-sim.twil.io/machine?mode=voice"
     )
@@ -1231,3 +1241,5 @@ async def test_amd_number_inventory_is_persisted_configured_and_queued(
     restored = await service.restore_amd_number(number["id"])
     assert restored["voice_url"] == "https://old-sim.twil.io/machine?mode=voice"
     assert restored["attached_to_runtime"] is False
+    assert manager.numbers[0]["status_callback"] == "https://old-sim.twil.io/status"
+    assert manager.numbers[0]["status_callback_method"] == "GET"
