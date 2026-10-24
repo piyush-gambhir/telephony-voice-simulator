@@ -1,4 +1,4 @@
-FROM node:24.21.0-alpine AS build
+FROM node:24.22.1-alpine AS build
 
 RUN apk add --no-cache python3 py3-yaml ffmpeg
 RUN corepack enable && corepack prepare pnpm@12.11.2 --activate
