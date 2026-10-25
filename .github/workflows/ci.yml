@@ -112,3 +112,15 @@ jobs:
           context: .
           file: apps/web-console/Dockerfile
           push: false
+
+  required-web-console:
+    name: web-console
+    needs: web-console
+    if: always()
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Require both console runtimes
+        env:
+          RESULT: ${{ needs.web-console.result }}
+        run: test "$RESULT" = success
