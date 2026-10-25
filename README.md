@@ -75,7 +75,7 @@ not represented as complete.
 
 ## Run locally
 
-Requirements are Node 24 (24.21.0 or newer), pnpm 12.11.2, Python 3.14, `uv`, and `ffmpeg`.
+Requirements are Node 24.22.1 or Node 26.12.1, pnpm 12.15.0, Python 3.14, `uv`, and `ffmpeg`. The `.nvmrc` and web-console Docker build use Node 26; CI also validates Node 24 for host compatibility.
 
 ```bash
 pnpm install
@@ -180,3 +180,18 @@ rules required for every jurisdiction involved. Deleting a call in the console
 removes the simulator's database records and local files; it does not remotely
 erase a provider-hosted Twilio `RecordingSid`. Configure provider retention or
 delete those recordings in Twilio separately.
+
+### Node tooling verification
+
+The web console was checked with Node 26.12.1 and 24.22.1: lint, explicit
+TypeScript 7 typecheck, and the 48-page static build passed. TypeScript 6.0.3
+remains installed for `typescript-eslint` (which requires TypeScript below 6.1),
+and ESLint 9 remains compatible with `eslint-plugin-react`'s peer range.
+Node 24 type definitions preserve the supported host API baseline.
+The Node 26 Docker image built successfully, and its console tabs and refresh
+were exercised in an isolated browser with local backend fixtures. These checks
+do not validate live telephony, provider credentials, calls, or SMS.
+
+The web dependency full and production audits reported no advisories. See
+`deploy/twilio-ivr/README.md` for the separate Twilio deployment-tool limitations.
+No runtime performance improvement was measured.

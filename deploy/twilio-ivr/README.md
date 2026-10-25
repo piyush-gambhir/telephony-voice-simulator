@@ -38,3 +38,23 @@ python ../../apps/simulator-backend/scripts/twilio_number.py attach \
 
 The command saves the number's previous webhook configuration under `results/`
 before changing it. Use its `restore` subcommand with that backup to roll back.
+
+## Runtime and tooling verification
+
+The existing Node 24 deployment package contract is unchanged. Twilio Functions
+supports Node 24 for v2 Services; Node 26 development tooling elsewhere in this
+repository does not select or upgrade a deployed Twilio runtime. See the
+[Twilio runtime guide](https://www.twilio.com/docs/serverless/functions-assets/node-upgrade).
+
+The latest `twilio-run` 5.0.1 still declares Node 20 or 22 support, so installing
+it on the package's existing Node 24 target emits an engine warning. Its
+deployment command was not tested against an account. Compatible lockfile
+updates reduced the development audit findings from 10 to 7 (2 moderate and
+5 high); production dependencies have no findings. The remaining findings are
+in `twilio-run`'s tooling graph, including clipboard/process, file detection,
+and title handling. No major overrides or automatic audit downgrade were applied.
+Review these findings before account-enabled use.
+
+Node 24.22.1 passed Function syntax validation and isolated TwiML fixtures for
+the four-digit menu, SIP lookup, dial timeout bound, retry limit, and busy
+response. No calls, SMS, prompt generation, or deployments were performed.
