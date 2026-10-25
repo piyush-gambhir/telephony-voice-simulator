@@ -26,7 +26,7 @@ jobs:
       matrix:
         include:
         - image: telephony-voice-simulator-backend
-          dockerfile: apps/simulator-backend/Dockerfile
+          dockerfile: Dockerfile
           context: apps/simulator-backend
         - image: telephony-voice-simulator-web
           dockerfile: apps/web-console/Dockerfile
