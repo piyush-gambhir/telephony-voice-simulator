@@ -4,7 +4,7 @@ Thank you for improving Telephony Voice Simulator.
 
 ## Development setup
 
-Prerequisites are Python 3.14, `uv`, Node 24 (24.21.0 or newer), pnpm 12.11.2, and `ffmpeg`.
+Prerequisites are Python 3.14, `uv`, Node 26.12.1 for development, pnpm 12.15.0, and `ffmpeg`.
 
 ```bash
 pnpm install
@@ -71,3 +71,5 @@ checks, and the production web build pass.
 
 By submitting a contribution, you agree that it is licensed under Apache-2.0
 and that you have the right to submit it.
+
+Node 26.12.1 is the local development baseline. Web CI also checks Node 24.22.1; the optional Twilio Functions deployment retains its separate Node 24 contract.

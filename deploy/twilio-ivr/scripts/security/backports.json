@@ -1,0 +1,21 @@
+[
+  {
+    "package": "file-type",
+    "version": "17.1.6",
+    "file": "node_modules/file-type/core.js",
+    "source": "https://github.com/sindresorhus/file-type/commit/319abf871b50ba2fa221b4a7050059f1ae096f4f",
+    "before": "6536814e8747266e30c32ca37f48076fbb981db3965eccf6daca1fd15d2953ac",
+    "after": "837c0f1e2b05e645c319d20c3223989830cdb6c8788b08719bbfec69d87545d9",
+    "changes": [
+      [
+        "\t\t\twhile (tokenizer.position + 24 < tokenizer.fileInfo.size) {\n\t\t\t\tconst header = await readHeader();",
+        "\t\t\twhile (tokenizer.position + 24 < tokenizer.fileInfo.size) {\n\t\t\t\tconst previousPosition = tokenizer.position;\n\t\t\t\tconst header = await readHeader();"
+      ],
+      [
+        "\t\t\t\tawait tokenizer.ignore(payload);\n\t\t\t}\n\n\t\t\t// Default to ASF",
+        "\t\t\t\tawait tokenizer.ignore(payload);\n\n\t\t\t\t// Safeguard against malformed files: break if the position did not advance.\n\t\t\t\tif (tokenizer.position <= previousPosition) {\n\t\t\t\t\tbreak;\n\t\t\t\t}\n\t\t\t}\n\n\t\t\t// Default to ASF"
+      ]
+    ],
+    "packageFile": "node_modules/file-type/package.json"
+  }
+]
