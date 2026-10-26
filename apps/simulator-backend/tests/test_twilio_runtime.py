@@ -1361,3 +1361,13 @@ async def test_runtime_saves_keep_the_claim_for_a_concurrent_retry(pstn_client) 
     assert store.list_provider_queue("twilio", endpoint.address) == [
         {"scenario": "gate", "run_id": second_run.id}
     ]
+
+
+async def test_twilio_app_refuses_cross_origin_writes(pstn_client) -> None:
+    client, _ = pstn_client
+    response = await client.post(
+        "/twilio/status",
+        data={"CallSid": "CA-cross-origin", "CallStatus": "completed"},
+        headers={"Origin": "https://attacker.example"},
+    )
+    assert response.status == 403
