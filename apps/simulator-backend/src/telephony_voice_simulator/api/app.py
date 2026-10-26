@@ -419,16 +419,16 @@ def build_app(
     app[SERVICE_KEY] = service or SimulatorService()
     register_control_routes(app)
     if include_twilio or include_ivr:
-        from ..telephony.twilio import webhooks as pstn_server
+        from ..telephony.twilio import state, webhooks
 
         # The live IVR and the console must resolve the exact same directory,
         # including when callers inject a non-default store in tests or embeds.
-        pstn_server.CALL_STORE = app[SERVICE_KEY].store
-        app[CALL_EVICTOR_KEY] = pstn_server.evict_call
-        if include_twilio and not pstn_server.STATE.scenarios:
-            pstn_server.COMPILED_DIR.mkdir(parents=True, exist_ok=True)
-            pstn_server.STATE.load_scenarios()
-        pstn_server.register_routes(
+        state.CALL_STORE = app[SERVICE_KEY].store
+        app[CALL_EVICTOR_KEY] = state.evict_call
+        if include_twilio and not state.STATE.scenarios:
+            state.COMPILED_DIR.mkdir(parents=True, exist_ok=True)
+            state.STATE.load_scenarios()
+        webhooks.register_routes(
             app,
             include_amd=include_twilio,
             include_ivr=include_twilio or include_ivr,

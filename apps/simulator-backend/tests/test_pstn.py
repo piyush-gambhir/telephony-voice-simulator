@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import base64
 import hashlib
 import hmac
+import json
+from pathlib import Path
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -159,9 +159,9 @@ async def _post_form(client, path: str, data: dict):
 
 def _queue_on_line(address: str, *scenarios: str) -> None:
     """Queue one-shot scenarios on a managed Twilio line, creating the line if needed."""
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
-    store = pstn_server.CALL_STORE
+    store = twilio_state.CALL_STORE
     assert store is not None
     if not any(endpoint.address == address for endpoint in store.list_endpoints()):
         connection = store.create_connection("twilio", f"Line {address}")
@@ -180,14 +180,15 @@ def _queue_on_line(address: str, *scenarios: str) -> None:
 async def pstn_client(assets: Path, tmp_path: Path, monkeypatch):
     from aiohttp.test_utils import TestClient, TestServer
 
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
     from telephony_voice_simulator.storage.sqlite import SimulatorStore
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
+    from telephony_voice_simulator.telephony.twilio import webhooks as twilio_webhooks
 
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://sim.example.com")
     monkeypatch.setenv("PSTN_ALLOW_UNSIGNED_WEBHOOKS", "true")
-    monkeypatch.setattr(pstn_server, "COMPILED_DIR", tmp_path / "compiled")
-    monkeypatch.setattr(pstn_server, "PSTN_RESULTS_DIR", tmp_path / "results")
-    state = pstn_server.SimState()
+    monkeypatch.setattr(twilio_state, "COMPILED_DIR", tmp_path / "compiled")
+    monkeypatch.setattr(twilio_state, "PSTN_RESULTS_DIR", tmp_path / "results")
+    state = twilio_state.SimState()
     for scenario in (
         _vm_scenario(),
         _gate_scenario({"digits": ["5"], "switch": "connected"}),
@@ -202,9 +203,9 @@ async def pstn_client(assets: Path, tmp_path: Path, monkeypatch):
             for segment in sequence
             if segment.audio_file
         )
-    monkeypatch.setattr(pstn_server, "STATE", state)
-    monkeypatch.setattr(pstn_server, "CALL_STORE", SimulatorStore(tmp_path / "calls.db"))
-    client = TestClient(TestServer(pstn_server.build_app()))
+    monkeypatch.setattr(twilio_state, "STATE", state)
+    monkeypatch.setattr(twilio_state, "CALL_STORE", SimulatorStore(tmp_path / "calls.db"))
+    client = TestClient(TestServer(twilio_webhooks.build_app()))
     await client.start_server()
     yield client, state
     await client.close()
@@ -288,10 +289,10 @@ async def test_active_call_keeps_its_original_dtmf_program(pstn_client):
 
 
 async def test_asset_route_serves_only_current_compilation_outputs(pstn_client) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, state = pstn_client
-    stale = pstn_server.COMPILED_DIR / "stale-private-output.wav"
+    stale = twilio_state.COMPILED_DIR / "stale-private-output.wav"
     stale.write_bytes(b"RIFF-stale-private")
 
     rejected = await client.get("/assets/stale-private-output.wav")
@@ -335,12 +336,12 @@ async def test_unknown_number_rejects(pstn_client) -> None:
 
 
 async def test_live_ivr_uses_shared_directory(pstn_client) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _ = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    connection = pstn_server.CALL_STORE.create_connection("twilio", "Live IVR")
-    pstn_server.CALL_STORE.create_directory_entry(
+    assert twilio_state.CALL_STORE is not None
+    connection = twilio_state.CALL_STORE.create_connection("twilio", "Live IVR")
+    twilio_state.CALL_STORE.create_directory_entry(
         connection_id=connection.id,
         extension="1501",
         name="Front desk",
@@ -377,7 +378,7 @@ async def test_live_ivr_uses_shared_directory(pstn_client) -> None:
         },
     )
     assert "<Hangup/>" in body
-    persisted = pstn_server.CALL_STORE.get_incoming_call("CA-ivr")
+    persisted = twilio_state.CALL_STORE.get_incoming_call("CA-ivr")
     assert persisted is not None
     assert persisted.status == "busy"
     assert persisted.analysis["selected_digits"] == "1501"
@@ -400,7 +401,7 @@ async def test_live_ivr_uses_shared_directory(pstn_client) -> None:
         "/twilio/status",
         {"CallSid": "CA-ivr", "CallStatus": "completed", "CallDuration": "9"},
     )
-    persisted = pstn_server.CALL_STORE.get_incoming_call("CA-ivr")
+    persisted = twilio_state.CALL_STORE.get_incoming_call("CA-ivr")
     assert persisted is not None
     assert persisted.status == "completed"
     assert persisted.duration_s == 9.0
@@ -426,14 +427,14 @@ async def test_live_ivr_uses_shared_directory(pstn_client) -> None:
 async def test_live_ivr_rejects_legacy_non_four_digit_extension(
     pstn_client,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _ = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    connection = pstn_server.CALL_STORE.create_connection("twilio", "Legacy IVR")
+    assert twilio_state.CALL_STORE is not None
+    connection = twilio_state.CALL_STORE.create_connection("twilio", "Legacy IVR")
     # Store-level insertion represents a database created by a pre-migration
     # version; the webhook boundary must still reject it.
-    pstn_server.CALL_STORE.create_directory_entry(
+    twilio_state.CALL_STORE.create_directory_entry(
         connection_id=connection.id,
         extension="12",
         name="Legacy short extension",
@@ -460,7 +461,7 @@ async def test_live_ivr_rejects_legacy_non_four_digit_extension(
 async def test_live_ivr_answer_retry_starts_audit_recording_once(
     pstn_client, monkeypatch
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import ivr as twilio_ivr
 
     client, state = pstn_client
     starts: list[str] = []
@@ -469,7 +470,7 @@ async def test_live_ivr_answer_retry_starts_audit_recording_once(
         starts.append(call_sid)
         return {"started": True, "sid": "RE-live-ivr", "status": "in-progress"}
 
-    monkeypatch.setattr(pstn_server, "_start_audit_recording", started)
+    monkeypatch.setattr(twilio_ivr, "start_audit_recording", started)
     form = {"CallSid": "CA-ivr-retry", "To": "+15550009999", "From": "+12223334444"}
     await _post_form(client, "/twilio/ivr", form)
     await _post_form(client, "/twilio/ivr", form)
@@ -505,7 +506,8 @@ async def test_live_ivr_retries_are_bounded(pstn_client, monkeypatch) -> None:
 async def test_live_ivr_restores_persisted_state_after_process_restart(
     pstn_client, monkeypatch
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import ivr as twilio_ivr
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, original_state = pstn_client
     starts: list[str] = []
@@ -514,15 +516,15 @@ async def test_live_ivr_restores_persisted_state_after_process_restart(
         starts.append(call_sid)
         return {"started": True, "sid": "RE-restored", "status": "in-progress"}
 
-    monkeypatch.setattr(pstn_server, "_start_audit_recording", started)
+    monkeypatch.setattr(twilio_ivr, "start_audit_recording", started)
     form = {"CallSid": "CA-ivr-restored", "To": "+15550009999", "From": "+12223334444"}
     await _post_form(client, "/twilio/ivr", form)
     assert original_state.calls["CA-ivr-restored"]["prompt_count"] == 1
 
-    restarted_state = pstn_server.SimState()
+    restarted_state = twilio_state.SimState()
     restarted_state.scenarios = original_state.scenarios
     restarted_state.raw_scenarios = original_state.raw_scenarios
-    monkeypatch.setattr(pstn_server, "STATE", restarted_state)
+    monkeypatch.setattr(twilio_state, "STATE", restarted_state)
 
     body = await _post_form(client, "/twilio/ivr", form)
 
@@ -538,16 +540,16 @@ async def test_live_ivr_restores_persisted_state_after_process_restart(
 async def test_live_ivr_rejects_disabled_provider_routes_and_emits_sip_targets(
     pstn_client,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _ = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    disabled = pstn_server.CALL_STORE.create_connection(
+    assert twilio_state.CALL_STORE is not None
+    disabled = twilio_state.CALL_STORE.create_connection(
         "twilio",
         "Disabled carrier",
         status="disabled",
     )
-    pstn_server.CALL_STORE.create_directory_entry(
+    twilio_state.CALL_STORE.create_directory_entry(
         connection_id=disabled.id,
         extension="1701",
         name="Unavailable route",
@@ -555,8 +557,8 @@ async def test_live_ivr_rejects_disabled_provider_routes_and_emits_sip_targets(
         department="Service",
         ring_timeout=20,
     )
-    enabled = pstn_server.CALL_STORE.create_connection("twilio", "SIP carrier")
-    pstn_server.CALL_STORE.create_directory_entry(
+    enabled = twilio_state.CALL_STORE.create_connection("twilio", "SIP carrier")
+    twilio_state.CALL_STORE.create_directory_entry(
         connection_id=enabled.id,
         extension="1702",
         name="SIP desk",
@@ -598,29 +600,29 @@ async def test_deleted_call_tombstone_survives_restart_and_rejects_late_callback
 ) -> None:
     from telephony_voice_simulator.service.simulator import SimulatorService
     from telephony_voice_simulator.storage.sqlite import SimulatorStore
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _ = pstn_client
-    assert pstn_server.CALL_STORE is not None
+    assert twilio_state.CALL_STORE is not None
     call_id = "CA-deleted-before-restart"
     await _post_form(
         client,
         "/twilio/ivr",
         {"CallSid": call_id, "To": "+15550009999", "From": "+12223334444"},
     )
-    database = pstn_server.CALL_STORE.path
+    database = twilio_state.CALL_STORE.path
     service = SimulatorService(
-        store=pstn_server.CALL_STORE,
-        recordings_root=pstn_server.PSTN_RESULTS_DIR,
+        store=twilio_state.CALL_STORE,
+        recordings_root=twilio_state.PSTN_RESULTS_DIR,
     )
     service.delete_call(call_id)
-    pstn_server.evict_call(call_id)
-    assert pstn_server.CALL_STORE.is_incoming_call_deleted(call_id)
+    twilio_state.evict_call(call_id)
+    assert twilio_state.CALL_STORE.is_incoming_call_deleted(call_id)
 
     restarted_store = SimulatorStore(database)
-    restarted_state = pstn_server.SimState()
-    monkeypatch.setattr(pstn_server, "CALL_STORE", restarted_store)
-    monkeypatch.setattr(pstn_server, "STATE", restarted_state)
+    restarted_state = twilio_state.SimState()
+    monkeypatch.setattr(twilio_state, "CALL_STORE", restarted_store)
+    monkeypatch.setattr(twilio_state, "STATE", restarted_state)
 
     response = await client.post(
         "/twilio/recording",
@@ -690,18 +692,18 @@ async def test_twilio_signature_is_required_when_auth_token_is_set(
 async def test_managed_twilio_endpoint_and_provider_disable_fail_closed(
     pstn_client,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _state = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    connection = pstn_server.CALL_STORE.create_connection("twilio", "Managed")
-    endpoint = pstn_server.CALL_STORE.create_endpoint(
+    assert twilio_state.CALL_STORE is not None
+    connection = twilio_state.CALL_STORE.create_connection("twilio", "Managed")
+    endpoint = twilio_state.CALL_STORE.create_endpoint(
         connection_id=connection.id,
         name="Managed line",
         kind="phone_number",
         address="+15550100001",
     )
-    pstn_server.CALL_STORE.update_endpoint(
+    twilio_state.CALL_STORE.update_endpoint(
         endpoint.id,
         connection_id=endpoint.connection_id,
         name=endpoint.name,
@@ -723,13 +725,13 @@ async def test_managed_twilio_endpoint_and_provider_disable_fail_closed(
     assert "<Reject/>" in await amd.text()
     assert "<Reject/>" in await ivr.text()
 
-    enabled_endpoint = pstn_server.CALL_STORE.create_endpoint(
+    enabled_endpoint = twilio_state.CALL_STORE.create_endpoint(
         connection_id=connection.id,
         name="Provider-disabled line",
         kind="phone_number",
         address="+15550100002",
     )
-    pstn_server.CALL_STORE.update_connection(
+    twilio_state.CALL_STORE.update_connection(
         connection.id,
         name=connection.name,
         status="disabled",
@@ -748,10 +750,11 @@ def test_formatted_and_deleted_managed_twilio_numbers_stay_fail_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from telephony_voice_simulator.storage.sqlite import SimulatorStore
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import routing as twilio_routing
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     store = SimulatorStore(tmp_path / "managed.db")
-    monkeypatch.setattr(pstn_server, "CALL_STORE", store)
+    monkeypatch.setattr(twilio_state, "CALL_STORE", store)
     connection = store.create_connection("twilio", "Legacy managed")
     endpoint = store.create_endpoint(
         connection_id=connection.id,
@@ -770,21 +773,22 @@ def test_formatted_and_deleted_managed_twilio_numbers_stay_fail_closed(
         enabled=False,
     )
 
-    assert pstn_server._twilio_endpoint_is_enabled("+15550100001") is False
+    assert twilio_routing.endpoint_is_enabled("+15550100001") is False
     store.delete_endpoint(endpoint.id)
     assert store.list_managed_provider_addresses("twilio") == ["+1 (555) 010-0001"]
-    assert pstn_server._twilio_endpoint_is_enabled("+15550100001") is False
+    assert twilio_routing.endpoint_is_enabled("+15550100001") is False
 
 
 async def test_persisted_queue_tracks_run_through_call_and_completion(
     pstn_client,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import routing as twilio_routing
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, state = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    connection = pstn_server.CALL_STORE.create_connection("twilio", "Managed")
-    endpoint = pstn_server.CALL_STORE.create_endpoint(
+    assert twilio_state.CALL_STORE is not None
+    connection = twilio_state.CALL_STORE.create_connection("twilio", "Managed")
+    endpoint = twilio_state.CALL_STORE.create_endpoint(
         connection_id=connection.id,
         name="Queued line",
         kind="phone_number",
@@ -792,8 +796,8 @@ async def test_persisted_queue_tracks_run_through_call_and_completion(
         routing_mode="queued",
         default_scenario="gate",
     )
-    run = pstn_server.CALL_STORE.create_run(endpoint.id, "twilio", "vm")
-    pstn_server.CALL_STORE.enqueue_provider_run(
+    run = twilio_state.CALL_STORE.create_run(endpoint.id, "twilio", "vm")
+    twilio_state.CALL_STORE.enqueue_provider_run(
         provider="twilio",
         address=endpoint.address,
         scenario="vm",
@@ -807,15 +811,15 @@ async def test_persisted_queue_tracks_run_through_call_and_completion(
     assert voice.status == 200
     assert "vm-main-0.wav" in await voice.text()
     assert state.calls["CA-run-linked"]["run_id"] == run.id
-    assert pstn_server.CALL_STORE.list_provider_queue("twilio", endpoint.address) == []
-    in_progress = pstn_server.CALL_STORE.get_run(run.id)
+    assert twilio_state.CALL_STORE.list_provider_queue("twilio", endpoint.address) == []
+    in_progress = twilio_state.CALL_STORE.get_run(run.id)
     assert in_progress is not None and in_progress.status == "in-progress"
 
-    pstn_server._finish_simulation_run(
+    twilio_routing.finish_simulation_run(
         state.calls["CA-run-linked"] | {"status": "completed", "duration_s": 9},
         {"passed": True, "checks": []},
     )
-    completed = pstn_server.CALL_STORE.get_run(run.id)
+    completed = twilio_state.CALL_STORE.get_run(run.id)
     assert completed is not None
     assert completed.status == "completed"
     assert completed.completed_at is not None
@@ -827,20 +831,20 @@ async def test_persisted_queue_tracks_run_through_call_and_completion(
 async def test_fixed_endpoint_without_default_uses_queued_scenario(
     pstn_client,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _state = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    connection = pstn_server.CALL_STORE.create_connection("twilio", "Managed fixed")
-    endpoint = pstn_server.CALL_STORE.create_endpoint(
+    assert twilio_state.CALL_STORE is not None
+    connection = twilio_state.CALL_STORE.create_connection("twilio", "Managed fixed")
+    endpoint = twilio_state.CALL_STORE.create_endpoint(
         connection_id=connection.id,
         name="Fixed line without default",
         kind="phone_number",
         address="+15550100004",
         routing_mode="fixed",
     )
-    run = pstn_server.CALL_STORE.create_run(endpoint.id, "twilio", "vm")
-    pstn_server.CALL_STORE.enqueue_provider_run(
+    run = twilio_state.CALL_STORE.create_run(endpoint.id, "twilio", "vm")
+    twilio_state.CALL_STORE.enqueue_provider_run(
         provider="twilio",
         address=endpoint.address,
         scenario="vm",
@@ -858,20 +862,20 @@ async def test_fixed_endpoint_without_default_uses_queued_scenario(
 async def test_voice_retry_after_restart_reuses_persisted_assignment(
     pstn_client,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, state = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    connection = pstn_server.CALL_STORE.create_connection("twilio", "Restart")
-    endpoint = pstn_server.CALL_STORE.create_endpoint(
+    assert twilio_state.CALL_STORE is not None
+    connection = twilio_state.CALL_STORE.create_connection("twilio", "Restart")
+    endpoint = twilio_state.CALL_STORE.create_endpoint(
         connection_id=connection.id,
         name="Restart-safe queue",
         kind="phone_number",
         address="+15550100005",
         routing_mode="queued",
     )
-    first_run = pstn_server.CALL_STORE.create_run(endpoint.id, "twilio", "vm")
-    pstn_server.CALL_STORE.enqueue_provider_run(
+    first_run = twilio_state.CALL_STORE.create_run(endpoint.id, "twilio", "vm")
+    twilio_state.CALL_STORE.enqueue_provider_run(
         provider="twilio",
         address=endpoint.address,
         scenario="vm",
@@ -884,8 +888,8 @@ async def test_voice_retry_after_restart_reuses_persisted_assignment(
     assert "vm-main-0.wav" in await first.text()
 
     state.calls.pop("CA-restart-retry")
-    second_run = pstn_server.CALL_STORE.create_run(endpoint.id, "twilio", "gate")
-    pstn_server.CALL_STORE.enqueue_provider_run(
+    second_run = twilio_state.CALL_STORE.create_run(endpoint.id, "twilio", "gate")
+    twilio_state.CALL_STORE.enqueue_provider_run(
         provider="twilio",
         address=endpoint.address,
         scenario="gate",
@@ -897,7 +901,7 @@ async def test_voice_retry_after_restart_reuses_persisted_assignment(
     )
 
     assert "vm-main-0.wav" in await retry.text()
-    assert pstn_server.CALL_STORE.list_provider_queue("twilio", endpoint.address) == [
+    assert twilio_state.CALL_STORE.list_provider_queue("twilio", endpoint.address) == [
         {"scenario": "gate", "run_id": second_run.id}
     ]
 
@@ -905,11 +909,11 @@ async def test_voice_retry_after_restart_reuses_persisted_assignment(
 async def test_call_sid_traversal_is_rejected_before_state_or_filesystem_access(
     pstn_client,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, state = pstn_client
-    assert pstn_server.CALL_STORE is not None
-    outside = pstn_server.PSTN_RESULTS_DIR.parent / "escaped"
+    assert twilio_state.CALL_STORE is not None
+    outside = twilio_state.PSTN_RESULTS_DIR.parent / "escaped"
 
     response = await client.post(
         "/twilio/voice",
@@ -918,33 +922,33 @@ async def test_call_sid_traversal_is_rejected_before_state_or_filesystem_access(
 
     assert response.status == 400
     assert "../../escaped" not in state.calls
-    assert pstn_server.CALL_STORE.get_incoming_call("../../escaped") is None
+    assert twilio_state.CALL_STORE.get_incoming_call("../../escaped") is None
     assert not outside.exists()
 
 
 def test_recording_url_is_constructed_from_sid(monkeypatch) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import recordings as twilio_recordings
 
     monkeypatch.setenv("TWILIO_ACCOUNT_SID", "AC123")
     sid = "RE" + "a" * 32
 
-    assert pstn_server._recording_media_url(sid) == (
+    assert twilio_recordings.recording_media_url(sid) == (
         "https://api.twilio.com/2010-04-01/Accounts/AC123/Recordings/" + sid
     )
-    assert pstn_server._recording_media_url("../../attacker") is None
+    assert twilio_recordings.recording_media_url("../../attacker") is None
 
 
 async def test_full_call_recording_defaults_to_disabled(monkeypatch) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import recordings as twilio_recordings
 
     monkeypatch.delenv("PSTN_RECORD_ALL_CALLS", raising=False)
-    result = await pstn_server._start_audit_recording("CA-default-off")
+    result = await twilio_recordings.start_audit_recording("CA-default-off")
 
     assert result["started"] is False
     assert result["disabled"] is True
 
     monkeypatch.setenv("PSTN_RECORD_ALL_CALLS", "enable-typo")
-    typo_result = await pstn_server._start_audit_recording("CA-still-off")
+    typo_result = await twilio_recordings.start_audit_recording("CA-still-off")
     assert typo_result["disabled"] is True
 
 
@@ -962,14 +966,15 @@ async def test_voice_webhook_retry_keeps_same_scenario_assignment(pstn_client) -
 
 
 async def test_incoming_call_and_full_recording_are_persisted(pstn_client, monkeypatch) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import amd as twilio_amd
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _state = pstn_client
 
     async def started(_call_sid: str, _to_number: str = "") -> dict:
         return {"started": True, "sid": "RE-audit", "status": "in-progress"}
 
-    monkeypatch.setattr(pstn_server, "_start_audit_recording", started)
+    monkeypatch.setattr(twilio_amd, "start_audit_recording", started)
     _queue_on_line("+1555", "vm")
     await _post_form(
         client,
@@ -977,7 +982,7 @@ async def test_incoming_call_and_full_recording_are_persisted(pstn_client, monke
         {"CallSid": "CA-record", "To": "+1555", "From": "+12223334444"},
     )
 
-    persisted = pstn_server.CALL_STORE.get_incoming_call("CA-record")
+    persisted = twilio_state.CALL_STORE.get_incoming_call("CA-record")
     assert persisted is not None
     assert persisted.recording_status == "recording"
     assert persisted.scenario == "vm"
@@ -993,7 +998,7 @@ async def test_incoming_call_and_full_recording_are_persisted(pstn_client, monke
         },
     )
     assert response.status == 200
-    persisted = pstn_server.CALL_STORE.get_incoming_call("CA-record")
+    persisted = twilio_state.CALL_STORE.get_incoming_call("CA-record")
     assert persisted is not None
     assert persisted.recording_status == "failed"
     assert len(persisted.recordings) == 1
@@ -1002,11 +1007,11 @@ async def test_incoming_call_and_full_recording_are_persisted(pstn_client, monke
 
 
 def test_full_call_recording_requests_completion_callback(monkeypatch) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import recordings as twilio_recordings
 
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://sim.example.com")
 
-    assert pstn_server._audit_recording_payload() == {
+    assert twilio_recordings.audit_recording_payload() == {
         "RecordingChannels": "dual",
         "RecordingTrack": "both",
         "RecordingStatusCallback": "https://sim.example.com/twilio/recording",
@@ -1253,10 +1258,10 @@ def test_transcribe_returns_none_for_a_missing_file(tmp_path, monkeypatch) -> No
 
 
 async def test_claimed_assignment_survives_crash_before_call_is_saved(pstn_client) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _state = pstn_client
-    store = pstn_server.CALL_STORE
+    store = twilio_state.CALL_STORE
     connection = store.create_connection("twilio", "Crash")
     endpoint = store.create_endpoint(
         connection_id=connection.id, name="Crash-safe queue", kind="phone_number",
@@ -1315,10 +1320,10 @@ async def test_recording_binding_survives_restart_before_completion(pstn_client)
 
 
 async def test_legacy_active_row_keeps_its_scenario_without_dequeuing(pstn_client) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _state = pstn_client
-    store = pstn_server.CALL_STORE
+    store = twilio_state.CALL_STORE
     connection = store.create_connection("twilio", "Legacy")
     endpoint = store.create_endpoint(
         connection_id=connection.id, name="Legacy queue", kind="phone_number",
@@ -1335,10 +1340,10 @@ async def test_legacy_active_row_keeps_its_scenario_without_dequeuing(pstn_clien
 
 
 async def test_runtime_saves_keep_the_claim_for_a_concurrent_retry(pstn_client) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     client, _state = pstn_client
-    store = pstn_server.CALL_STORE
+    store = twilio_state.CALL_STORE
     connection = store.create_connection("twilio", "Concurrent")
     endpoint = store.create_endpoint(
         connection_id=connection.id, name="Concurrent retry", kind="phone_number",

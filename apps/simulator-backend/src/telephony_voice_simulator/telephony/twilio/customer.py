@@ -48,11 +48,11 @@ def prune_calls() -> None:
 
 
 def provider_ended(sid: str) -> bool:
-    from . import webhooks
+    from . import state
 
-    if webhooks._call_is_deleted(sid):
+    if state.call_is_deleted(sid):
         return True
-    saved = webhooks._call_store().get_incoming_call(sid)
+    saved = state.call_store().get_incoming_call(sid)
     return saved is None or saved.status in {"completed", "failed", "busy", "no-answer", "canceled"}
 
 
@@ -124,16 +124,16 @@ async def synthesize(reply: str) -> bytes:
 
 
 def persist(sid: str, call: CustomerCall, **extra: object) -> None:
-    from . import webhooks
-    webhooks._call_store().upsert_incoming_call(
+    from . import state
+    state.call_store().upsert_incoming_call(
         call_id=sid, analysis={"customer_dialogue": call.history, "graded": False, **extra},
     )
 
 
 async def handle_customer(request: web.Request) -> web.Response:
-    from . import webhooks
+    from . import security, state, twiml
     form = await request.post()
-    if rejected := webhooks._reject_invalid_twilio_request(request, form):
+    if rejected := security.reject_invalid_request(request, form):
         return rejected
     prune_calls()
     sid, number, caller = (str(form.get(k, "")) for k in ("CallSid", "To", "From"))
@@ -142,72 +142,72 @@ async def handle_customer(request: web.Request) -> web.Response:
     outbound = str(form.get("Direction", "")).startswith("outbound")
     if outbound:
         number, caller = caller, number
-    if rejected := webhooks._reject_invalid_call_sid(sid):
+    if rejected := security.reject_invalid_call_sid(sid):
         return rejected
-    if webhooks._call_is_deleted(sid):
-        return webhooks._twiml("<Hangup/>")
+    if state.call_is_deleted(sid):
+        return twiml.twiml("<Hangup/>")
     allowed = profiles()
     if (number not in allowed or caller not in os.environ.get("PSTN_CUSTOMER_ALLOWED_CALLERS", "").split(",")
             or str(form.get("AccountSid", "")) != os.environ.get("TWILIO_ACCOUNT_SID")
             or not os.environ.get("OPENAI_API_KEY") or not os.environ.get("ELEVENLABS_API_KEY")
             or not os.environ.get("ELEVENLABS_VOICE_ID")):
-        return webhooks._twiml("<Reject/>")
+        return twiml.twiml("<Reject/>")
     if sid not in CALLS:
-        if len(CALLS) >= 20 or webhooks._call_store().get_incoming_call(sid) is not None:
-            return webhooks._twiml("<Hangup/>")
+        if len(CALLS) >= 20 or state.call_store().get_incoming_call(sid) is not None:
+            return twiml.twiml("<Hangup/>")
         CALLS[sid] = CustomerCall(allowed[number])
-        webhooks._call_store().upsert_incoming_call(
+        state.call_store().upsert_incoming_call(
             call_id=sid, from_address=str(form.get("From", "")), to_address=str(form.get("To", "")),
             direction="outbound" if outbound else "inbound",
             scenario="automated_customer", status="in-progress", recording_status="disabled",
-            started_at=webhooks._iso(), analysis={"customer_dialogue": [], "graded": False},
+            started_at=state.iso(), analysis={"customer_dialogue": [], "graded": False},
         )
     call = CALLS[sid]
     if call.stopped or provider_ended(sid):
-        return webhooks._twiml("<Hangup/>")
-    return webhooks._twiml(call.responses[max(call.responses)] if call.responses else gather(0))
+        return twiml.twiml("<Hangup/>")
+    return twiml.twiml(call.responses[max(call.responses)] if call.responses else gather(0))
 
 
 async def handle_turn(request: web.Request) -> web.Response:
-    from . import webhooks
+    from . import security, state, twiml
     form = await request.post()
-    if rejected := webhooks._reject_invalid_twilio_request(request, form):
+    if rejected := security.reject_invalid_request(request, form):
         return rejected
     prune_calls()
     sid = str(form.get("CallSid", ""))
-    if rejected := webhooks._reject_invalid_call_sid(sid):
+    if rejected := security.reject_invalid_call_sid(sid):
         return rejected
     if str(form.get("AccountSid", "")) != os.environ.get("TWILIO_ACCOUNT_SID"):
-        return webhooks._twiml("<Hangup/>")
+        return twiml.twiml("<Hangup/>")
     call = CALLS.get(sid)
     try:
         turn = int(request.query.get("turn", "-1"))
     except ValueError:
-        return webhooks._twiml("<Hangup/>")
+        return twiml.twiml("<Hangup/>")
     if call is None or turn < 0:
-        return webhooks._twiml("<Hangup/>")
+        return twiml.twiml("<Hangup/>")
     async with call.lock:
         # Retry the closing response, but never generate a new turn after it.
         # Provider completion and deletion take precedence over cached responses.
         if provider_ended(sid):
-            return webhooks._twiml("<Hangup/>")
+            return twiml.twiml("<Hangup/>")
         if turn in call.responses:
-            return webhooks._twiml(call.responses[turn])
+            return twiml.twiml(call.responses[turn])
         if call.stopped:
-            return webhooks._twiml("<Hangup/>")
+            return twiml.twiml("<Hangup/>")
         if turn != len(call.responses) or turn >= MAX_TURNS or time.monotonic() - call.started > MAX_SECONDS:
             call.stopped = True
             persist(sid, call, stopped="call_limit")
-            return webhooks._twiml("<Hangup/>")
+            return twiml.twiml("<Hangup/>")
         try:
             # The combined deadline stays below Twilio's webhook timeout.
             async with asyncio.timeout(12):
                 reply, done = await customer_reply(call, str(form.get("SpeechResult", "")))
                 if call.stopped or provider_ended(sid):
-                    return webhooks._twiml("<Hangup/>")
+                    return twiml.twiml("<Hangup/>")
                 audio = await synthesize(reply)
             if call.stopped or provider_ended(sid):
-                return webhooks._twiml("<Hangup/>")
+                return twiml.twiml("<Hangup/>")
             token = uuid.uuid4().hex
             call.audio[token] = audio
             url = os.environ["PUBLIC_BASE_URL"].rstrip("/") + f"/twilio/customer/audio/{sid}/{token}.mp3"
@@ -215,23 +215,23 @@ async def handle_turn(request: web.Request) -> web.Response:
             call.responses[turn] = xml
             call.stopped = done
             persist(sid, call)
-            return webhooks._twiml(xml)
+            return twiml.twiml(xml)
         except Exception as exc:
-            if webhooks._call_is_deleted(sid):
-                return webhooks._twiml("<Hangup/>")
+            if state.call_is_deleted(sid):
+                return twiml.twiml("<Hangup/>")
             xml = "<Hangup/>"
             call.stopped = True
             call.responses[turn] = xml
             persist(sid, call, stopped="customer_agent_error", error_type=type(exc).__name__)
-            return webhooks._twiml(xml)
+            return twiml.twiml(xml)
 
 
 async def handle_audio(request: web.Request) -> web.Response:
-    from . import webhooks
+    from . import security, state
 
     prune_calls()
     sid = request.match_info["sid"]
-    if not webhooks._call_sid_is_valid(sid) or webhooks._call_is_deleted(sid):
+    if not security.call_sid_is_valid(sid) or state.call_is_deleted(sid):
         raise web.HTTPNotFound()
     call = CALLS.get(sid)
     audio = call.audio.get(request.match_info["token"]) if call else None

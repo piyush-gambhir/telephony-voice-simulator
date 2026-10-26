@@ -1,5 +1,5 @@
-import base64
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -10,7 +10,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from telephony_voice_simulator.storage.sqlite import SimulatorStore
 from telephony_voice_simulator.telephony.twilio import customer
-from telephony_voice_simulator.telephony.twilio import webhooks
+from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
 SID = 'CA' + '1' * 32
 
@@ -18,7 +18,7 @@ SID = 'CA' + '1' * 32
 @pytest.fixture
 async def client(tmp_path, monkeypatch):
     customer.CALLS.clear()
-    monkeypatch.setattr(webhooks, 'STATE', webhooks.SimState())
+    monkeypatch.setattr(twilio_state, 'STATE', twilio_state.SimState())
     path = tmp_path / 'profiles.json'
     path.write_text(json.dumps({'+15555550100': 'You are Alex, book the earliest offered visit.'}))
     for k, v in {'PUBLIC_BASE_URL': 'https://sim.example', 'TWILIO_AUTH_TOKEN': 'test-token',
@@ -26,7 +26,7 @@ async def client(tmp_path, monkeypatch):
                  'PSTN_CUSTOMER_ALLOWED_CALLERS': '+15555550101', 'OPENAI_API_KEY': 'test',
                  'ELEVENLABS_API_KEY': 'test', 'ELEVENLABS_VOICE_ID': 'test-voice'}.items():
         monkeypatch.setenv(k, v)
-    monkeypatch.setattr(webhooks, 'CALL_STORE', SimulatorStore(tmp_path / 'calls.sqlite3'))
+    monkeypatch.setattr(twilio_state, 'CALL_STORE', SimulatorStore(tmp_path / 'calls.sqlite3'))
     app = web.Application()
     customer.register_routes(app)
     async with TestClient(TestServer(app)) as session:
@@ -96,7 +96,7 @@ async def test_generation_failure_does_not_retry_paid_request(client, monkeypatc
 
 async def test_late_customer_analysis_cannot_reopen_completed_call(client):
     await signed_post(client, '/twilio/customer')
-    store = webhooks._call_store()
+    store = twilio_state.call_store()
     store.upsert_incoming_call(call_id=SID, status='completed', duration_s=72,
                                ended_at='2026-10-18T19:38:40Z')
     call = customer.CALLS[SID]
@@ -115,12 +115,12 @@ async def test_persona_line_can_place_the_call(client):
                           From='+15555550100', To='+15555550101')
     assert '<Gather' in await r.text()
     assert customer.CALLS[SID].profile.startswith('You are Alex')
-    saved = webhooks._call_store().get_incoming_call(SID)
+    saved = twilio_state.call_store().get_incoming_call(SID)
     assert saved.from_address == '+15555550100'
     assert saved.to_address == '+15555550101'
     assert saved.direction == 'outbound'
     customer.persist(SID, customer.CALLS[SID])
-    assert webhooks._call_store().get_incoming_call(SID).direction == 'outbound'
+    assert twilio_state.call_store().get_incoming_call(SID).direction == 'outbound'
 
 
 async def test_placed_call_still_needs_an_allowed_counterpart(client):
@@ -147,7 +147,7 @@ async def test_terminal_customer_cannot_generate_another_turn(client, monkeypatc
     monkeypatch.setattr(customer, 'synthesize', tts)
     await signed_post(client, '/twilio/customer')
     if ending in {'completed', 'deleted'}:
-        store = webhooks._call_store()
+        store = twilio_state.call_store()
         if ending == 'deleted':
             store.delete_incoming_call(SID)
         else:
@@ -174,8 +174,8 @@ async def test_deletion_removes_customer_audio_and_rejects_reentry(client):
     customer.CALLS[SID].audio['known'] = b'audio'
     path = f'/twilio/customer/audio/{SID}/known.mp3'
     assert (await client.get(path)).status == 200
-    webhooks._call_store().delete_incoming_call(SID)
-    webhooks.evict_call(SID)
+    twilio_state.call_store().delete_incoming_call(SID)
+    twilio_state.evict_call(SID)
     assert SID not in customer.CALLS
     assert (await client.get(path)).status == 404
     response = await signed_post(client, '/twilio/customer')
@@ -202,7 +202,7 @@ async def test_call_ending_during_generation_discards_reply(client, monkeypatch,
     await signed_post(client, '/twilio/customer')
     task = asyncio.create_task(signed_post(client, '/twilio/customer/turn?turn=0'))
     await asyncio.wait_for(entered.wait(), timeout=2)
-    store = webhooks._call_store()
+    store = twilio_state.call_store()
     if action == 'delete':
         store.delete_incoming_call(SID)
     else:

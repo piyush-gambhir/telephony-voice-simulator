@@ -4,13 +4,7 @@ from __future__ import annotations
 
 import os
 
-from ..base import (
-    ProviderAdapter,
-    ProviderError,
-    ProviderRuntimeStore,
-    RunDispatch,
-    RunRequest,
-)
+from ...config import is_absolute_https_url
 from ...identifiers import is_canonical_e164, normalize_e164
 from ...models import (
     Endpoint,
@@ -18,7 +12,13 @@ from ...models import (
     ProviderConnection,
     ProviderDescriptor,
 )
-from ...config import is_absolute_https_url
+from ..base import (
+    ProviderAdapter,
+    ProviderError,
+    ProviderRuntimeStore,
+    RunDispatch,
+    RunRequest,
+)
 from .runtime import TwilioRuntime
 
 

@@ -10,10 +10,10 @@ from pathlib import Path
 
 from aiohttp import web
 
-from ...grading.checks import summarize_checks
 from ...grading.analyze import analyze_call
+from ...grading.checks import summarize_checks
+from . import recordings, routing, security, state
 from .compile import CompiledScenario
-from . import webhooks as runtime
 
 CALLBACK_GRACE_SECONDS = 12
 TERMINAL_STATUSES = {"completed", "failed", "busy", "no-answer", "canceled"}
@@ -23,8 +23,8 @@ MEDIA_CHECKS = {"agent_spoke", "message_start_after", "message_content"}
 def capture_scenario(call: dict) -> None:
     if "grading_spec" not in call:
         call["grading_spec"] = {
-            "scenario": copy.deepcopy(runtime.STATE.raw_scenarios[call["scenario"]]),
-            "compiled": asdict(runtime.STATE.scenarios[call["scenario"]]),
+            "scenario": copy.deepcopy(state.STATE.raw_scenarios[call["scenario"]]),
+            "compiled": asdict(state.STATE.scenarios[call["scenario"]]),
         }
 
 
@@ -34,11 +34,11 @@ def snapshot(call: dict) -> dict:
 
 def restore(sid: str) -> dict | None:
     """Recover only a saved AMD execution, never reconstruct playback from a catalog."""
-    if not runtime._call_sid_is_valid(sid) or runtime._call_is_deleted(sid):
+    if not security.call_sid_is_valid(sid) or state.call_is_deleted(sid):
         return None
-    if sid in runtime.STATE.calls:
-        return runtime.STATE.calls[sid]
-    saved = runtime._call_store().get_incoming_call(sid)
+    if sid in state.STATE.calls:
+        return state.STATE.calls[sid]
+    saved = state.call_store().get_incoming_call(sid)
     # Prefer the grading snapshot; an active call only has its execution snapshot.
     data = (saved.analysis.get("finalization", {}).get("runtime")
             or saved.analysis.get("runtime")) if saved else None
@@ -46,16 +46,16 @@ def restore(sid: str) -> dict | None:
         return None
     call = copy.deepcopy(data)
     call.update(call_sid=sid, status=saved.status, analysis=saved.analysis)
-    runtime.STATE.calls[sid] = call
+    state.STATE.calls[sid] = call
     return call
 
 
 def media_state(call: dict) -> tuple[list, list[str], bool, dict]:
     """Fingerprint persisted message media and confine files before reading them."""
-    saved = runtime._call_store().get_incoming_call(call["call_sid"])
+    saved = state.call_store().get_incoming_call(call["call_sid"])
     if saved is None:
         return [], [], True, {}
-    root = runtime._call_results_dir(call["call_sid"]).resolve()
+    root = security.call_results_dir(call["call_sid"]).resolve()
     windows = call.get("recording_windows", {})
     emitted = [(i, segment) for i, segment in enumerate(call.get("segments", []))
                if segment["terminal"] == "record" and not segment.get("gather")]
@@ -98,16 +98,16 @@ def media_state(call: dict) -> tuple[list, list[str], bool, dict]:
 def schedule(call: dict) -> None:
     sid = call["call_sid"]
     if (call.get("kind") == "live_ivr" or call.get("status") not in TERMINAL_STATUSES
-            or ("grading_spec" not in call and call.get("scenario") not in runtime.STATE.scenarios)
-            or runtime._call_is_deleted(sid)):
+            or ("grading_spec" not in call and call.get("scenario") not in state.STATE.scenarios)
+            or state.call_is_deleted(sid)):
         return
-    active = runtime.STATE.finalization_tasks.get(sid)
+    active = state.STATE.finalization_tasks.get(sid)
     if active and not active.done():
         # Keep late callback bindings (recording windows) recoverable across a restart.
         pending = call.get("analysis", {}).get("finalization", {})
         if pending.get("state") == "pending":
             analysis = {**call["analysis"], "finalization": {**pending, "runtime": snapshot(call)}}
-            if runtime._call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is not None:
+            if state.call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is not None:
                 call["analysis"] = analysis
         return
     signature, _, _, _ = media_state(call)
@@ -118,19 +118,19 @@ def schedule(call: dict) -> None:
     previous_analysis = {k: v for k, v in call.get("analysis", {}).items() if k != "runtime"}
     analysis = {**previous_analysis, "graded": False, "passed": None,
                 "finalization": {"state": "pending", "runtime": snapshot(call)}}
-    if runtime._call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is None:
+    if state.call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is None:
         return
     call["analysis"] = analysis
-    run = runtime._call_store().get_run(call["run_id"]) if call.get("run_id") else None
+    run = state.call_store().get_run(call["run_id"]) if call.get("run_id") else None
     if run is not None and run.completed_at is not None:
-        runtime._finish_simulation_run(call, analysis)
-    state = runtime.STATE
+        routing.finish_simulation_run(call, analysis)
+    live = state.STATE
     task = asyncio.create_task(finalize(call))
-    state.finalization_tasks[sid] = task
+    live.finalization_tasks[sid] = task
 
     def finished(done: asyncio.Task) -> None:
-        if state.finalization_tasks.get(sid) is done:
-            state.finalization_tasks.pop(sid, None)
+        if live.finalization_tasks.get(sid) is done:
+            live.finalization_tasks.pop(sid, None)
         if not done.cancelled():
             done.exception()  # finalize persists errors; consume unexpected task failures too.
 
@@ -139,24 +139,24 @@ def schedule(call: dict) -> None:
 
 def start_download(call: dict, url: str, recording_sid: str, kind: str) -> None:
     sid = call["call_sid"]
-    state = runtime.STATE
-    if recording_sid in state.recording_tasks.get(sid, {}):
+    live = state.STATE
+    if recording_sid in live.recording_tasks.get(sid, {}):
         return
-    saved = runtime._call_store().get_recording(recording_sid)
+    saved = state.call_store().get_recording(recording_sid)
     if saved and saved.status == "completed" and saved.local_path:
         path = Path(saved.local_path)
-        root = runtime._call_results_dir(sid).resolve()
+        root = security.call_results_dir(sid).resolve()
         if not path.is_symlink() and path.resolve().parent == root and path.is_file():
             schedule(call)
             return
-    tasks = state.recording_tasks.setdefault(sid, {})
-    task = asyncio.create_task(runtime._download_recording(call, url, recording_sid, kind))
+    tasks = live.recording_tasks.setdefault(sid, {})
+    task = asyncio.create_task(recordings.download_recording(call, url, recording_sid, kind))
     tasks[recording_sid] = task
 
     def finished(done: asyncio.Task) -> None:
         tasks.pop(recording_sid, None)
         if not tasks:
-            state.recording_tasks.pop(sid, None)
+            live.recording_tasks.pop(sid, None)
         if not done.cancelled():
             done.exception()
             schedule(call)
@@ -169,11 +169,11 @@ async def finalize(call: dict) -> None:
     try:
         # Allow callbacks to arrive, then await actual downloads rather than guessing their duration.
         await asyncio.sleep(CALLBACK_GRACE_SECONDS)
-        while not runtime._call_is_deleted(sid):
-            tasks = list(runtime.STATE.recording_tasks.get(sid, {}).values())
+        while not state.call_is_deleted(sid):
+            tasks = list(state.STATE.recording_tasks.get(sid, {}).values())
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
-                if runtime._call_is_deleted(sid):
+                if state.call_is_deleted(sid):
                     return
             signature, paths, incomplete, evidence = media_state(call)
             work = snapshot(call)
@@ -183,10 +183,10 @@ async def finalize(call: dict) -> None:
             spec = call["grading_spec"]["compiled"]
             compiled = CompiledScenario.from_dict(spec)
             analysis = await asyncio.to_thread(analyze_call, work, raw, compiled)
-            if runtime._call_is_deleted(sid):
+            if state.call_is_deleted(sid):
                 return
             current_signature, _, _, _ = media_state(call)
-            if signature != current_signature or runtime.STATE.recording_tasks.get(sid):
+            if signature != current_signature or state.STATE.recording_tasks.get(sid):
                 continue
             needs_media = bool(MEDIA_CHECKS & raw.get("expect", {}).keys())
             if incomplete and needs_media:
@@ -204,41 +204,41 @@ async def finalize(call: dict) -> None:
             analysis["finalization"] = {"state": "complete", "media_signature": signature,
                                         "runtime": snapshot(call)}
             call["analysis"] = analysis
-            if runtime._call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is None:
+            if state.call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is None:
                 return
-            out_dir = runtime._call_results_dir(sid)
+            out_dir = security.call_results_dir(sid)
             out_dir.mkdir(parents=True, exist_ok=True)
             (out_dir / "call.json").write_text(json.dumps(call, indent=2, default=str))
-            runtime._finish_simulation_run(call, analysis)
+            routing.finish_simulation_run(call, analysis)
             return
     except Exception as exc:
-        if not runtime._call_is_deleted(sid):
+        if not state.call_is_deleted(sid):
             analysis = {"graded": False, "passed": None, "run_id": call.get("run_id"),
                         "finalization": {"state": "error", "error_type": type(exc).__name__,
                                          "runtime": snapshot(call)}}
             call["analysis"] = analysis
-            runtime._call_store().upsert_incoming_call(call_id=sid, analysis=analysis)
-            runtime._finish_simulation_run(call, analysis)
+            state.call_store().upsert_incoming_call(call_id=sid, analysis=analysis)
+            routing.finish_simulation_run(call, analysis)
 
 
 async def startup(_app: web.Application) -> None:
-    for saved in runtime._call_store().list_calls_awaiting_finalization():
+    for saved in state.call_store().list_calls_awaiting_finalization():
         call = restore(saved.id)
         if call is None:
             continue
         for recording in saved.recordings:
             if recording.status != "absent":
-                url = runtime._recording_media_url(recording.id)
+                url = recordings.recording_media_url(recording.id)
                 if url:
                     start_download(call, url, recording.id, recording.kind)
         schedule(call)
 
 
 async def cleanup(_app: web.Application) -> None:
-    tasks = [*runtime.STATE.finalization_tasks.values(),
-             *(task for downloads in runtime.STATE.recording_tasks.values() for task in downloads.values())]
+    tasks = [*state.STATE.finalization_tasks.values(),
+             *(task for downloads in state.STATE.recording_tasks.values() for task in downloads.values())]
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
-    runtime.STATE.finalization_tasks.clear()
-    runtime.STATE.recording_tasks.clear()
+    state.STATE.finalization_tasks.clear()
+    state.STATE.recording_tasks.clear()

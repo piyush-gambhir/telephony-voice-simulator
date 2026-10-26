@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
@@ -869,14 +869,14 @@ def test_ivr_only_app_does_not_load_or_expose_amd_assets(
     service: SimulatorService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
-    monkeypatch.setattr(pstn_server.STATE, "scenarios", {})
+    monkeypatch.setattr(twilio_state.STATE, "scenarios", {})
 
     def fail_if_loaded() -> None:
         raise AssertionError("IVR-only mode must not load the AMD corpus")
 
-    monkeypatch.setattr(pstn_server.STATE, "load_scenarios", fail_if_loaded)
+    monkeypatch.setattr(twilio_state.STATE, "load_scenarios", fail_if_loaded)
     app = build_app(service, include_ivr=True)
     paths = {resource.canonical for resource in app.router.resources()}
 
@@ -890,18 +890,18 @@ async def test_combined_runtime_uses_injected_store(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     compiled = tmp_path / "compiled"
     compiled.mkdir()
-    monkeypatch.setattr(pstn_server, "COMPILED_DIR", compiled)
-    monkeypatch.setattr(pstn_server.STATE, "scenarios", {"already-loaded": object()})
-    monkeypatch.setattr(pstn_server, "CALL_STORE", None)
+    monkeypatch.setattr(twilio_state, "COMPILED_DIR", compiled)
+    monkeypatch.setattr(twilio_state.STATE, "scenarios", {"already-loaded": object()})
+    monkeypatch.setattr(twilio_state, "CALL_STORE", None)
 
     client = TestClient(TestServer(build_app(service, include_twilio=True)))
     await client.start_server()
     try:
-        assert pstn_server.CALL_STORE is service.store
+        assert twilio_state.CALL_STORE is service.store
         health = await client.get("/health")
         assert health.status == 200
 
@@ -916,15 +916,15 @@ async def test_combined_call_deletion_evicts_raw_pstn_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
     call_id = "CA-combined-delete"
     compiled = tmp_path / "compiled-combined"
     compiled.mkdir()
-    monkeypatch.setattr(pstn_server, "COMPILED_DIR", compiled)
-    monkeypatch.setattr(pstn_server.STATE, "scenarios", {"already-loaded": object()})
-    pstn_server.STATE.deleted_call_ids.discard(call_id)
-    pstn_server.STATE.calls[call_id] = {
+    monkeypatch.setattr(twilio_state, "COMPILED_DIR", compiled)
+    monkeypatch.setattr(twilio_state.STATE, "scenarios", {"already-loaded": object()})
+    twilio_state.STATE.deleted_call_ids.discard(call_id)
+    twilio_state.STATE.calls[call_id] = {
         "call_sid": call_id,
         "status": "completed",
         "scenario": "already-loaded",
@@ -936,14 +936,14 @@ async def test_combined_call_deletion_evicts_raw_pstn_state(
     try:
         response = await client.delete(f"/api/calls/{call_id}")
         assert response.status == 200
-        assert call_id not in pstn_server.STATE.calls
-        assert call_id in pstn_server.STATE.deleted_call_ids
+        assert call_id not in twilio_state.STATE.calls
+        assert call_id in twilio_state.STATE.deleted_call_ids
         assert service.store.is_incoming_call_deleted(call_id)
 
     finally:
         await client.close()
-        pstn_server.STATE.calls.pop(call_id, None)
-        pstn_server.STATE.deleted_call_ids.discard(call_id)
+        twilio_state.STATE.calls.pop(call_id, None)
+        twilio_state.STATE.deleted_call_ids.discard(call_id)
 
 
 async def test_call_history_and_recording_media_are_served(
@@ -1182,10 +1182,11 @@ async def test_amd_number_inventory_is_persisted_configured_and_queued(
     assert renamed["endpoint"]["name"] == "Telephony Voice Simulator · AMD 01"
     assert renamed["endpoint"]["default_scenario"] == "google_voice_voicemail"
     assert renamed["configuration"]["record_full_calls"] is True
-    from telephony_voice_simulator.telephony.twilio import webhooks
+    from telephony_voice_simulator.telephony.twilio import recordings as twilio_recordings
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
-    monkeypatch.setattr(webhooks, "CALL_STORE", service.store)
-    assert webhooks._full_call_recording_enabled(number["phone_number"]) is True
+    monkeypatch.setattr(twilio_state, "CALL_STORE", service.store)
+    assert twilio_recordings._full_call_recording_enabled(number["phone_number"]) is True
 
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://voice-simulator.example")
     attached = await service.attach_amd_number(number["id"])

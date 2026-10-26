@@ -28,9 +28,9 @@ from xml.sax.saxutils import escape
 import httpx
 import yaml
 
+from ....grading.analyze import analyze_call
 from ....grading.checks import summarize_checks
 from ....paths import ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR
-from ....grading.analyze import analyze_call
 from ..compile import CompiledScenario, compile_scenario
 
 PSTN_RESULTS_DIR = RESULTS_DIR / "pstn"

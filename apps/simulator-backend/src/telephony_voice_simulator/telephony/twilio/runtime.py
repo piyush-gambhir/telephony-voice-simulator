@@ -17,6 +17,6 @@ class LocalTwilioRuntime:
     """
 
     def scenario_available(self, scenario_name: str) -> bool:
-        from .webhooks import STATE
+        from . import state
 
-        return scenario_name in STATE.scenarios
+        return scenario_name in state.STATE.scenarios

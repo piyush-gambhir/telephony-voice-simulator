@@ -5,17 +5,17 @@ import os
 import re
 import sqlite3
 from contextlib import closing
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 from aiohttp import web
 
 
 async def handle_sms(request: web.Request) -> web.Response:
-    from . import webhooks
+    from . import security, twiml
 
     form = await request.post()
-    if rejected := webhooks._reject_invalid_twilio_request(request, form):
+    if rejected := security.reject_invalid_request(request, form):
         return rejected
     allowed = set(filter(None, os.environ.get("PSTN_SMS_NUMBERS", "").split(",")))
     callers = set(filter(None, os.environ.get("PSTN_SMS_ALLOWED_SENDERS", "").split(",")))
@@ -45,7 +45,7 @@ async def handle_sms(request: web.Request) -> web.Response:
                 sid, str(form["From"]), str(form["To"]), body,
                 datetime.now(UTC).isoformat(),
             ))
-    return webhooks._twiml("")
+    return twiml.twiml("")
 
 
 def register_routes(app: web.Application) -> None:
