@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from telephony_voice_simulator.corpus import from_recordings
 
@@ -33,21 +34,11 @@ def test_recording_capture_delegates_to_provenance_gated_importer(
     monkeypatch.setenv("RECORDINGS_BUCKET", "private-recordings")
     monkeypatch.setattr(from_recordings.subprocess, "run", fake_run)
     monkeypatch.setattr(from_recordings, "import_audio_asset", fake_import)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "from_recordings",
-            "--call-id",
-            "private-call-id",
-            "--asset",
-            "greeting_stock_carrier.wav",
-            "--license-note",
-            "Consented internal test capture",
-        ],
+    from_recordings.import_from_recording(
+        call_id="private-call-id",
+        asset="greeting_stock_carrier.wav",
+        license_note="Consented internal test capture",
     )
-
-    assert from_recordings.main() == 0
     assert captured["source_type"] == "internal_carrier_capture"
     assert captured["license_note"] == "Consented internal test capture"
     assert captured["commit_allowed"] is False
@@ -66,19 +57,10 @@ def test_recording_capture_rejects_path_traversal_before_aws(
 
     monkeypatch.setenv("RECORDINGS_BUCKET", "private-recordings")
     monkeypatch.setattr(from_recordings.subprocess, "run", fake_run)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "from_recordings",
-            "--call-id",
-            "../../outside",
-            "--asset",
-            "greeting_stock_carrier.wav",
-            "--license-note",
-            "Consented internal test capture",
-        ],
-    )
-
-    assert from_recordings.main() == 2
+    with pytest.raises(ValueError, match="Invalid call ID"):
+        from_recordings.import_from_recording(
+            call_id="../../outside",
+            asset="greeting_stock_carrier.wav",
+            license_note="Consented internal test capture",
+        )
     assert called is False

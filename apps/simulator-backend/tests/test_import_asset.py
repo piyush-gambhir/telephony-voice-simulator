@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import sys
 from pathlib import Path
 
 from telephony_voice_simulator.corpus import import_asset
@@ -25,26 +24,16 @@ def test_import_asset_updates_manifest_and_audio(tmp_path: Path, monkeypatch) ->
         {"ios26_name_reason_screen.wav": ("female", "Please state your name and reason.")},
     )
     monkeypatch.setattr(import_asset, "_to_48k_mono", lambda src, dst: shutil.copyfile(src, dst))
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "import_asset",
-            "--asset",
-            "ios26_name_reason_screen.wav",
-            "--source",
-            str(source),
-            "--source-type",
-            "internal_device_capture",
-            "--license-note",
-            "Recorded from test device with consent",
-            "--transcript",
-            "The person you're calling is screening their calls.",
-            "--commit-allowed",
-        ],
+    out = import_asset.import_audio_asset(
+        asset="ios26_name_reason_screen.wav",
+        source=str(source),
+        source_type="internal_device_capture",
+        license_note="Recorded from test device with consent",
+        transcript="The person you're calling is screening their calls.",
+        commit_allowed=True,
     )
 
-    assert import_asset.main() == 0
+    assert out == assets / "ios26_name_reason_screen.wav"
     assert (assets / "ios26_name_reason_screen.wav").read_bytes() == fake_audio
 
     row = json.loads(manifest.read_text())["ios26_name_reason_screen.wav"]

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-import sys
 
 import pytest
 
@@ -32,9 +31,10 @@ def test_builder_binds_generated_audio_to_provenance(
         }
 
     monkeypatch.setattr(build_corpus, "_tts_openai", fake_tts)
-    monkeypatch.setattr(sys, "argv", ["build_corpus"])
 
-    assert build_corpus.main() == 0
+    result = build_corpus.build_assets()
+
+    assert result["built"] == ["clean-room.wav"]
     audio = assets / "clean-room.wav"
     row = json.loads(manifest.read_text())["clean-room.wav"]
     assert row["sha256"] == hashlib.sha256(audio.read_bytes()).hexdigest()
@@ -68,9 +68,9 @@ def test_builder_will_not_silently_replace_an_imported_capture(
         "CORPUS",
         {"captured.wav": ("female", "A test prompt.")},
     )
-    monkeypatch.setattr(sys, "argv", ["build_corpus"])
 
-    assert build_corpus.main() == 1
+    with pytest.raises(RuntimeError, match="refusing to overwrite"):
+        build_corpus.build_assets()
     assert not (assets / "captured.wav").exists()
 
 

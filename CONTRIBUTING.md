@@ -40,7 +40,8 @@ Every corpus entry must have a matching `assets_manifest.json` row containing
 its origin, transcript source, licensing note, and an explicit
 `commit_allowed` decision.
 
-Audio imports and generated files are ignored and private by default. Do not
+Import audio with `telephony-voice-sim corpus import` or `corpus from-recording`;
+both go through the provenance gate. Audio imports and generated files are ignored and private by default. Do not
 set `commit_allowed: true` or add a filename to
 `public_release_allowlist.json` without a documented maintainer release
 review. The allowlist, exact-file ignore exceptions, checksum, and package

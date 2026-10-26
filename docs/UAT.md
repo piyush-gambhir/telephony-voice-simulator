@@ -1,6 +1,6 @@
 # Generic UAT matrix
 
-`apps/simulator-backend/scripts/uat_matrix.py` replaces the former
+`telephony-voice-sim uat` (`apps/simulator-backend/src/telephony_voice_simulator/evaluation/uat.py`) replaces the former
 integration-specific orchestration. It contains no tenant IDs, customer
 payloads, storage locations, credentials, or assumptions about one agent
 vendor.
@@ -27,8 +27,9 @@ Header values and adapter environments are omitted from reports.
 
 ```bash
 cd apps/simulator-backend
-uv run python scripts/uat_matrix.py --config config/uat.example.yaml --check
-uv run python scripts/uat_matrix.py --config config/uat.example.yaml --dry-run
+uv run telephony-voice-sim uat check --config config/uat.example.yaml
+uv run telephony-voice-sim uat plan --config config/uat.example.yaml
+uv run telephony-voice-sim uat run --config config/uat.local.yaml [--scenario NAME] [--output report.json]
 ```
 
 The included example invokes the generic LiveKit outbound adapter. That command

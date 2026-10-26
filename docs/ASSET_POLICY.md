@@ -86,7 +86,7 @@ exposing the service:
 
 ```bash
 cd apps/simulator-backend
-uv run python scripts/validate_public_audio.py \
+uv run telephony-voice-sim corpus validate-public \
   --allowlist /absolute/path/to/public_audio_allowlist.json \
   --assets-dir /absolute/path/to/private-corpus/assets \
   --manifest /absolute/path/to/private-corpus/assets_manifest.json
@@ -114,7 +114,7 @@ Regenerate local source assets with:
 
 ```bash
 cd apps/simulator-backend
-uv run python -m telephony_voice_simulator.corpus.build --only pbx_
+uv run telephony-voice-sim corpus build --only pbx_
 ```
 
 Do not rename corpus files casually: scenario YAML and compiled PSTN programs
@@ -122,15 +122,15 @@ use stable asset names.
 
 ## Recording imports
 
-`corpus/from_recordings.py` extracts into a temporary directory and delegates
-to `corpus/import_asset.py`. The import gate validates stable asset names,
+`telephony-voice-sim corpus from-recording` extracts into a temporary directory
+and delegates to the same importer as `corpus import`. The import gate validates stable asset names,
 normalizes audio, writes provenance, and defaults `commit_allowed` to false.
 S3 access or recording ownership never implies public redistribution rights.
 
 ## Optional IVR prompts
 
 The standalone Twilio Functions app uses `<Say>` without generated files.
-`scripts/generate_ivr_prompts.py` can render the clean-room prompt source
+`telephony-voice-sim corpus prompts` can render the clean-room prompt source
 through a configured provider and writes a checksum/provenance manifest.
 
 Generated MP3s are ignored because the selected provider, account, and voice

@@ -6,7 +6,7 @@ or reads one audio file, normalizes it with ffmpeg, and updates
 
 Usage:
 
-    python -m telephony_voice_simulator.corpus.import_asset \
+    telephony-voice-sim corpus import \
       --asset ios26_name_reason_screen.wav \
       --source /tmp/iphone-screening.m4a \
       --source-type internal_device_capture \
@@ -20,7 +20,6 @@ churn, while tests still enforce provenance for every prompt.
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import shutil
@@ -176,48 +175,3 @@ def import_audio_asset(
 
     _write_manifest(manifest)
     return out
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Import a real/public simulator audio asset")
-    parser.add_argument("--asset", required=True, help="Existing CORPUS asset filename to replace")
-    parser.add_argument("--source", required=True, help="Local path or http(s) URL")
-    parser.add_argument(
-        "--source-type",
-        required=True,
-        choices=SOURCE_TYPES,
-        help="Where this audio came from",
-    )
-    parser.add_argument("--license-note", required=True)
-    parser.add_argument(
-        "--transcript",
-        default="",
-        help="Exact transcript for real/imported audio. Defaults to CORPUS text.",
-    )
-    parser.add_argument(
-        "--commit-allowed",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Whether this audio may be committed to the repo",
-    )
-    args = parser.parse_args()
-
-    try:
-        out = import_audio_asset(
-            asset=args.asset,
-            source=args.source,
-            source_type=args.source_type,
-            license_note=args.license_note,
-            transcript=args.transcript,
-            commit_allowed=args.commit_allowed,
-        )
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-
-    print(f"imported {args.asset} from {args.source} -> {out}")
-    print(f"updated {MANIFEST}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

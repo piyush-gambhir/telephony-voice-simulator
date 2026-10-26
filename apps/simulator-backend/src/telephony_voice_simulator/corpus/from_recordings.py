@@ -13,7 +13,7 @@ stable corpus-name validation, licensing metadata, and the default
 Requires: aws CLI with access to your recordings bucket, and ffmpeg.
 
 Usage:
-    python -m telephony_voice_simulator.corpus.from_recordings \
+    telephony-voice-sim corpus from-recording \
         --call-id 019e5663-9116-xxxx --asset greeting_stock_carrier.wav \
         --license-note "Captured on a consented internal carrier test call" [--channel 1] \
         [--start 0.0 --duration 30]
@@ -21,12 +21,10 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -41,43 +39,31 @@ def _safe_call_id(value: str) -> str:
     return value
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--call-id", required=True)
-    parser.add_argument(
-        "--asset",
-        "--name",
-        dest="asset",
-        required=True,
-        help="existing CORPUS asset filename to replace",
-    )
-    parser.add_argument("--channel", type=int, choices=(0, 1), default=1)
-    parser.add_argument("--start", type=float, default=0.0, help="trim start (s)")
-    parser.add_argument("--duration", type=float, default=0.0, help="trim length (s), 0 = all")
-    parser.add_argument(
-        "--license-note",
-        required=True,
-        help="capture consent, ownership, and permitted-use note",
-    )
-    parser.add_argument("--transcript", default="", help="exact transcript, if different from CORPUS")
-    parser.add_argument(
-        "--commit-allowed",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="whether this recording may be committed to the repository",
-    )
-    args = parser.parse_args()
+def import_from_recording(
+    *,
+    call_id: str,
+    asset: str,
+    license_note: str,
+    channel: int = 1,
+    start: float = 0.0,
+    duration: float = 0.0,
+    transcript: str = "",
+    commit_allowed: bool = False,
+) -> Path:
+    """Pull one call recording from S3 and import its callee channel as ``asset``.
 
+    Raises ``ValueError`` for bad input and ``RuntimeError`` when the recording
+    bucket is not configured or holds no usable audio.
+    """
     bucket = os.environ.get("RECORDINGS_BUCKET")
     if not bucket:
-        print("Set RECORDINGS_BUCKET (the agent's recording S3 bucket)", file=sys.stderr)
-        return 2
-
+        raise ValueError("Set RECORDINGS_BUCKET (the agent's recording S3 bucket)")
+    if channel not in (0, 1):
+        raise ValueError("channel must be 0 or 1")
     try:
-        call_id = _safe_call_id(args.call_id)
+        call_id = _safe_call_id(call_id)
     except ValueError as exc:
-        print(f"Invalid --call-id: {exc}", file=sys.stderr)
-        return 2
+        raise ValueError(f"Invalid call ID: {exc}") from exc
 
     key_prefix = f"livekit/{call_id}/"
     listing = subprocess.run(
@@ -101,11 +87,9 @@ def main() -> int:
     try:
         keys = json.loads(listing or "[]")
     except json.JSONDecodeError as exc:
-        print(f"Invalid JSON returned by aws s3api: {exc}", file=sys.stderr)
-        return 1
+        raise RuntimeError(f"Invalid JSON returned by aws s3api: {exc}") from exc
     if not isinstance(keys, list) or any(not isinstance(key, str) for key in keys):
-        print("Unexpected object list returned by aws s3api", file=sys.stderr)
-        return 1
+        raise RuntimeError("Unexpected object list returned by aws s3api")
     audio_keys = sorted(
         key
         for key in keys
@@ -113,12 +97,10 @@ def main() -> int:
         and key.lower().endswith((".ogg", ".mp4", ".wav", ".m4a"))
     )
     if not audio_keys:
-        print(
+        raise RuntimeError(
             f"No audio object under s3://{bucket}/{key_prefix} "
-            "(object identifiers are not printed)",
-            file=sys.stderr,
+            "(object identifiers are not printed)"
         )
-        return 1
     key = audio_keys[0]
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -131,31 +113,21 @@ def main() -> int:
         )
         extracted = Path(tmp) / "extracted-callee.wav"
         cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(local)]
-        if args.start:
-            cmd += ["-ss", str(args.start)]
-        if args.duration:
-            cmd += ["-t", str(args.duration)]
+        if start:
+            cmd += ["-ss", str(start)]
+        if duration:
+            cmd += ["-t", str(duration)]
         cmd += [
-            "-map_channel", f"0.0.{args.channel}",
+            "-map_channel", f"0.0.{channel}",
             str(extracted),
         ]
         subprocess.run(cmd, check=True)
-        try:
-            out = import_audio_asset(
-                asset=args.asset,
-                source=str(extracted),
-                source_type="internal_carrier_capture",
-                license_note=args.license_note,
-                transcript=args.transcript,
-                commit_allowed=args.commit_allowed,
-                manifest_source="S3 call recording (bucket and call ID redacted)",
-            )
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from exc
-
-    print(f"imported {out} from a redacted S3 recording, channel {args.channel}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+        return import_audio_asset(
+            asset=asset,
+            source=str(extracted),
+            source_type="internal_carrier_capture",
+            license_note=license_note,
+            transcript=transcript,
+            commit_allowed=commit_allowed,
+            manifest_source="S3 call recording (bucket and call ID redacted)",
+        )

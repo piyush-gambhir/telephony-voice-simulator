@@ -44,3 +44,19 @@ COMPILED_ASSETS_DIR = _configured_path(
     "SIMULATOR_COMPILED_ASSETS_DIR",
     DATA_DIR / "compiled-assets",
 )
+
+# The IVR prompt source ships next to the backend in a checkout. A packaged
+# install has no such file, so callers must pass an explicit config path there.
+IVR_PROMPTS_CONFIG = _configured_path(
+    "SIMULATOR_IVR_PROMPTS_CONFIG", BACKEND_ROOT / "config" / "ivr_prompts.yaml"
+)
+IVR_PROMPTS_OUTPUT_DIR = _configured_path(
+    "SIMULATOR_IVR_PROMPTS_OUTPUT_DIR",
+    (
+        BACKEND_ROOT.parents[1] / "deploy" / "twilio-ivr" / "assets"
+        if _source_checkout
+        else RUNTIME_ROOT / "ivr-prompts"
+    ),
+)
+# UAT workflow configs live next to the prompt source in a checkout.
+UAT_CONFIG_DIR = _configured_path("SIMULATOR_UAT_CONFIG_DIR", BACKEND_ROOT / "config")

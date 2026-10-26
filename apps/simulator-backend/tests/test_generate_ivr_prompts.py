@@ -1,20 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
-import sys
 
 import pytest
 
 
-SCRIPT = Path(__file__).parent.parent / "scripts" / "generate_ivr_prompts.py"
-SPEC = importlib.util.spec_from_file_location("generate_ivr_prompts_under_test", SCRIPT)
-assert SPEC and SPEC.loader
-prompts = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = prompts
-SPEC.loader.exec_module(prompts)
+from telephony_voice_simulator.corpus import prompts
 
 
 def test_cached_prompt_round_trip_preserves_generator_provenance(
@@ -50,19 +43,9 @@ def test_cached_prompt_round_trip_preserves_generator_provenance(
     (output / "manifest.json").write_text(
         json.dumps({"prompts": {"welcome": original_row}})
     )
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "generate_ivr_prompts",
-            "--config",
-            str(config),
-            "--output",
-            str(output),
-        ],
-    )
+    result = prompts.render_prompts(config_path=config, output_dir=output)
 
-    assert prompts.main() == 0
+    assert result["cached"] == ["welcome.mp3"]
     rewritten = json.loads((output / "manifest.json").read_text())
     assert rewritten["prompts"]["welcome"] == original_row
 

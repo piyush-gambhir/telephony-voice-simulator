@@ -2,18 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
-from pathlib import Path
-import sys
 from typing import Any
 
 
-SCRIPT = Path(__file__).parent.parent / "scripts" / "uat_matrix.py"
-SPEC = importlib.util.spec_from_file_location("uat_matrix_under_test", SCRIPT)
-assert SPEC and SPEC.loader
-uat = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = uat
-SPEC.loader.exec_module(uat)
+from telephony_voice_simulator.evaluation import uat
 
 
 class SequenceAdapter:

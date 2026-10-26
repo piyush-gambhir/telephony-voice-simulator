@@ -9,16 +9,15 @@ TTS backends, in order:
   2. OpenAI TTS (OPENAI_API_KEY set).
   3. macOS ``say`` — keyless local fallback so the harness runs anywhere.
 
-Real greetings beat synthetic ones: see ``from_recordings.py`` for pulling the
+Real greetings beat synthetic ones: see ``from_recordings.py`` (``corpus from-recording``) for pulling the
 callee channel out of existing dual-channel call recordings through the
 provenance-gated asset importer.
 
-Usage:  python -m telephony_voice_simulator.corpus.build [--only NAME]
+Run it with ``telephony-voice-sim corpus build [--only NAME]``.
 """
 
 from __future__ import annotations
 
-import argparse
 import datetime as dt
 import hashlib
 import json
@@ -27,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import quote
 
@@ -472,52 +472,50 @@ def _generated_manifest_row(
     }
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--only", default="", help="build only assets whose name contains this")
-    parser.add_argument("--force", action="store_true", help="rebuild even if present")
-    parser.add_argument(
-        "--replace-imported",
-        action="store_true",
-        help="with --force, explicitly replace a captured/imported asset with generated audio",
-    )
-    args = parser.parse_args()
+def build_assets(
+    *,
+    only: str = "",
+    force: bool = False,
+    replace_imported: bool = False,
+    log: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Render missing corpus audio through TTS and record its provenance.
 
+    Raises ``RuntimeError`` when an asset cannot be built; assets built before the
+    failure stay on disk with their manifest rows.
+    """
+    emit = log or (lambda _line: None)
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     try:
         manifest = _load_manifest()
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"FAILED: cannot read {MANIFEST}: {exc}", file=sys.stderr)
-        return 1
-    built = skipped = 0
+        raise RuntimeError(f"cannot read {MANIFEST}: {exc}") from exc
+    built: list[str] = []
+    skipped: list[str] = []
     for name, (voice, text) in CORPUS.items():
-        if args.only and args.only not in name:
+        if only and only not in name:
             continue
         out = ASSETS_DIR / name
         previous = manifest.get(name)
-        if out.exists() and not args.force:
+        if out.exists() and not force:
             if previous and (expected := previous.get("sha256")):
                 actual = hashlib.sha256(out.read_bytes()).hexdigest()
                 if actual != expected:
-                    print(
-                        f"FAILED {name}: cached audio does not match its manifest "
-                        "checksum; import it or rebuild with --force",
-                        file=sys.stderr,
+                    raise RuntimeError(
+                        f"{name}: cached audio does not match its manifest "
+                        "checksum; import it or rebuild with force"
                     )
-                    return 1
-            skipped += 1
+            skipped.append(name)
             continue
         if (
             previous
             and previous.get("source_type") != "generated"
-            and not args.replace_imported
+            and not replace_imported
         ):
-            print(
-                f"FAILED {name}: refusing to overwrite an imported/captured asset; "
-                "pass --force --replace-imported to replace it intentionally",
-                file=sys.stderr,
+            raise RuntimeError(
+                f"{name}: refusing to overwrite an imported/captured asset; "
+                "force it with replace_imported to replace it intentionally"
             )
-            return 1
 
         with tempfile.NamedTemporaryFile(
             suffix=".wav", prefix=".corpus-", dir=ASSETS_DIR, delete=False
@@ -530,11 +528,10 @@ def main() -> int:
                 or _tts_say(text, voice, generated)
             )
             if not metadata:
-                print(
-                    f"FAILED {name}: no TTS backend "
+                raise RuntimeError(
+                    f"{name}: no TTS backend "
                     "(set ElevenLabs/OpenAI credentials or run on macOS)"
                 )
-                return 1
             generated.replace(out)
         finally:
             generated.unlink(missing_ok=True)
@@ -549,13 +546,13 @@ def main() -> int:
         try:
             _write_manifest(manifest)
         except OSError as exc:
-            print(f"FAILED {name}: cannot update provenance manifest: {exc}", file=sys.stderr)
-            return 1
-        print(f"built {name} with {metadata['generator_engine']}")
-        built += 1
-    print(f"done: {built} built, {skipped} cached → {ASSETS_DIR}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+            raise RuntimeError(f"{name}: cannot update provenance manifest: {exc}") from exc
+        emit(f"built {name} with {metadata['generator_engine']}")
+        built.append(name)
+    emit(f"done: {len(built)} built, {len(skipped)} cached -> {ASSETS_DIR}")
+    return {
+        "built": built,
+        "cached": skipped,
+        "assets_dir": str(ASSETS_DIR),
+        "manifest": str(MANIFEST),
+    }

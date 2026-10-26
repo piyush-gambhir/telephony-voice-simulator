@@ -10,8 +10,8 @@
   "scripts": {
     "start": "twilio-run start",
     "deploy": "twilio-run deploy",
-    "prompts": "python3 ../../apps/simulator-backend/scripts/generate_ivr_prompts.py --output assets",
-    "check:prompts": "python3 ../../apps/simulator-backend/scripts/generate_ivr_prompts.py --check",
+    "prompts": "uv run --project ../../apps/simulator-backend telephony-voice-sim corpus prompts --output assets",
+    "check:prompts": "uv run --project ../../apps/simulator-backend telephony-voice-sim corpus prompts --check",
     "test": "node --check functions/ivr.protected.js",
     "license:check": "python3 ../../scripts/check_javascript_licenses.py --project twilio",
     "audit:ci": "npm audit --audit-level=critical",

@@ -1,5 +1,6 @@
 # Portable example: the command adapter invokes the repository's generic
-# LiveKit outbound adapter and lets that command perform hosted PSTN grading.
+# LiveKit outbound adapter (`telephony-voice-sim hosted agent-call`) and lets
+# that command perform hosted PSTN grading.
 # Copy this file, choose your own matrix, and provide credentials through the
 # environment variables documented in docs/CONFIGURATION.md.
 version: 1
@@ -20,9 +21,9 @@ steps:
       argv:
         - uv
         - run
-        - python
-        - -m
-        - telephony_voice_simulator.integrations.livekit.agent_call
+        - telephony-voice-sim
+        - hosted
+        - agent-call
         - --scenario
         - "{scenario}"
 
