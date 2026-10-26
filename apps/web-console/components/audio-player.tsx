@@ -6,7 +6,7 @@ import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type WaveBin = {
+export type WaveBin = {
   level: number;
   silent: boolean;
 };
@@ -20,15 +20,15 @@ function placeholderWave(): WaveBin[] {
   }));
 }
 
-function makeWaveform(audio: AudioBuffer): WaveBin[] {
+export function makeWaveform(audio: AudioBuffer, bins = WAVE_BINS): WaveBin[] {
   const channel = audio.getChannelData(0);
-  const binSize = Math.max(1, Math.floor(channel.length / WAVE_BINS));
+  const binSize = Math.max(1, Math.floor(channel.length / bins));
   const energy: number[] = [];
 
-  for (let bin = 0; bin < WAVE_BINS; bin++) {
+  for (let bin = 0; bin < bins; bin++) {
     const start = bin * binSize;
     const end =
-      bin === WAVE_BINS - 1
+      bin === bins - 1
         ? channel.length
         : Math.min(channel.length, start + binSize);
     let squares = 0;

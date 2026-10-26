@@ -47,6 +47,7 @@ def test_message_timing_includes_audio_after_requested_mark(tmp_path):
     }, {'expect': {'message_start_after': {'mark': 'tone_end', 'max': 1}}}, None)
     assert analysis['passed'] is False
     assert 'delay_after_mark=3.00s' in analysis['checks'][0]['detail']
+    assert 'record_offset=3.00s' in analysis['checks'][0]['detail']
 
 
 def test_ambiguous_content_does_not_transcribe_arbitrary_message(tmp_path, monkeypatch):

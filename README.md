@@ -146,9 +146,13 @@ end-to-end call flows. See [Deployment](docs/DEPLOYMENT.md) for containers and l
 detection over repeats.
 
 See [Extending the simulator](docs/EXTENDING.md) for adding private scenario
-packs, provider adapters, PBX models, and console features. The console exposes
-provider, endpoint, directory, and local simulation workflows, with automatic
-refresh, searchable run/call history, JSON export, and queued-run cancellation.
+packs, provider adapters, PBX models, and console features. The console opens on
+Results, one table of every run and call with its verdict and the check that
+decided it. A result shows the message recording on its own time axis, with the
+allowed start window and the moment the agent started speaking. Scenarios shows
+coverage per scenario; Lines, IVR lab, Providers and Directory hold the rest.
+Filters live in the URL, and search, JSON export, queued-run cancellation and
+automatic refresh are kept.
 The [project review](docs/PROJECT_REVIEW.md) records the improvements,
 verification, and remaining integration boundaries.
 

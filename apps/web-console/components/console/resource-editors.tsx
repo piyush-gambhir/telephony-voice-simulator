@@ -123,9 +123,9 @@ export function ProviderConnectionEditor({
   }
 
   return (
-    <form className="grid gap-4 rounded-xl bg-background/55 p-4" onSubmit={submit}>
+    <form className="grid gap-5" onSubmit={submit}>
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`provider-edit-name-${connection.id}`}>Connection name</Label>
           <Input
             id={`provider-edit-name-${connection.id}`}
@@ -133,7 +133,7 @@ export function ProviderConnectionEditor({
             onChange={(event) => setName(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`provider-edit-status-${connection.id}`}>Status</Label>
           <Select
             value={status}
@@ -150,7 +150,7 @@ export function ProviderConnectionEditor({
           </Select>
         </div>
       </div>
-      <div className="grid gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor={`provider-edit-description-${connection.id}`}>Description</Label>
         <Input
           id={`provider-edit-description-${connection.id}`}
@@ -158,11 +158,11 @@ export function ProviderConnectionEditor({
           onChange={(event) => setDescription(event.target.value)}
         />
       </div>
-      <div className="grid gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor={`provider-edit-settings-${connection.id}`}>Settings JSON</Label>
         <textarea
           id={`provider-edit-settings-${connection.id}`}
-          className="min-h-28 w-full resize-y rounded-xl bg-background/80 px-3 py-2 font-mono text-xs outline-none transition-colors focus:bg-muted/70"
+          className="min-h-28 w-full resize-y rounded-lg bg-control px-3 py-2 font-mono text-xs outline-none transition-colors hover:bg-control-hover focus-visible:ring-2 focus-visible:ring-ring/40"
           value={settingsJson}
           onChange={(event) => setSettingsJson(event.target.value)}
           spellCheck={false}
@@ -248,9 +248,9 @@ export function EndpointEditor({
   }
 
   return (
-    <form className="grid gap-4 rounded-xl bg-background/55 p-4" onSubmit={submit}>
+    <form className="grid gap-5" onSubmit={submit}>
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`endpoint-edit-connection-${endpoint.id}`}>Connection</Label>
           <Select value={connectionId} onValueChange={selectConnection}>
             <SelectTrigger id={`endpoint-edit-connection-${endpoint.id}`}>
@@ -265,7 +265,7 @@ export function EndpointEditor({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`endpoint-edit-name-${endpoint.id}`}>Name</Label>
           <Input
             id={`endpoint-edit-name-${endpoint.id}`}
@@ -273,7 +273,7 @@ export function EndpointEditor({
             onChange={(event) => setName(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`endpoint-edit-kind-${endpoint.id}`}>Kind</Label>
           <Select value={kind} onValueChange={(value) => setKind(value as Endpoint["kind"])}>
             <SelectTrigger id={`endpoint-edit-kind-${endpoint.id}`}>
@@ -288,7 +288,7 @@ export function EndpointEditor({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`endpoint-edit-address-${endpoint.id}`}>Address</Label>
           <Input
             id={`endpoint-edit-address-${endpoint.id}`}
@@ -296,7 +296,7 @@ export function EndpointEditor({
             onChange={(event) => setAddress(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`endpoint-edit-routing-${endpoint.id}`}>Routing mode</Label>
           <Select
             value={routingMode}
@@ -311,7 +311,7 @@ export function EndpointEditor({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`endpoint-edit-enabled-${endpoint.id}`}>Status</Label>
           <Select
             value={enabled ? "enabled" : "disabled"}
@@ -327,7 +327,7 @@ export function EndpointEditor({
           </Select>
         </div>
       </div>
-      <div className="grid gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor={`endpoint-edit-scenario-${endpoint.id}`}>Default scenario</Label>
         <Select value={defaultScenario} onValueChange={setDefaultScenario}>
           <SelectTrigger id={`endpoint-edit-scenario-${endpoint.id}`}>
@@ -395,9 +395,9 @@ export function DirectoryEntryEditor({
   }
 
   return (
-    <form className="grid gap-4 rounded-xl bg-background/60 p-4" onSubmit={submit}>
+    <form className="grid gap-5" onSubmit={submit}>
       <div className="grid gap-3">
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`directory-edit-connection-${entry.id}`}>Connection</Label>
           <Select value={connectionId} onValueChange={setConnectionId}>
             <SelectTrigger id={`directory-edit-connection-${entry.id}`}>
@@ -412,7 +412,7 @@ export function DirectoryEntryEditor({
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`directory-edit-extension-${entry.id}`}>Extension</Label>
           <Input
             id={`directory-edit-extension-${entry.id}`}
@@ -424,7 +424,7 @@ export function DirectoryEntryEditor({
             onChange={(event) => setExtension(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`directory-edit-timeout-${entry.id}`}>Ring timeout</Label>
           <Input
             id={`directory-edit-timeout-${entry.id}`}
@@ -435,7 +435,7 @@ export function DirectoryEntryEditor({
             onChange={(event) => setRingTimeout(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`directory-edit-name-${entry.id}`}>Display name</Label>
           <Input
             id={`directory-edit-name-${entry.id}`}
@@ -443,7 +443,7 @@ export function DirectoryEntryEditor({
             onChange={(event) => setName(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`directory-edit-destination-${entry.id}`}>Destination</Label>
           <Input
             id={`directory-edit-destination-${entry.id}`}
@@ -451,7 +451,7 @@ export function DirectoryEntryEditor({
             onChange={(event) => setDestination(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`directory-edit-department-${entry.id}`}>Department</Label>
           <Input
             id={`directory-edit-department-${entry.id}`}
@@ -459,7 +459,7 @@ export function DirectoryEntryEditor({
             onChange={(event) => setDepartment(event.target.value)}
           />
         </div>
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor={`directory-edit-enabled-${entry.id}`}>Status</Label>
           <Select
             value={enabled ? "enabled" : "disabled"}
