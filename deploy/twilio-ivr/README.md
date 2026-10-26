@@ -31,13 +31,13 @@ timeouts, and never embeds real numbers or credentials in source.
 After deployment, attach a number surgically:
 
 ```bash
-python ../../apps/simulator-backend/scripts/twilio_number.py attach \
+(cd ../../apps/simulator-backend && uv run telephony-voice-sim numbers point \
   --number +15550101000 \
-  --voice-url https://your-service.twil.io/ivr
+  --voice-url https://your-service.twil.io/ivr)
 ```
 
 The command saves the number's previous webhook configuration under `results/`
-before changing it. Use its `restore` subcommand with that backup to roll back.
+before changing it. Use `telephony-voice-sim numbers revert` with that backup to roll back.
 
 ## Runtime and tooling verification
 

@@ -58,7 +58,7 @@ mkdir -p "$SIMULATOR_PRIVATE_CORPUS_DIR/assets"
 cd apps/simulator-backend
 SIMULATOR_CORPUS_ASSETS_DIR="$SIMULATOR_PRIVATE_CORPUS_DIR/assets" \
 SIMULATOR_CORPUS_MANIFEST="$SIMULATOR_PRIVATE_CORPUS_DIR/assets_manifest.json" \
-uv run python -m telephony_voice_simulator.corpus.build
+uv run telephony-voice-sim corpus build
 cd ../..
 ```
 
@@ -104,7 +104,7 @@ the review set before deployment:
 
 ```bash
 cd apps/simulator-backend
-uv run python scripts/validate_public_audio.py \
+uv run telephony-voice-sim corpus validate-public \
   --allowlist /absolute/path/to/private-corpus/public_audio_allowlist.json \
   --assets-dir /absolute/path/to/private-corpus/assets \
   --manifest /absolute/path/to/private-corpus/assets_manifest.json
@@ -151,25 +151,27 @@ Attach one owned number to the unified IVR:
 
 ```bash
 cd apps/simulator-backend
-uv run python scripts/twilio_number.py attach \
+uv run telephony-voice-sim numbers point \
   --number +15550101000 \
   --base-url https://simulator.example.test \
   --route ivr \
   --status-callback-url https://simulator.example.test/twilio/status
 ```
 
-Use `--route amd` for `/twilio/voice`. The tool changes only the exact number
-supplied and saves its previous Twilio configuration. Restore it with:
+Use `--route amd` for `/twilio/voice`. The command changes only the exact number
+supplied and saves its previous Twilio configuration (add `--dry-run` to preview
+the change and backup without writing). `numbers inventory` lists every account
+number and its voice URL. Restore a number with:
 
 ```bash
-uv run python scripts/twilio_number.py restore \
+uv run telephony-voice-sim numbers revert \
   --number +15550101000 \
   --backup results/twilio/PNxxxxxxxx.json
 ```
 
 Twilio supports one Voice URL per number. A number cannot serve `/twilio/voice`
 and `/twilio/ivr` at the same time; provision separate numbers or use the
-backup-first attach/restore commands to switch it deliberately. Deleting the
+backup-first `numbers point` and `numbers revert` commands to switch it deliberately. Deleting the
 local endpoint does not detach the carrier number.
 
 The hosted AMD deployer makes compiled WAVs public Twilio Assets and therefore
@@ -177,7 +179,7 @@ requires its own explicit acknowledgement and private deployment allowlist:
 
 ```bash
 cd apps/simulator-backend
-uv run python -m telephony_voice_simulator.telephony.twilio.hosted.deploy \
+uv run telephony-voice-sim hosted deploy \
   --acknowledge-public-audio \
   --audio-deployment-allowlist /absolute/path/to/deployment_allowlist.json
 ```
@@ -186,13 +188,14 @@ It prints a Serverless machine URL but deliberately does not modify phone
 numbers. Attach that URL through the same backup-first tool:
 
 ```bash
-uv run python scripts/twilio_number.py attach \
+uv run telephony-voice-sim numbers point \
   --number +15550101000 \
   --voice-url 'https://your-service.twil.io/machine?mode=voice'
 ```
 
 Hosted `/machine` stores its queue and call documents in a separate Twilio Sync
-service. Its controls are the deployment and grading CLIs; the web console
+service. Its controls are the `telephony-voice-sim hosted` commands
+(`deploy`, `queue`, `smoke`, `grade`, `agent-call`); the web console
 controls the unified backend queue and does not enqueue hosted calls.
 
 ## Standalone Twilio Functions IVR
@@ -249,7 +252,7 @@ The API must remain private and allow the deployed console origin through
 - `public_release_allowlist.json` contains only checksum-bound,
   rights-reviewed files; it is empty for the initial release.
 - Public AMD is disabled or its distinct deployment allowlist covers every
-  referenced asset and `scripts/validate_public_audio.py` passes.
+  referenced asset and `telephony-voice-sim corpus validate-public` passes.
 - `pnpm license:check` and `pnpm public-release:check` pass, including wheel
   and web artifact checks.
 - A rollback backup exists before changing any Twilio number.

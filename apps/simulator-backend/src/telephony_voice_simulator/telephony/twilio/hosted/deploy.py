@@ -1,6 +1,6 @@
 """Deploy the simulated machine to Twilio Serverless (Functions + Assets).
 
-Everything the PSTN sim needs ends up hosted BY Twilio — no tunnel, no
+Everything the PSTN sim needs ends up hosted BY Twilio: no tunnel, no
 laptop, always-on:
 
   * ``/machine``          protected Function (machine.js)
@@ -8,28 +8,18 @@ laptop, always-on:
   * ``/<scenario>.wav``   public assets: pre-rendered scenario audio
   * per-call state + scenario queues in Twilio Sync (default service)
 
-Usage:
-    python -m telephony_voice_simulator.telephony.twilio.hosted.deploy \
-      --acknowledge-public-audio \
-      --audio-deployment-allowlist /private/deployment_allowlist.json
-    python -m telephony_voice_simulator.telephony.twilio.hosted.deploy \
-      --acknowledge-public-audio \
-      --audio-deployment-allowlist /private/deployment_allowlist.json \
-      --static '{"+15551234567":"stock_voicemail_beep_1000"}'
-
 Idempotent: reuses the ``telephony-voice-simulator`` service and creates a fresh build +
-deployment each run. Prints the environment domain when done.
+deployment each run. ``deploy`` returns the environment domain; progress goes to ``log``.
 """
 
 from __future__ import annotations
 
-import argparse
 import dataclasses
 import hashlib
 import json
 import os
-import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
@@ -44,6 +34,12 @@ COMPILED_DIR = COMPILED_ASSETS_DIR
 MACHINE_JS = Path(__file__).parent / "machine.js"
 SERVICE_NAME = "telephony-voice-simulator"
 ENV_SUFFIX = "sim"
+
+Log = Callable[[str], None]
+
+
+def _no_log(_line: str) -> None:
+    return None
 
 
 def validate_public_audio_deployment(
@@ -109,7 +105,7 @@ def _client() -> httpx.Client:
     sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
     token = os.environ.get("TWILIO_AUTH_TOKEN", "")
     if not sid or not token:
-        sys.exit("Set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN")
+        raise ValueError("Set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN")
     return httpx.Client(auth=(sid, token), timeout=60)
 
 
@@ -186,6 +182,7 @@ def _wait_for_build(
     *,
     attempts: int = 60,
     delay_s: float = 3,
+    log: Log = _no_log,
 ) -> None:
     last_status = "unknown"
     for _ in range(attempts):
@@ -196,7 +193,7 @@ def _wait_for_build(
         )
         response.raise_for_status()
         last_status = str(response.json().get("status") or "unknown")
-        print(".", end="", flush=True)
+        log(f"build {build_sid}: {last_status}")
         if last_status == "completed":
             return
         if last_status == "failed":
@@ -213,16 +210,17 @@ def deploy(
     *,
     acknowledge_public_audio: bool,
     audio_deployment_allowlist: Path | None,
+    log: Log = _no_log,
 ) -> str:
     approved = validate_public_audio_deployment(
         acknowledged=acknowledge_public_audio,
         allowlist_path=audio_deployment_allowlist,
     )
-    print(f"public audio deployment approved for {len(approved)} source asset(s)")
+    log(f"public audio deployment approved for {len(approved)} source asset(s)")
     client = _client()
     programs = compile_programs(static_map, default_scenario)
     service_sid = _get_or_create_service(client)
-    print(f"service: {service_sid}")
+    log(f"service: {service_sid}")
 
     # Function
     function_sid = _get_or_create(client, f"{API}/Services/{service_sid}/Functions", "machine")
@@ -230,7 +228,7 @@ def deploy(
         client, service_sid, "Functions", function_sid, "/machine",
         MACHINE_JS.read_bytes(), "application/javascript", "protected",
     )
-    print(f"function version: {function_version}")
+    log(f"function version: {function_version}")
 
     # Assets: programs.json (private) + every compiled wav referenced (public)
     asset_versions: list[str] = []
@@ -260,7 +258,7 @@ def deploy(
                 (COMPILED_DIR / filename).read_bytes(), "audio/wav", "public",
             )
         )
-        print(f"asset: {filename}")
+        log(f"asset: {filename}")
 
     # Build (dict with list values → repeated form keys; httpx treats a
     # list-of-tuples ``data`` as raw content, not form fields)
@@ -276,9 +274,9 @@ def deploy(
     resp = client.post(f"{API}/Services/{service_sid}/Builds", data=data)
     resp.raise_for_status()
     build_sid = resp.json()["sid"]
-    print(f"build: {build_sid} ", end="", flush=True)
-    _wait_for_build(client, service_sid, build_sid)
-    print(" completed")
+    log(f"build: {build_sid}")
+    _wait_for_build(client, service_sid, build_sid, log=log)
+    log("build completed")
 
     # Environment + deployment
     resp = client.get(f"{API}/Services/{service_sid}/Environments")
@@ -296,7 +294,7 @@ def deploy(
     bridge_number = os.environ.get("BRIDGE_NUMBER", "")
     if bridge_number:
         _set_env_variable(client, service_sid, env["sid"], "BRIDGE_NUMBER", bridge_number)
-        print(f"bridge number set (dial: bridge → {bridge_number})")
+        log(f"bridge number set (dial: bridge → {bridge_number})")
 
     resp = client.post(
         f"{API}/Services/{service_sid}/Environments/{env['sid']}/Deployments",
@@ -304,7 +302,7 @@ def deploy(
     )
     resp.raise_for_status()
     domain = env["domain_name"]
-    print(f"deployed → https://{domain}/machine")
+    log(f"deployed → https://{domain}/machine")
     return domain
 
 
@@ -319,36 +317,3 @@ def _set_env_variable(
         client.post(f"{url}/{existing['sid']}", data={"Value": value}).raise_for_status()
     else:
         client.post(url, data={"Key": key, "Value": value}).raise_for_status()
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--static", default="{}", help="JSON number->scenario static map")
-    parser.add_argument("--default-scenario", default="stock_voicemail_beep_1000")
-    parser.add_argument(
-        "--acknowledge-public-audio",
-        action="store_true",
-        help="confirm that every deployed compiled WAV will be publicly reachable",
-    )
-    parser.add_argument(
-        "--audio-deployment-allowlist",
-        type=Path,
-        help="reviewed version-1 JSON allowlist of source WAV filenames",
-    )
-    args = parser.parse_args()
-
-    try:
-        deploy(
-            json.loads(args.static),
-            args.default_scenario,
-            acknowledge_public_audio=args.acknowledge_public_audio,
-            audio_deployment_allowlist=args.audio_deployment_allowlist,
-        )
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"deployment refused: {exc}", file=sys.stderr)
-        return 2
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

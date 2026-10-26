@@ -1,9 +1,12 @@
-"""Managed Twilio numbers: sync, configure, attach to the AMD runtime, restore, queue."""
+"""Twilio numbers: managed AMD numbers, plus the whole account's inventory."""
 
 from __future__ import annotations
 
 import argparse
+import os
+from pathlib import Path
 
+from ..service import inventory
 from .common import action, emit, group, on_off, run, service
 
 
@@ -19,6 +22,22 @@ def _update(args: argparse.Namespace) -> int:
     elif args.scenario is not None:
         changes["default_scenario"] = args.scenario
     return emit(run(service().update_amd_number(args.number_id, **changes)))
+
+
+def _point(args: argparse.Namespace) -> int:
+    return emit(
+        run(
+            inventory.point_number(
+                number=args.number,
+                route=args.route,
+                base_url=args.base_url,
+                voice_url=args.voice_url,
+                status_callback_url=args.status_callback_url,
+                backup=args.backup,
+                dry_run=args.dry_run,
+            )
+        )
+    )
 
 
 def register(commands: argparse._SubParsersAction) -> None:
@@ -61,3 +80,37 @@ def register(commands: argparse._SubParsersAction) -> None:
     )
     queue.add_argument("number_id")
     queue.add_argument("scenario")
+    action(
+        actions,
+        "inventory",
+        "every number on the Twilio account and its voice URL",
+        lambda _a: emit(run(inventory.list_account_numbers())),
+    )
+    point = action(
+        actions,
+        "point",
+        "point one account number at a simulator route, saving a backup (live Twilio change)",
+        _point,
+    )
+    point.add_argument("--number", required=True, help="E.164 number")
+    point.add_argument("--route", choices=tuple(inventory.ROUTES), default="ivr")
+    point.add_argument("--base-url", default=os.environ.get("PUBLIC_BASE_URL", ""))
+    point.add_argument("--voice-url", help="explicit webhook URL, including Serverless URLs")
+    point.add_argument("--status-callback-url")
+    point.add_argument("--backup", type=Path, help="default: results/twilio/<sid>.json")
+    point.add_argument("--dry-run", action="store_true", help="show the change; write nothing")
+    revert = action(
+        actions,
+        "revert",
+        "restore one number from a 'point' backup (live Twilio change)",
+        lambda a: emit(
+            run(
+                inventory.restore_number(
+                    number=a.number, backup=a.backup, dry_run=a.dry_run
+                )
+            )
+        ),
+    )
+    revert.add_argument("--number", required=True)
+    revert.add_argument("--backup", type=Path, required=True)
+    revert.add_argument("--dry-run", action="store_true")

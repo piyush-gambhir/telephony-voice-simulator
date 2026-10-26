@@ -58,6 +58,30 @@ class TwilioNumberManager:
                 parameters = None
         return records
 
+    async def find_number(self, phone_number: str) -> dict[str, Any]:
+        """The one account number matching an E.164 value; anything else is an error."""
+        account_sid, auth_token = self._credentials()
+        async with httpx.AsyncClient(
+            auth=(account_sid, auth_token),
+            timeout=60,
+        ) as client:
+            response = await client.get(
+                f"{self.api}/Accounts/{account_sid}/IncomingPhoneNumbers.json",
+                params={"PhoneNumber": phone_number},
+            )
+        try:
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise TwilioManagementError(
+                f"Twilio number lookup failed ({response.status_code})."
+            ) from exc
+        matches = response.json().get("incoming_phone_numbers", [])
+        if len(matches) != 1:
+            raise TwilioManagementError(
+                f"Expected one Twilio number matching {phone_number}, found {len(matches)}."
+            )
+        return matches[0]
+
     async def update_number(
         self,
         provider_resource_id: str,

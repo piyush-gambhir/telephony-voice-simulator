@@ -1,27 +1,24 @@
 """Control + grade the Twilio-hosted sim from your machine (creds only, no server).
 
-    python -m telephony_voice_simulator.telephony.twilio.hosted.grade queue --number +1425... --scenario dtmf_gate_honored
-    python -m telephony_voice_simulator.telephony.twilio.hosted.grade smoke --number +1425... --scenario stock_voicemail_beep_1000
-    python -m telephony_voice_simulator.telephony.twilio.hosted.grade grade --call-sid CAxxxx
-    python -m telephony_voice_simulator.telephony.twilio.hosted.grade grade --number +1425... --last 5
+``queue`` appends a scenario to the hosted machine's Sync queue. ``smoke`` places a
+REAL outbound PSTN call from your Twilio number to the sim line, with a caller script
+that imitates the agent (waits through the greeting+beep, then speaks a test message;
+for gate scenarios, sends DTMF): a full carrier-loop validation of the machine without
+involving the voice agent. ``grade_call_detail`` pulls the Sync call doc (scenario,
+digits), downloads the recordings, and runs the same analyzer as server mode.
 
-``smoke`` places a REAL outbound PSTN call from your Twilio number to the
-sim line, with a caller script that imitates the agent (waits through the
-greeting+beep, then speaks a test message; for gate scenarios, sends DTMF) —
-a full carrier-loop validation of the machine without involving the voice
-agent. ``grade`` pulls the Sync call doc (scenario, digits), downloads the
-recordings, and runs the same analyzer as server mode.
+Functions raise ``ValueError`` (bad input or missing credentials), ``LookupError``
+(unknown scenario or call) and ``httpx.HTTPError``; the service layer maps them.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import math
 import os
-import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -38,11 +35,18 @@ API = "https://api.twilio.com/2010-04-01"
 SYNC = "https://sync.twilio.com/v1/Services/default"
 
 
-def _client() -> tuple[httpx.Client, str]:
+Log = Callable[[str], None]
+
+
+def _no_log(_line: str) -> None:
+    return None
+
+
+def twilio_client() -> tuple[httpx.Client, str]:
     sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
     token = os.environ.get("TWILIO_AUTH_TOKEN", "")
     if not sid or not token:
-        sys.exit("Set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN")
+        raise ValueError("Set TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN")
     return httpx.Client(auth=(sid, token), timeout=60), sid
 
 
@@ -51,7 +55,7 @@ def _load_scenario(name: str) -> dict:
         raw = yaml.safe_load(path.read_text())
         if raw.get("name") == name:
             return raw
-    sys.exit(f"unknown scenario {name}")
+    raise LookupError(f"unknown scenario {name}")
 
 
 def _apply_expected_voicemail_override(
@@ -87,32 +91,31 @@ def _apply_expected_voicemail_override(
     return patched
 
 
-def cmd_queue(args) -> int:
-    client, _ = _client()
-    _load_scenario(args.scenario)
-    name = f"queue-{args.number}"
+def queue_scenario(client: httpx.Client, number: str, scenario: str) -> list[str]:
+    """Append a scenario to the number's hosted queue and return the new queue."""
+    _load_scenario(scenario)
+    name = f"queue-{number}"
     for _attempt in range(5):
         resp = client.get(f"{SYNC}/Documents/{name}")
         if resp.status_code == 200:
             doc = resp.json()
             # Keep the machine's call claims; a revision check rejects a concurrent answer's pop.
             data = dict(doc.get("data") or {})
-            data["queue"] = [*data.get("queue", []), args.scenario]
+            data["queue"] = [*data.get("queue", []), scenario]
             resp = client.post(
                 f"{SYNC}/Documents/{name}",
                 data={"Data": json.dumps(data), "Ttl": "86400"},
                 headers={"If-Match": str(doc.get("revision", ""))},
             )
         else:
-            data = {"queue": [args.scenario]}
+            data = {"queue": [scenario]}
             resp = client.post(f"{SYNC}/Documents", data={
                 "UniqueName": name, "Data": json.dumps(data), "Ttl": "86400",
             })
         if resp.status_code not in (409, 412):
             break
     resp.raise_for_status()
-    print(f"queued {args.scenario} on {args.number} (queue={data['queue']})")
-    return 0
+    return list(data["queue"])
 
 
 def _caller_twiml(scenario: dict) -> str:
@@ -168,43 +171,56 @@ def _caller_twiml(scenario: dict) -> str:
     )
 
 
-def cmd_smoke(args) -> int:
-    client, account = _client()
-    scenario = _load_scenario(args.scenario)
-    cmd_queue(args)
-    from_number = args.from_number or os.environ.get("TWILIO_FROM_NUMBER", "")
+def inbound_legs(client: httpx.Client, account: str, number: str, limit: int) -> list[dict]:
+    """Recent calls to the sim number that the machine answered (inbound legs)."""
+    resp = client.get(
+        f"{API}/Accounts/{account}/Calls.json",
+        params={"To": number, "PageSize": limit},
+    )
+    resp.raise_for_status()
+    return [c for c in resp.json().get("calls", []) if c["direction"].startswith("inbound")]
+
+
+def smoke_call(
+    client: httpx.Client,
+    account: str,
+    *,
+    number: str,
+    scenario: str,
+    from_number: str,
+    log: Log = _no_log,
+) -> dict | None:
+    """Queue the scenario, call the sim line, and grade the inbound leg it answered."""
+    raw = _load_scenario(scenario)
     if not from_number:
-        sys.exit("--from-number or TWILIO_FROM_NUMBER required")
+        raise ValueError("--from-number or TWILIO_FROM_NUMBER required")
+    queue = queue_scenario(client, number, scenario)
+    log(f"queued {scenario} on {number} (queue={queue})")
     resp = client.post(
         f"{API}/Accounts/{account}/Calls.json",
-        data={"To": args.number, "From": from_number, "Twiml": _caller_twiml(scenario)},
+        data={"To": number, "From": from_number, "Twiml": _caller_twiml(raw)},
     )
     resp.raise_for_status()
     caller_sid = resp.json()["sid"]
-    print(f"caller leg: {caller_sid} — waiting for completion")
+    log(f"caller leg: {caller_sid}, waiting for completion")
     for _ in range(40):
         time.sleep(5)
         status = (
             client.get(f"{API}/Accounts/{account}/Calls/{caller_sid}.json").json().get("status")
         )
-        print(f"  status={status}")
+        log(f"  status={status}")
         if status in ("completed", "failed", "busy", "no-answer", "canceled"):
             break
-    print("waiting 20s for recording availability")
+    log("waiting 20s for recording availability")
     time.sleep(20)
     # The INBOUND leg at the sim number is the one the machine handled.
-    resp = client.get(
-        f"{API}/Accounts/{account}/Calls.json",
-        params={"To": args.number, "PageSize": 5},
-    )
-    resp.raise_for_status()
-    inbound = [c for c in resp.json().get("calls", []) if c["direction"].startswith("inbound")]
+    inbound = inbound_legs(client, account, number, 5)
     if not inbound:
-        sys.exit("no inbound leg found at the sim number")
-    return _grade_call(client, account, inbound[0]["sid"])
+        raise LookupError("no inbound leg found at the sim number")
+    return grade_call_detail(client, account, inbound[0]["sid"], log=log)
 
 
-def _compiled(raw: dict) -> CompiledScenario | None:
+def _compiled(raw: dict, log: Log = _no_log) -> CompiledScenario | None:
     """Recompile the deployed program so a single message can be aligned to its marks.
 
     Only the returned marks are needed, so audio goes to a scratch directory and never
@@ -214,7 +230,7 @@ def _compiled(raw: dict) -> CompiledScenario | None:
         with tempfile.TemporaryDirectory() as scratch:
             return compile_scenario(raw, assets_dir=ASSETS_DIR, out_dir=Path(scratch))
     except Exception as exc:  # grading still runs; timing checks then stay indeterminate
-        print(f"could not compile {raw.get('name')}: {exc}", file=sys.stderr)
+        log(f"could not compile {raw.get('name')}: {exc}")
         return None
 
 
@@ -226,15 +242,12 @@ def grade_call_detail(
     expected_voicemail_message: str | None = None,
     allowed_identity_name: str | None = None,
     ignore_message_content: bool = False,
+    log: Log = _no_log,
 ) -> dict | None:
-    """Grade one sim-side leg and return the full call record, or None.
-
-    ``_grade_call`` wraps this for the CLI's exit-code contract; batch callers
-    (the benchmark suite) need the structured analysis instead.
-    """
+    """Grade one sim-side leg and return the full call record, or None."""
     doc = client.get(f"{SYNC}/Documents/call-{call_sid}")
     if doc.status_code != 200:
-        print(f"{call_sid}: no sim state doc (was this a sim call?)")
+        log(f"{call_sid}: no sim state doc (was this a sim call?)")
         return None
     call_state = doc.json()["data"]
     out_dir = PSTN_RESULTS_DIR / call_sid
@@ -288,7 +301,7 @@ def grade_call_detail(
         raw = dict(raw)
         raw["expect"] = dict(raw.get("expect") or {})
         raw["expect"].pop("message_content", None)
-    analysis = analyze_call(call, raw, compiled=_compiled(raw))
+    analysis = analyze_call(call, raw, compiled=_compiled(raw, log))
     if not mailbox_files:
         # No <Record> audio was downloaded, so media checks have no evidence either way.
         for check in analysis["checks"]:
@@ -299,79 +312,3 @@ def grade_call_detail(
     call["artifacts_dir"] = str(out_dir)
     (out_dir / "call.json").write_text(json.dumps(call, indent=2))
     return call
-
-
-def _print_grade(call: dict) -> None:
-    analysis = call["analysis"]
-    print(f"\nscenario={call['scenario']} call={call['call_sid']} passed={analysis['passed']}")
-    for check in analysis["checks"]:
-        flag = "✓" if check["passed"] else "✗"
-        print(f"  {flag} {check['check']}: {check['detail']}")
-    if analysis.get("skipped_webhook_side"):
-        print(f"  (webhook-side checks to verify in CI data: {analysis['skipped_webhook_side']})")
-    print(f"artifacts → {call['artifacts_dir']}")
-
-
-def _grade_call(
-    client: httpx.Client,
-    account: str,
-    call_sid: str,
-    *,
-    expected_voicemail_message: str | None = None,
-    allowed_identity_name: str | None = None,
-    ignore_message_content: bool = False,
-) -> int:
-    call = grade_call_detail(
-        client,
-        account,
-        call_sid,
-        expected_voicemail_message=expected_voicemail_message,
-        allowed_identity_name=allowed_identity_name,
-        ignore_message_content=ignore_message_content,
-    )
-    if call is None:
-        return 1
-    _print_grade(call)
-    return 0 if call["analysis"]["passed"] else 1
-
-
-def cmd_grade(args) -> int:
-    client, account = _client()
-    if args.call_sid:
-        return _grade_call(client, account, args.call_sid)
-    resp = client.get(
-        f"{API}/Accounts/{account}/Calls.json",
-        params={"To": args.number, "PageSize": args.last},
-    )
-    resp.raise_for_status()
-    rc = 0
-    for call in resp.json().get("calls", []):
-        if call["direction"].startswith("inbound"):
-            rc |= _grade_call(client, account, call["sid"])
-    return rc
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    sub = parser.add_subparsers(dest="cmd", required=True)
-    q = sub.add_parser("queue")
-    q.add_argument("--number", required=True)
-    q.add_argument("--scenario", required=True)
-    s = sub.add_parser("smoke")
-    s.add_argument("--number", required=True)
-    s.add_argument("--scenario", required=True)
-    s.add_argument("--from-number")
-    g = sub.add_parser("grade")
-    g.add_argument("--call-sid")
-    g.add_argument("--number")
-    g.add_argument("--last", type=int, default=3)
-    args = parser.parse_args()
-    if args.cmd == "queue":
-        return cmd_queue(args)
-    if args.cmd == "smoke":
-        return cmd_smoke(args)
-    return cmd_grade(args)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
