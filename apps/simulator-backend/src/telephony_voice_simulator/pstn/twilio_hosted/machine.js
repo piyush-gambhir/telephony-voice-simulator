@@ -89,7 +89,8 @@ function segmentTwiml(vr, context, program, call, seq, index) {
       playBeep: false,
       trim: 'do-not-trim',
       maxLength: segment.record_max_s || 30,
-      timeout: 6,
+      timeout: 0,
+      finishOnKey: '',
       action,
       method: 'POST',
     });

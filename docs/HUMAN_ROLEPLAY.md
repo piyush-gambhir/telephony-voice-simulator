@@ -57,6 +57,19 @@ four minutes, and saves dialogue in the simulator's call analysis. Replayed
 turn webhooks reuse the response and audio. Failures end the call and retain
 an error type rather than inventing a customer reply.
 
+For a controlled customer callback, originate the call separately with the persona
+number as `From`, the allowed dealership number as `To`, and the call's TwiML URL
+set to `/twilio/customer`. The handler selects the persona from `From` for Twilio
+outbound directions and preserves the actual direction and number pair in call
+history. This webhook does not originate a call itself. Twilio documents these
+directions in its [webhook request parameters](https://www.twilio.com/docs/voice/twiml#request-parameters).
+
+The final customer audio is followed by an eight-second pause before hangup.
+Goodbye, errors, call limits, provider completion, and deletion prevent further
+generation. A retry of a generated turn reuses its response while the provider
+call is active. Deleting the call also removes generated audio access; cached
+audio expires after ten minutes even if no new call starts.
+
 This mode sends the synthetic persona and test-call dialogue to OpenAI, and
 reply text to ElevenLabs. Obtain authorization for those transfers before
 using it. Use synthetic customer facts and controlled UAT agent calls only.

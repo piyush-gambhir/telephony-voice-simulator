@@ -49,6 +49,24 @@ async def test_unsigned_sms_never_persists(inbox):
     assert not path.exists()
 
 
+async def test_database_connection_closed_after_delivery(inbox, monkeypatch):
+    client, _path = inbox
+    connections = []
+    connect = sqlite3.connect
+
+    def track(*args, **kwargs):
+        connection = connect(*args, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(sms_receiver.sqlite3, 'connect', track)
+    assert (await post(client)).status == 200
+    assert connections
+    for connection in connections:
+        with pytest.raises(sqlite3.ProgrammingError, match='closed'):
+            connection.execute('SELECT 1')
+
+
 @pytest.mark.parametrize('changes,status', [
     ({'From': '+15555550999'}, 403), ({'To': '+15555550999'}, 403),
     ({'AccountSid': 'ACwrong'}, 403), ({'MessageSid': 'bad'}, 400),

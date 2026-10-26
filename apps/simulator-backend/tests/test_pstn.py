@@ -6,6 +6,8 @@ import json
 import base64
 import hashlib
 import hmac
+from urllib.parse import urlsplit
+from xml.etree import ElementTree
 from pathlib import Path
 
 import numpy as np
@@ -200,6 +202,70 @@ async def test_voice_webhook_serves_scenario_twiml(pstn_client) -> None:
     # continuation after the record → next segment (end) → hangup path exists
     body = await _post_form(client, "/twilio/step?seq=main&index=0", {"CallSid": "CA1"})
     assert "<Redirect" in body or "<Hangup/>" in body
+
+
+def _action_path(xml: str, verb: str) -> str:
+    url = urlsplit(ElementTree.fromstring(xml).find(verb).attrib['action'])
+    return url.path + '?' + url.query
+
+
+async def test_voice_retry_reuses_exact_response_without_replaying_runtime(pstn_client):
+    client, state = pstn_client
+    state.default_scenario = 'gate'
+    form = {'CallSid': 'CA-voice-retry', 'To': '+1555'}
+    first = await _post_form(client, '/twilio/voice', form)
+    retry = await _post_form(client, '/twilio/voice', form)
+    assert retry == first
+    assert state.calls[form['CallSid']]['prompt_plays'] == 1
+    assert len(state.calls[form['CallSid']]['segments']) == 1
+
+
+async def test_gather_retry_counts_one_press_and_reuses_transition(pstn_client):
+    client, state = pstn_client
+    state.default_scenario = 'gate'
+    form = {'CallSid': 'CA-key-retry', 'To': '+1555'}
+    initial = await _post_form(client, '/twilio/voice', form)
+    action = _action_path(initial, 'Gather')
+    first = await _post_form(client, action, {**form, 'Digits': '5'})
+    retry = await _post_form(client, action, {**form, 'Digits': '5'})
+    assert retry == first
+    alias = await _post_form(client, action.replace('step=0', 'step=00'), {**form, 'Digits': '5'})
+    assert alias == first
+    call = state.calls[form['CallSid']]
+    assert [digit['digit'] for digit in call['digits']] == ['5']
+    assert len(call['segments']) == 2
+
+
+async def test_gather_retry_does_not_spend_another_prompt_attempt(pstn_client):
+    client, state = pstn_client
+    state.default_scenario = 'gate'
+    form = {'CallSid': 'CA-retry-prompts', 'To': '+1555'}
+    initial = await _post_form(client, '/twilio/voice', form)
+    action = _action_path(initial, 'Gather')
+    second = await _post_form(client, action, form)
+    assert await _post_form(client, action, form) == second
+    assert state.calls[form['CallSid']]['prompt_plays'] == 2
+    assert _action_path(second, 'Gather') != action
+
+
+async def test_record_window_preserves_hold_duration_and_ignores_finish_keys(pstn_client):
+    client, state = pstn_client
+    state.default_scenario = 'vm'
+    xml = await _post_form(client, '/twilio/voice', {'CallSid': 'CA-hold', 'To': '+1555'})
+    record = ElementTree.fromstring(xml).find('Record')
+    assert record.attrib['maxLength'] == '30'
+    assert record.attrib['timeout'] == '0'
+    assert record.attrib['finishOnKey'] == ''
+
+
+async def test_active_call_keeps_its_original_dtmf_program(pstn_client):
+    client, state = pstn_client
+    state.default_scenario = 'gate'
+    form = {'CallSid': 'CA-program-snapshot', 'To': '+1555'}
+    initial = await _post_form(client, '/twilio/voice', form)
+    state.scenarios['gate'].on_dtmf = 'ignore'
+    result = await _post_form(client, _action_path(initial, 'Gather'), {**form, 'Digits': '5'})
+    assert 'gate-connected-0.wav' in result
 
 
 async def test_asset_route_serves_only_current_compilation_outputs(pstn_client) -> None:
@@ -926,13 +992,14 @@ def test_full_call_recording_requests_completion_callback(monkeypatch) -> None:
     }
 
 
-def test_analyze_leading_silence(tmp_path: Path) -> None:
+def test_analyze_leading_silence(tmp_path: Path, assets: Path) -> None:
     rec = tmp_path / "recording-1.wav"
     silence = np.zeros(int(1.0 * PSTN_RATE), dtype=np.int16)
     speech = synth_tone(220, 2.0, 9000, sample_rate=PSTN_RATE)
     sf.write(rec, np.concatenate([silence, speech]), PSTN_RATE, subtype="PCM_16")
     call = {"recording_files": [str(rec)], "digits": []}
-    analysis = analyze_call(call, _vm_scenario(), compiled=None)
+    compiled = compile_scenario(_vm_scenario(), assets_dir=assets, out_dir=tmp_path / "compiled")
+    analysis = analyze_call(call, _vm_scenario(), compiled=compiled)
     check = analysis["checks"][0]
     assert check["check"] == "message_start_after"
     assert check["passed"], check["detail"]
@@ -1040,7 +1107,7 @@ def test_message_content_rejects_identity_question_with_extra_speech(
     assert analysis["passed"] is False
 
 
-def test_full_call_audit_recording_is_not_used_for_mailbox_timing(tmp_path: Path) -> None:
+def test_full_call_audit_recording_is_not_used_for_mailbox_timing(tmp_path: Path, assets: Path) -> None:
     full = tmp_path / "recording-0-startcallrecordingapi.wav"
     mailbox = tmp_path / "recording-1-recordverb.wav"
     speech = synth_tone(220, 2.0, 9000, sample_rate=PSTN_RATE)
@@ -1057,7 +1124,8 @@ def test_full_call_audit_recording_is_not_used_for_mailbox_timing(tmp_path: Path
         "digits": [],
     }
 
-    analysis = analyze_call(call, _vm_scenario(), compiled=None)
+    compiled = compile_scenario(_vm_scenario(), assets_dir=assets, out_dir=tmp_path / "compiled")
+    analysis = analyze_call(call, _vm_scenario(), compiled=compiled)
 
     assert analysis["passed"] is True
     assert analysis["recordings_analyzed"] == [str(mailbox)]

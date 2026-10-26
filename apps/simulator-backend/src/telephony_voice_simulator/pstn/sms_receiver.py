@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+from contextlib import closing
 from datetime import datetime, UTC
 from pathlib import Path
 
@@ -31,7 +32,8 @@ async def handle_sms(request: web.Request) -> web.Response:
         raise web.HTTPUnsupportedMediaType()
     database = Path(path)
     database.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(database) as db:
+    # A SQLite transaction context commits or rolls back, but does not close.
+    with closing(sqlite3.connect(database)) as db, db:
         database.chmod(0o600)
         db.execute("""CREATE TABLE IF NOT EXISTS sms_messages (
             message_sid TEXT PRIMARY KEY, sender TEXT NOT NULL, recipient TEXT NOT NULL,

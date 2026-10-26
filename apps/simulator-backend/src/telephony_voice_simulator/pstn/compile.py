@@ -60,6 +60,14 @@ class CompiledScenario:
     on_dtmf: Any  # None | "ignore" | {"digits": [...], "switch": seq}
     gather_timeout: int = DEFAULT_GATHER_TIMEOUT
 
+    @classmethod
+    def from_dict(cls, spec: dict[str, Any]) -> CompiledScenario:
+        return cls(
+            name=spec["name"], on_dtmf=spec["on_dtmf"], gather_timeout=spec["gather_timeout"],
+            sequences={name: [Segment(**segment) for segment in segments]
+                       for name, segments in spec["sequences"].items()},
+        )
+
     @property
     def has_gather(self) -> bool:
         return self.on_dtmf is not None

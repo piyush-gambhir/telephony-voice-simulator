@@ -85,6 +85,26 @@ Do not commit those values.
 | `PSTN_BIND_PORT` | `8978` | Port for the standalone PSTN module |
 
 Twilio credentials and `PUBLIC_BASE_URL` are required for real PSTN calls.
+
+AMD grading allows a twelve-second callback grace and then waits for active
+recording downloads. Downloads make up to six attempts, with a fifteen-second
+timeout per request. Unavailable message media leaves its checks indeterminate;
+later recording callbacks can revise the saved call and run grade. The provider's
+terminal call status alone does not establish a passing grade.
+
+AMD voice and continuation retries reuse their original responses. Recording
+callbacks identify the execution step, so message selection follows playback
+order rather than callback order or recording SID. A `hold` uses the complete
+recording window without a silence timeout or DTMF finish key. Message timing
+requires a known recording boundary and marker; unaligned timing, speech during
+playback, and ambiguous message order remain indeterminate.
+
+Pending/error grading jobs and their original scenario specifications are persisted
+with the call and resumed on startup. Run one active Twilio runtime against a given
+repository. Call deletion cancels process-local download/grading tasks and retains
+the shared privacy tombstone. Calls finalized by older versions without a recovery
+snapshot cannot be reconstructed reliably and remain ungraded after restart.
+
 Recording remains off unless explicitly enabled. Operators must establish
 notice, consent, retention, access, and deletion controls before enabling it.
 Use `serve --with-ivr` when only the four-digit directory is required; it does
@@ -125,6 +145,7 @@ The in-process scenario runner additionally uses `WEBHOOK_BIND_HOST`,
 | `ELEVENLABS_VOICE_SETTINGS_JSON` | Optional JSON object of provider voice settings; v3 defaults to Robust stability (`1.0`), neutral style (`0`), and normal speed (`1.0`) |
 | `MACOS_TTS_VOICE` | Local macOS `say` voice fallback |
 | `SIMULATOR_INCLUDE_LOCAL_AUDIO` | Local-only web audio export opt-in; default `false` |
+| `SIMULATOR_INCLUDE_LOCAL_SCENARIOS` | Include `*.local.yaml` scenarios in local static reference builds; default `false` |
 | `TELNYX_API_KEY` | Signals preview Telnyx configuration; live execution is not implemented |
 
 TTS-generated output is not automatically safe to redistribute. Check the
@@ -145,6 +166,34 @@ local corpus files and composite scenario previews into a local static console
 build. Composite previews preserve prompt timing and synthesized tones while
 shortening long response/recording windows. The option is intentionally off by
 default and must not be set in public builds.
+
+Files named `*.local.*` remain available to the source-checkout backend but are
+excluded from wheels, source archives, Docker contexts, and default static
+reference builds. `SIMULATOR_INCLUDE_LOCAL_SCENARIOS=true` opts into local static
+reference export only. Public release checks reject that export. Use
+`SIMULATOR_SCENARIOS_DIR` to keep private scenario packs outside the source tree.
+
+## Synthetic customer and SMS inbox
+
+These optional routes use the existing signed Twilio ingress. See
+[Human role-play](HUMAN_ROLEPLAY.md) for number setup and test scope.
+
+| Variable | Purpose |
+|---|---|
+| `PSTN_CUSTOMER_PROFILES` | Private JSON file mapping persona E.164 numbers to synthetic profile text |
+| `PSTN_CUSTOMER_ALLOWED_CALLERS` | Comma-separated allowed counterpart numbers, also checked for outbound calls |
+| `CUSTOMER_AGENT_MODEL` | Customer reply model; default `gpt-4.1-mini` |
+| `OPENAI_API_KEY` | Required for synthetic replies |
+| `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | Required for synthetic voice playback |
+| `PSTN_SMS_NUMBERS` | Comma-separated inbox recipient numbers |
+| `PSTN_SMS_ALLOWED_SENDERS` | Comma-separated permitted test senders |
+| `PSTN_SMS_DB` | Private SQLite inbox path; unset disables storage |
+
+The customer runtime permits up to 20 retained sessions, 16 turns per call,
+and a 240-second turn-generation window. Generated audio is served with
+`Cache-Control: no-store` and expires after ten minutes. Deletion removes the
+in-memory session and its audio, and rejects late turns using the shared call
+tombstone. Restarting the backend ends in-memory conversations.
 
 ElevenLabs can render both the optional IVR prompts and the clean-room AMD
 scenario corpus. Keep `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in the

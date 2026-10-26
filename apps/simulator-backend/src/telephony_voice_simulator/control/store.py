@@ -1219,6 +1219,7 @@ class SQLiteSimulatorStore:
         *,
         call_id: str,
         provider: str = "twilio",
+        direction: str = "inbound",
         from_address: str = "",
         to_address: str = "",
         scenario: str | None = None,
@@ -1243,7 +1244,7 @@ class SQLiteSimulatorStore:
                     id, provider, direction, from_address, to_address, scenario,
                     status, recording_status, started_at, ended_at, duration_s,
                     analysis_json, created_at, updated_at
-                ) VALUES (?, ?, 'inbound', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     from_address = CASE WHEN excluded.from_address = '' THEN from_address
                                         ELSE excluded.from_address END,
@@ -1266,6 +1267,7 @@ class SQLiteSimulatorStore:
                 (
                     call_id,
                     provider,
+                    direction,
                     from_address,
                     to_address,
                     scenario,
@@ -1347,6 +1349,24 @@ class SQLiteSimulatorStore:
         with self._connect() as db:
             row = db.execute("SELECT * FROM incoming_calls WHERE id = ?", (call_id,)).fetchone()
             return self._call(db, row) if row else None
+
+    def list_calls_awaiting_finalization(self) -> list[IncomingCall]:
+        """Recover grading and unfinished media independently of the history page limit."""
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT * FROM incoming_calls AS calls
+                   WHERE calls.provider = 'twilio' AND (calls.analysis_json LIKE ? OR EXISTS (
+                       SELECT 1 FROM call_recordings AS media WHERE media.call_id = calls.id
+                       AND media.status IN ('completed', 'download_failed')
+                       AND media.local_path IS NULL
+                   ))""",
+                ('%"finalization"%',),
+            ).fetchall()
+            calls = [self._call(db, row) for row in rows]
+        return [call for call in calls
+                if call.analysis.get("finalization", {}).get("state") in {"pending", "error"}
+                or any(recording.status in {"completed", "download_failed"} and not recording.local_path
+                       for recording in call.recordings)]
 
     def is_incoming_call_deleted(self, call_id: str) -> bool:
         with self._connect() as db:

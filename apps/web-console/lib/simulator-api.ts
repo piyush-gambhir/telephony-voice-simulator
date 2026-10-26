@@ -168,7 +168,7 @@ export type CallRecording = {
 export type IncomingCall = {
   id: string;
   provider: string;
-  direction: "inbound";
+  direction: "inbound" | "outbound";
   from_address: string;
   to_address: string;
   scenario: string | null;

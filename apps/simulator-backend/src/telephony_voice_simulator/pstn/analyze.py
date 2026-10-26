@@ -1,9 +1,8 @@
 """Grade a PSTN sim call from what the number actually captured.
 
 Ground truth in PSTN mode:
-  * each ``<Record>`` starts immediately after its segment's compiled audio
-    finished playing — for voicemail scenarios that means RIGHT AFTER the
-    beep, so the recording's leading silence IS the agent's start delay;
+  * each ``<Record>`` starts after its segment's compiled audio finishes;
+    timing includes the audio between the requested mark and that boundary;
   * ``digits`` are the agent's keypresses as delivered through the real
     carrier DTMF relay;
   * the recordings contain whatever the agent said (the voicemail message it
@@ -12,7 +11,7 @@ Ground truth in PSTN mode:
 Checks are derived from the same scenario ``expect`` block the room-level
 runner uses, mapped to what is observable on this side of the call:
 
-  message_start_after {mark: tone_end}  → recording leading-silence in
+  message_start_after {mark: tone_end}  → aligned delay after the mark in
                                           [min, max + RECORD_START_SLACK]
   message_content {expected, min_recall} → transcribe the mailbox recording
                                           (OpenAI) and verify the configured
@@ -27,6 +26,8 @@ runner uses, mapped to what is observable on this side of the call:
   ended_reason* / detection_layer*      → skipped here (webhook side); the
                                           run is cross-checked in ClickHouse /
                                           the CI dashboard by call id.
+Unaligned timing, playback overlap, and ambiguous message order remain
+indeterminate. Message recordings cannot establish speech during playback.
 """
 
 from __future__ import annotations
@@ -193,41 +194,56 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
                 "detail": f"cannot analyze {rec.name}: {error}",
             })
 
-    def add(name: str, passed: bool, detail: str) -> None:
+    def add(name: str, passed: bool | None, detail: str) -> None:
         checks.append({"check": name, "passed": passed, "detail": detail})
+
+    ordered = call.get("message_recording_order_known", len(recordings) <= 1)
+    message_path = call.get("message_recording_file", recordings[0] if recordings else None)
+    message = Path(message_path) if message_path else None
+    window = call.get("message_recording_window")
+    if window is None and compiled is not None and len(recordings) == 1:
+        candidates = [segment for sequence in compiled.sequences.values() for segment in sequence
+                      if segment.terminal == "record"]
+        if len(candidates) == 1:
+            window = {"marks": candidates[0].marks, "audio_duration": candidates[0].audio_duration}
 
     if "message_start_after" in expect:
         spec = expect["message_start_after"]
-        # Only meaningful when the segment before the first Record ended at
-        # the mark (voicemail scenarios put the beep last).
-        if not recordings:
+        if not ordered:
+            add("message_start_after", None, "recording execution order is unverified")
+        elif message is None:
             add("message_start_after", False, "no recording captured")
         else:
-            first = segments_by_path.get(recordings[0], [])
+            first = segments_by_path.get(message, [])
+            mark = spec.get("mark")
             if not first:
                 add("message_start_after", False, "no speech in recording (message not left?)")
+            elif window is None or mark not in window.get("marks", {}):
+                add("message_start_after", None, "recording start is not aligned to the requested mark")
             else:
-                delta = first[0][0]
+                delta = float(window["audio_duration"]) - float(window["marks"][mark]) + first[0][0]
                 lo = float(spec.get("min", 0.0))
                 hi = float(spec.get("max", 5.0)) + RECORD_START_SLACK
                 add(
                     "message_start_after",
                     lo - 0.2 <= delta <= hi,
-                    f"leading_silence={delta:.2f}s window=[{lo},{hi:.1f}] (+record slack)",
+                    f"delay_after_mark={delta:.2f}s window=[{lo},{hi:.1f}] (+record slack)",
                 )
 
     if "message_content" in expect:
         spec = expect["message_content"] or {}
         expected = str(spec.get("expected", ""))
-        if not recordings or recordings[0] not in segments_by_path:
+        if not ordered:
+            add("message_content", None, "recording execution order is unverified")
+        elif message is None or message not in segments_by_path:
             add("message_content", False, "no recording captured")
         elif not expected:
             add("message_content", False, "scenario has no expected text")
         else:
-            transcript = transcribe_recording(recordings[0])
+            transcript = transcribe_recording(message)
             if transcript is None:
                 # transient whisper failure: retry once before giving up
-                transcript = transcribe_recording(recordings[0])
+                transcript = transcribe_recording(message)
             call["mailbox_transcript"] = transcript
             if transcript is None:
                 # API-side transient, not evidence about the message itself.
@@ -292,12 +308,16 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
             f"speech_segments={len(all_segments)} recordings={len(recordings)}",
         )
 
+    for name in ("first_agent_speech_after", "agent_speech_after", "max_overlap_with_playback",
+                 "max_overlap_between_marks"):
+        if name in expect:
+            add(name, None, "requires aligned inbound audio during playback; message recordings cannot prove it")
+
     skipped = [
         k
         for k in expect
         if k.startswith("ended_reason")
         or k.startswith("detection_layer")
-        or k == "agent_speech_after"
         or k == "webhook_received"
     ]
     # An unavailable required check is not evidence of a pass. Preserve a

@@ -34,13 +34,12 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 import yaml
-from aiohttp import BasicAuth, ClientSession, ClientTimeout, web
+from aiohttp import ClientSession, ClientTimeout, encode_basic_auth, web
 
 from ....control.api import cors
 from ....control.identifiers import normalize_e164
 from ....control.store import SimulatorStore
 from ....paths import ASSETS_DIR, COMPILED_ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR
-from ....pstn.analyze import analyze_call
 from ....pstn.compile import (
     DEFAULT_GATHER_TIMEOUT,
     MAX_PROMPT_REPEATS,
@@ -50,6 +49,8 @@ from ....pstn.compile import (
 
 COMPILED_DIR = COMPILED_ASSETS_DIR
 PSTN_RESULTS_DIR = RESULTS_DIR / "pstn"
+RECORDING_DOWNLOAD_ATTEMPTS = 6
+RECORDING_RETRY_DELAY_SECONDS = 1.5
 
 
 class SimState:
@@ -68,6 +69,8 @@ class SimState:
             source = Path(raw_map).read_text() if raw_map.endswith(".json") else raw_map
             self.static_map = {str(k): str(v) for k, v in json.loads(source).items()}
         self.calls: dict[str, dict] = {}  # CallSid -> record
+        self.recording_tasks: dict[str, dict[str, asyncio.Task]] = {}
+        self.finalization_tasks: dict[str, asyncio.Task] = {}
         # A deleted Twilio CallSid must not be resurrected by a late recording
         # or status callback. Twilio CallSids are globally unique.
         self.deleted_call_ids: set[str] = set()
@@ -143,6 +146,14 @@ def evict_call(call_id: str) -> None:
 
     STATE.deleted_call_ids.add(call_id)
     STATE.calls.pop(call_id, None)
+    pending = [*STATE.recording_tasks.pop(call_id, {}).values()]
+    if task := STATE.finalization_tasks.pop(call_id, None):
+        pending.append(task)
+    for task in pending:
+        task.cancel()
+    from ....pstn.customer_agent import evict_call as evict_customer_call
+
+    evict_customer_call(call_id)
 
 
 def _call_is_deleted(call_id: str) -> bool:
@@ -310,7 +321,7 @@ def _finish_simulation_run(call: dict, analysis: dict | None = None) -> None:
         return
     carrier_status = str(call.get("status") or "completed")
     result: dict[str, object] = {
-        "graded": analysis is not None,
+        "graded": analysis.get("graded", True) if analysis is not None else False,
         "carrier_status": carrier_status,
         "duration_seconds": call.get("duration_s"),
     }
@@ -321,7 +332,9 @@ def _finish_simulation_run(call: dict, analysis: dict | None = None) -> None:
                 "analysis": analysis,
                 "summary": (
                     "PSTN call completed and passed AMD checks."
-                    if analysis.get("passed")
+                    if analysis.get("passed") is True
+                    else "PSTN call completed; AMD evidence is incomplete."
+                    if analysis.get("passed") is None
                     else "PSTN call completed; one or more AMD checks failed."
                 ),
             }
@@ -331,6 +344,14 @@ def _finish_simulation_run(call: dict, analysis: dict | None = None) -> None:
             "PSTN call reached a terminal carrier status after the runtime restarted; "
             "recording analysis was unavailable."
         )
+    # A late recording may replace an indeterminate grade without replaying the
+    # call-completed event or changing its original completion timestamp.
+    run = _call_store().get_run(run_id)
+    if (run is not None and run.completed_at is not None and analysis is not None
+            and run.result.get("call_id") == call["call_sid"]
+            and run.result.get("mode") == "pstn"):
+        _call_store().update_run(run, status=run.status, result={**run.result, **result})
+        return
     _update_simulation_run(
         run_id,
         status="completed" if carrier_status == "completed" else "failed",
@@ -498,7 +519,8 @@ async def _start_audit_recording(call_sid: str, to_number: str = "") -> dict:
     url = f"https://api.twilio.com/2010-04-01/Accounts/{account}/Calls/{call_sid}/Recordings.json"
     try:
         async with ClientSession(
-            auth=BasicAuth(account, token), timeout=ClientTimeout(total=2.5)
+            headers={"Authorization": encode_basic_auth(account, token)},
+            timeout=ClientTimeout(total=2.5),
         ) as http:
             async with http.post(
                 url,
@@ -618,15 +640,25 @@ def _live_ivr_call(sid: str, form: object) -> dict:
     return call
 
 
+def _call_scenario(call: dict) -> CompiledScenario:
+    if "grading_spec" in call:
+        return CompiledScenario.from_dict(call["grading_spec"]["compiled"])
+    return STATE.scenarios[call["scenario"]]
+
+
 def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
     """TwiML for one segment + routing to the next step."""
-    compiled: CompiledScenario = STATE.scenarios[call["scenario"]]
+    compiled = _call_scenario(call)
     segments = compiled.sequences[seq]
     if index >= len(segments):
         return ["<Hangup/>"]
     segment = segments[index]
+    step = len(call.get("segments", []))
+    gather = seq == "main" and index == 0 and compiled.has_gather and call["prompt_plays"] < MAX_PROMPT_REPEATS
     call.setdefault("segments", []).append(
         {
+            "step": step,
+            "gather": gather,
             "seq": seq,
             "index": index,
             "t": round(time.time() - call["answered_at"], 3),
@@ -636,7 +668,7 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
         }
     )
     verbs: list[str] = []
-    action = _public(f"/twilio/step?seq={seq}&index={index}")
+    action = _public(f"/twilio/step?seq={seq}&index={index}&step={step}")
 
     is_first_main = seq == "main" and index == 0
     if compiled.has_gather and is_first_main and call["prompt_plays"] < MAX_PROMPT_REPEATS:
@@ -669,8 +701,8 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
     elif segment.terminal == "record":
         verbs.append(
             f'<Record playBeep="false" trim="do-not-trim" maxLength="{segment.record_max_s}" '
-            f'timeout="6" action="{escape(action)}" method="POST" '
-            f'recordingStatusCallback="{escape(_public("/twilio/recording"))}" '
+            f'timeout="0" finishOnKey="" action="{escape(action)}" method="POST" '
+            f'recordingStatusCallback="{escape(_public(f"/twilio/recording?step={step}"))}" '
             f'recordingStatusCallbackMethod="POST"/>'
         )
     elif segment.terminal == "hangup":
@@ -700,7 +732,11 @@ async def handle_voice(request: web.Request) -> web.Response:
     # the same call SID so a timeout cannot consume another one-shot queue item.
     existing = STATE.calls.get(sid)
     if existing is not None:
-        return _twiml(*_segment_twiml(existing, "main", 0))
+        if existing.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
+            return _twiml("<Hangup/>")
+        if "voice_response" not in existing:
+            existing["voice_response"] = _twiml(*_segment_twiml(existing, "main", 0)).text
+        return web.Response(text=existing["voice_response"], content_type="application/xml")
     persisted = _call_store().get_incoming_call(sid)
     if persisted is not None:
         if persisted.status in {"completed", "failed", "busy", "no-answer", "canceled"}:
@@ -719,7 +755,8 @@ async def handle_voice(request: web.Request) -> web.Response:
                 "run_id": persisted.analysis.get("run_id"),
             }
             STATE.calls[sid] = restored
-            return _twiml(*_segment_twiml(restored, "main", 0))
+            restored["voice_response"] = _twiml(*_segment_twiml(restored, "main", 0)).text
+            return web.Response(text=restored["voice_response"], content_type="application/xml")
     assignment = _pick_call_assignment(to_number)
     scenario = str(assignment.get("scenario") or "")
     run_id = str(assignment.get("run_id") or "") or None
@@ -759,6 +796,12 @@ async def handle_voice(request: web.Request) -> web.Response:
         "run_id": run_id,
     }
     STATE.calls[sid] = call
+    from .finalization import capture_scenario
+
+    capture_scenario(call)
+    # Prepare the initial reply before awaiting the recording API so retries
+    # cannot advance the scenario while that request is in flight.
+    call["voice_response"] = _twiml(*_segment_twiml(call, "main", 0)).text
     _call_store().upsert_incoming_call(
         call_id=sid,
         from_address=call["from"],
@@ -776,6 +819,8 @@ async def handle_voice(request: web.Request) -> web.Response:
         result={"graded": False, "summary": "PSTN call answered; awaiting terminal callback."},
     )
     call["audit_recording_start"] = await _start_audit_recording(sid, to_number)
+    if _call_is_deleted(sid) or call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
+        return _twiml("<Hangup/>")
     _call_store().upsert_incoming_call(
         call_id=sid,
         scenario=scenario,
@@ -783,7 +828,7 @@ async def handle_voice(request: web.Request) -> web.Response:
         recording_status=_recording_status(call["audit_recording_start"]),
     )
     print(f"[voice] {sid} to={to_number} from={call['from']} scenario={scenario}")
-    return _twiml(*_segment_twiml(call, "main", 0))
+    return web.Response(text=call["voice_response"], content_type="application/xml")
 
 
 async def handle_ivr_voice(request: web.Request) -> web.Response:
@@ -978,9 +1023,42 @@ async def handle_step(request: web.Request) -> web.Response:
     call = STATE.calls.get(sid)
     if call is None:
         return _twiml("<Hangup/>")
+    if call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
+        return _twiml("<Hangup/>")
     seq = request.query.get("seq", "main")
-    index = int(request.query.get("index", "0"))
-    compiled = STATE.scenarios[call["scenario"]]
+    try:
+        index = int(request.query.get("index", "0"))
+    except ValueError:
+        return _twiml("<Hangup/>")
+    compiled = _call_scenario(call)
+    if compiled is None or seq not in compiled.sequences or not 0 <= index < len(compiled.sequences[seq]):
+        return _twiml("<Hangup/>")
+
+    step = request.query.get("step")
+    if step is not None:
+        try:
+            step_index = int(step)
+        except ValueError:
+            return _twiml("<Hangup/>")
+        step = str(step_index)
+        emitted = call.get("segments", [])
+        if not 0 <= step_index < len(emitted):
+            return _twiml("<Hangup/>")
+        entry = emitted[step_index]
+        if (entry["seq"] != seq or entry["index"] != index
+                or entry.get("gather", False) != bool(request.query.get("gather"))):
+            return _twiml("<Hangup/>")
+        cached = call.get("step_responses", {}).get(step)
+        if cached is not None:
+            return web.Response(text=cached, content_type="application/xml")
+        if step_index != len(emitted) - 1:
+            return _twiml("<Hangup/>")
+
+    def transition(verbs: list[str]) -> web.Response:
+        response = _twiml(*verbs)
+        if step is not None:
+            call.setdefault("step_responses", {})[step] = response.text
+        return response
 
     if request.query.get("gather"):
         digits = str(form.get("Digits", "") or "")
@@ -993,17 +1071,19 @@ async def handle_step(request: web.Request) -> web.Response:
             if isinstance(spec, dict):
                 accepted = [str(d) for d in (spec.get("digits") or [])]
                 if not accepted or digits in accepted:
-                    return _twiml(*_segment_twiml(call, str(spec["switch"]), 0))
+                    return transition(_segment_twiml(call, str(spec["switch"]), 0))
             # "ignore" (or wrong digit): machine doesn't react — re-prompt.
         if call["prompt_plays"] < MAX_PROMPT_REPEATS:
-            return _twiml(*_segment_twiml(call, "main", 0))
-        return _twiml("<Hangup/>")
+            return transition(_segment_twiml(call, "main", 0))
+        return transition(["<Hangup/>"])
 
     # Record/segment continuation: move to the next segment in this sequence.
-    return _twiml(*_segment_twiml(call, seq, index + 1))
+    return transition(_segment_twiml(call, seq, index + 1))
 
 
 async def handle_recording(request: web.Request) -> web.Response:
+    from . import finalization
+
     form = await request.post()
     if rejection := _reject_invalid_twilio_request(request, form):
         return rejection
@@ -1023,7 +1103,7 @@ async def handle_recording(request: web.Request) -> web.Response:
     duration = _optional_float(duration_raw)
     channels_raw = str(form.get("RecordingChannels", ""))
     channels = int(channels_raw) if channels_raw.isdigit() else None
-    call = STATE.calls.get(sid)
+    call = STATE.calls.get(sid) or finalization.restore(sid)
     audit_sid = str((call or {}).get("audit_recording_start", {}).get("sid") or "")
     source_key = source.lower()
     kind = (
@@ -1035,6 +1115,26 @@ async def handle_recording(request: web.Request) -> web.Response:
     if _call_store().get_incoming_call(sid) is None:
         _call_store().upsert_incoming_call(call_id=sid, status="in-progress")
     stored_id = recording_sid or f"{sid}-{kind}-{len((call or {}).get('recordings', [])) + 1}"
+    previous = _call_store().get_recording(stored_id)
+    if previous and previous.call_id != sid:
+        return web.json_response({"error": "RecordingSid belongs to a different call"}, status=400)
+    if call is not None and kind == "message" and "step" in request.query:
+        try:
+            window = int(request.query["step"])
+        except ValueError:
+            return web.json_response({"error": "Invalid recording step"}, status=400)
+        segments = call.get("segments", [])
+        if (not 0 <= window < len(segments) or segments[window]["terminal"] != "record"
+                or segments[window].get("gather")):
+            return web.json_response({"error": "Invalid recording step"}, status=400)
+        windows = call.setdefault("recording_windows", {})
+        if stored_id in windows and windows[stored_id] != window:
+            return web.json_response({"error": "Recording step changed"}, status=400)
+        if any(key != stored_id and value == window for key, value in windows.items()):
+            return web.json_response({"error": "Recording step already assigned"}, status=400)
+        windows[stored_id] = window
+    if previous and previous.status in {"completed", "download_failed", "absent"} and status == "in-progress":
+        return web.json_response({"ok": True})
     _call_store().upsert_recording(
         recording_id=stored_id,
         call_id=sid,
@@ -1058,7 +1158,9 @@ async def handle_recording(request: web.Request) -> web.Response:
             ),
         )
     if call is not None:
-        call["recordings"].append(
+        recordings = call.setdefault("recordings", [])
+        recordings[:] = [item for item in recordings if item.get("sid", item.get("id")) != stored_id]
+        recordings.append(
             {
                 "sid": stored_id,
                 "url": url,
@@ -1069,7 +1171,9 @@ async def handle_recording(request: web.Request) -> web.Response:
             }
         )
     if url and status == "completed":
-        asyncio.create_task(_download_recording(call or {"call_sid": sid}, url, stored_id, kind))
+        finalization.start_download(call or {"call_sid": sid}, url, stored_id, kind)
+    if call is not None:
+        finalization.schedule(call)
     return web.json_response({"ok": True})
 
 
@@ -1078,26 +1182,31 @@ async def _download_recording(call: dict, url: str, recording_sid: str, kind: st
     if _call_is_deleted(sid):
         return
     out_dir = _call_results_dir(sid)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    auth = BasicAuth(
+    authorization = encode_basic_auth(
         os.environ.get("TWILIO_ACCOUNT_SID", ""), os.environ.get("TWILIO_AUTH_TOKEN", "")
     )
     # Twilio recordings become fetchable shortly after the callback.
-    async with ClientSession(auth=auth) as http:
-        for attempt in range(6):
-            await asyncio.sleep(1.5 * attempt)
+    async with ClientSession(headers={"Authorization": authorization}, timeout=ClientTimeout(total=15)) as http:
+        for attempt in range(RECORDING_DOWNLOAD_ATTEMPTS):
+            await asyncio.sleep(RECORDING_RETRY_DELAY_SECONDS * attempt)
             with contextlib.suppress(Exception):
                 async with http.get(url + ".wav") as resp:
                     if resp.status == 200:
+                        audio = await resp.read()
                         if _call_is_deleted(sid):
                             return
                         prefix = "full-call" if kind == "full_call" else "message"
                         path = out_dir / f"{prefix}-{recording_sid}.wav"
-                        path.write_bytes(await resp.read())
-                        call.setdefault("recording_files", []).append(str(path))
+                        out_dir.mkdir(parents=True, exist_ok=True)
+                        path.write_bytes(audio)
+                        files = call.setdefault("recording_files", [])
+                        if str(path) not in files:
+                            files.append(str(path))
                         if kind == "message":
-                            call.setdefault("analysis_recording_files", []).append(str(path))
-                        _call_store().upsert_recording(
+                            files = call.setdefault("analysis_recording_files", [])
+                            if str(path) not in files:
+                                files.append(str(path))
+                        saved = _call_store().upsert_recording(
                             recording_id=recording_sid,
                             call_id=sid,
                             provider="twilio",
@@ -1106,6 +1215,11 @@ async def _download_recording(call: dict, url: str, recording_sid: str, kind: st
                             provider_url=url,
                             local_path=str(path),
                         )
+                        if saved is None:
+                            path.unlink(missing_ok=True)
+                            with contextlib.suppress(OSError):
+                                out_dir.rmdir()
+                            return
                         print(f"[recording] {sid} → {path.name}")
                         return
     if _call_is_deleted(sid):
@@ -1128,6 +1242,8 @@ async def _download_recording(call: dict, url: str, recording_sid: str, kind: st
 
 
 async def handle_status(request: web.Request) -> web.Response:
+    from . import finalization
+
     form = await request.post()
     if rejection := _reject_invalid_twilio_request(request, form):
         return rejection
@@ -1137,76 +1253,40 @@ async def handle_status(request: web.Request) -> web.Response:
     if _call_is_deleted(sid):
         return web.json_response({"ok": True, "deleted": True})
     status = str(form.get("CallStatus", ""))
-    call = STATE.calls.get(sid)
+    call = STATE.calls.get(sid) or finalization.restore(sid)
     persisted = _call_store().get_incoming_call(sid)
-    terminal = status in ("completed", "failed", "busy", "no-answer", "canceled")
+    terminal = status in finalization.TERMINAL_STATUSES
+    duration_s = _optional_float(form.get("CallDuration", ""))
     if persisted is not None:
-        ended_at = _iso() if terminal else None
-        duration_s = _optional_float(form.get("CallDuration", ""))
-        _call_store().upsert_incoming_call(
+        if persisted.status in finalization.TERMINAL_STATUSES:
+            if not terminal:
+                return web.json_response({"ok": True})
+        ended_at = (persisted.ended_at or _iso()) if terminal else None
+        saved = _call_store().upsert_incoming_call(
             call_id=sid,
             status=status or persisted.status,
             ended_at=ended_at,
             duration_s=duration_s,
         )
+        if saved is None:
+            return web.json_response({"ok": True, "deleted": True})
         if call is None and terminal and persisted.analysis.get("run_id"):
             _finish_simulation_run(
-                {
-                    "call_sid": sid,
-                    "run_id": persisted.analysis["run_id"],
-                    "status": status,
-                    "duration_s": duration_s,
-                }
+                {"call_sid": sid, "run_id": persisted.analysis["run_id"],
+                 "status": status, "duration_s": duration_s}
             )
     if call is not None:
         call["status"] = status
-        if call.get("kind") == "live_ivr":
-            duration_s = _optional_float(form.get("CallDuration", ""))
-            if terminal:
-                call["ended_at"] = time.time()
-                call["duration_s"] = (
-                    duration_s
-                    if duration_s is not None
-                    else round(call["ended_at"] - call["answered_at"], 1)
-                )
-            _append_live_ivr_event(
-                call,
-                "call_status",
-                status=status,
-                duration_s=duration_s,
-            )
-            return web.json_response({"ok": True})
         if terminal:
-            call["ended_at"] = time.time()
-            call["duration_s"] = round(call["ended_at"] - call["answered_at"], 1)
-
-            # Give the recording download a beat, then analyze + persist.
-            async def _finalize() -> None:
-                await asyncio.sleep(12)
-                if _call_is_deleted(sid):
-                    return
-                raw = STATE.raw_scenarios.get(call["scenario"], {})
-                call["analysis"] = analyze_call(call, raw, STATE.scenarios[call["scenario"]])
-                if call.get("run_id"):
-                    call["analysis"]["run_id"] = call["run_id"]
-                out_dir = _call_results_dir(sid)
-                out_dir.mkdir(parents=True, exist_ok=True)
-                (out_dir / "call.json").write_text(json.dumps(call, indent=2, default=str))
-                _call_store().upsert_incoming_call(
-                    call_id=sid,
-                    scenario=call["scenario"],
-                    status=call["status"],
-                    ended_at=_iso(call.get("ended_at")),
-                    duration_s=call.get("duration_s"),
-                    analysis=call["analysis"],
-                )
-                _finish_simulation_run(call, call["analysis"])
-                print(
-                    f"[done] {sid} scenario={call['scenario']} "
-                    f"passed={call['analysis'].get('passed')}"
-                )
-
-            asyncio.create_task(_finalize())
+            call.setdefault("ended_at", time.time())
+            call["duration_s"] = (
+                duration_s if duration_s is not None
+                else call.get("duration_s", round(call["ended_at"] - call["answered_at"], 1))
+            )
+        if call.get("kind") == "live_ivr":
+            _append_live_ivr_event(call, "call_status", status=status, duration_s=duration_s)
+        elif terminal:
+            finalization.schedule(call)
     return web.json_response({"ok": True})
 
 
@@ -1229,6 +1309,10 @@ def register_routes(
     include_amd: bool = True,
     include_ivr: bool = True,
 ) -> None:
+    from . import finalization
+
+    app.on_startup.append(finalization.startup)
+    app.on_cleanup.append(finalization.cleanup)
     if include_amd:
         from ....pstn.customer_agent import register_routes as register_customer_routes
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from array import array
 import json
 import math
+import os
 import subprocess
 import sys
 import wave
@@ -493,7 +494,6 @@ def derive_outcome(name: str, expect: dict, machine: dict) -> str:
         return OUTCOMES[name]
     er = str(expect.get("ended_reason", ""))
     ern = expect.get("ended_reason_not") or []
-    layers = expect.get("detection_layer_prefix_any_of") or []
     if er == "call.ending.voicemail-left-message":
         has_tone = any(
             "tone" in step
@@ -538,6 +538,10 @@ def build() -> dict:
 
     scenarios = {}
     for p in sorted(SCENARIOS.glob("*.yaml")):
+        if ".local." in p.name and os.environ.get(
+            "SIMULATOR_INCLUDE_LOCAL_SCENARIOS", "false"
+        ).lower() not in {"1", "true", "yes"}:
+            continue
         s = validate_scenario(yaml.safe_load(p.read_text()), source=str(p))
         name = s["name"]
         if name in scenarios:
