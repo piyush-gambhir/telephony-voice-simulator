@@ -227,8 +227,8 @@ export const corpus = {
     post<Operation>("/api/corpus/import", body),
   importRecording: (body: { call_id: string; asset: string; license_note: string; channel?: 0 | 1; start?: number; duration?: number; transcript?: string; commit_allowed?: boolean }) =>
     post<Operation>("/api/corpus/import-recording", body),
-  validatePublic: (allowlist: string) => post<{ valid: boolean; referenced_assets: unknown }>("/api/corpus/validate-public", { allowlist }),
-  prompts: (signal?: AbortSignal) => get<{ valid: boolean; config: string; prompts: unknown }>("/api/corpus/prompts", signal),
+  validatePublic: (allowlist: string) => post<{ valid: boolean; referenced_assets: number }>("/api/corpus/validate-public", { allowlist }),
+  prompts: (signal?: AbortSignal) => get<{ valid: boolean; config: string; prompts: number }>("/api/corpus/prompts", signal),
   renderPrompts: (body: { engine?: string; force?: boolean }) => post<Operation>("/api/corpus/prompts/render", body),
 };
 
@@ -247,7 +247,8 @@ export type CustomerSession = {
   duration_s: number | null;
   stopped: unknown;
   error_type: string | null;
-  dialogue: Array<{ role?: string; text?: string; [key: string]: unknown }>;
+  /** "user" is the agent being tested; "assistant" is the synthetic customer. */
+  dialogue: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
 export const inbox = {
@@ -259,13 +260,15 @@ export const inbox = {
   customerSessions: (limit = 20, signal?: AbortSignal) => get<CustomerSession[]>(`/api/customer/sessions?limit=${limit}`, signal),
 };
 
+export type SilenceShare = { count: number; share_percent: number };
+
 export type SilenceSummary = {
   total: number;
   buckets: Array<{ bucket: string; count: number; share_percent: number }>;
-  voicemail_like: number;
-  any_machine_or_system: number;
-  true_silence: number;
-  examples: Record<string, unknown>;
+  voicemail_like: SilenceShare;
+  any_machine_or_system: SilenceShare;
+  true_silence: SilenceShare;
+  examples: Record<string, string[]>;
 };
 
 export const analysis = {
