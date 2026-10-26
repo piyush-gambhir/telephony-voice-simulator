@@ -5,11 +5,39 @@ from __future__ import annotations
 from aiohttp import web
 
 from ..service import SimulatorService
-from . import calls, models, numbers, operations, pbx, resources, runs
+from . import (
+    agents,
+    benchmarks,
+    calls,
+    corpus,
+    hosted,
+    inbox,
+    models,
+    numbers,
+    operations,
+    pbx,
+    resources,
+    runs,
+    uat,
+)
 from .common import CALL_EVICTOR_KEY, SERVICE_KEY
 from .middleware import cors, errors
 
-ROUTE_MODULES = (resources, numbers, runs, calls, models, pbx, operations)
+ROUTE_MODULES = (
+    resources,
+    numbers,
+    runs,
+    calls,
+    models,
+    pbx,
+    operations,
+    hosted,
+    agents,
+    benchmarks,
+    uat,
+    corpus,
+    inbox,
+)
 
 
 async def options(_request: web.Request) -> web.Response:

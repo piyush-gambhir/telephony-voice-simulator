@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from aiohttp import web
 
-from ..service import SimulatorService, ValidationError
+from ..paths import RESULTS_DIR, UAT_CONFIG_DIR
+from ..service import NotFoundError, SimulatorService, ValidationError
 
 SERVICE_KEY = web.AppKey("simulator_service", SimulatorService)
 CALL_EVICTOR_KEY = web.AppKey("simulator_call_evictor", Callable[[str], None])
@@ -73,3 +75,41 @@ def string_map_field(body: dict[str, object], key: str) -> dict[str, str]:
 def json_response(value: Any, status: int = 200) -> web.Response:
     """JSON response that also serializes paths and dates the service may return."""
     return web.json_response(value, status=status, dumps=lambda data: json.dumps(data, default=str))
+
+
+def _bare_name(name: str, label: str) -> str:
+    # Browser input never names server paths: only files in one known directory.
+    if not name or "/" in name or "\\" in name or name.startswith("."):
+        raise ValidationError(f"{label} must be a file name, not a path")
+    return name
+
+
+def config_file(name: str) -> Path:
+    """A YAML file in the backend config directory, by bare name."""
+    path = UAT_CONFIG_DIR / _bare_name(name, "config")
+    if path.suffix not in {".yaml", ".yml"} or not path.is_file():
+        raise NotFoundError(f"Unknown config: {name}")
+    return path
+
+
+NUMBER_BACKUP_DIR = RESULTS_DIR / "twilio"
+
+
+def backup_file(name: str) -> Path:
+    """A number backup written by inventory point, by bare name."""
+    path = NUMBER_BACKUP_DIR / _bare_name(name, "backup")
+    if path.suffix != ".json":
+        raise ValidationError("backup must be a .json file name")
+    return path
+
+
+def start(
+    request: web.Request,
+    kind: str,
+    title: str,
+    params: dict[str, Any],
+    job: Callable[[Callable[[str], None]], Any],
+) -> web.Response:
+    """Run ``job`` as a background operation and answer 202 with the operation."""
+    operation = service_of(request).start_operation(kind, title, params, job)
+    return json_response(operation, status=202)
