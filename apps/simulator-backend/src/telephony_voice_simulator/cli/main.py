@@ -6,9 +6,41 @@ import argparse
 import sys
 
 from ..service import ConflictError, NotFoundError, ValidationError
-from . import calls, numbers, pbx, resources, runs, scenarios, serve
+from . import (
+    agents,
+    analyze,
+    benchmark,
+    calls,
+    corpus,
+    customer,
+    hosted,
+    numbers,
+    pbx,
+    resources,
+    runs,
+    scenarios,
+    serve,
+    sms,
+    uat,
+)
 
-GROUPS = (serve, resources, scenarios, runs, calls, numbers, pbx)
+GROUPS = (
+    serve,
+    resources,
+    scenarios,
+    runs,
+    calls,
+    numbers,
+    pbx,
+    hosted,
+    agents,
+    benchmark,
+    uat,
+    corpus,
+    sms,
+    customer,
+    analyze,
+)
 
 
 def parser() -> argparse.ArgumentParser:
