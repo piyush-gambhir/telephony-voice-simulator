@@ -167,7 +167,7 @@ function SmokePanel({ scenarios, ask }: { scenarios: Scenario[]; ask: Ask }) {
 
 /* ---------- grade ---------- */
 
-function GradePanel() {
+function GradePanel({ ask }: { ask: Ask }) {
   const [mode, setMode] = useState<"sid" | "number">("sid");
   const [sid, setSid] = useState("");
   const [number, setNumber] = useState("");
@@ -180,12 +180,20 @@ function GradePanel() {
     ? /^CA[0-9a-fA-F]{32}$/.test(sid)
     : E164.test(number) && Number.isInteger(lastCount) && lastCount >= 1 && lastCount <= 50;
 
-  async function submit(event: FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault();
-    const started = await action.run(() =>
-      hosted.grade(mode === "sid" ? { call_sid: sid } : { number, last: lastCount }),
-    );
-    if (started) setOp(started);
+    const request = mode === "sid" ? { call_sid: sid } : { number, last: lastCount };
+    const scope = mode === "sid" ? `call ${sid}` : `the last ${lastCount} calls to ${formatAddress(number)}`;
+    ask({
+      title: "Grade these calls?",
+      body: `Downloads the recordings of ${scope} from Twilio and grades them. Scenarios that check what a voicemail message says send that audio to a paid transcription API (ElevenLabs or OpenAI, whichever is configured).`,
+      confirm: "Grade",
+      tone: "primary",
+      onConfirm: async () => {
+        const started = await action.run(() => hosted.grade(request));
+        if (started) setOp(started);
+      },
+    });
   }
 
   return (
@@ -501,7 +509,7 @@ export function HostedPage() {
         <div className="grid gap-4">
           <QueuePanel scenarios={scenarios} />
           <SmokePanel scenarios={scenarios} ask={ask} />
-          <GradePanel />
+          <GradePanel ask={ask} />
         </div>
         <div className="grid gap-4">
           <AgentCallPanel scenarios={scenarios} ask={ask} />

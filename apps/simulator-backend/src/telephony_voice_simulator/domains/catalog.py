@@ -101,6 +101,22 @@ class ScenarioCatalog:
             entries.append({"valid": False, "error": f"No scenario files found for {scenario or self.scenarios_dir}"})
         return {"valid": all(entry["valid"] for entry in entries), "scenarios": entries}
 
+    def declared_names(self) -> set[str]:
+        """Names written in the scenario files, read without validating them.
+
+        Lets callers check a requested name even when some other file is broken,
+        so that validation can still report the broken file in detail.
+        """
+        declared: set[str] = set()
+        for path in self.scenarios_dir.glob("*.yaml"):
+            try:
+                raw = yaml.safe_load(path.read_text())
+            except (OSError, yaml.YAMLError):
+                continue
+            if isinstance(raw, dict) and isinstance(raw.get("name"), str):
+                declared.add(raw["name"])
+        return declared
+
     def names(self) -> list[str]:
         amd = [raw["name"] for raw in self._load_all()]
         return [*amd, *(entry["name"] for entry in scenario_entries())]

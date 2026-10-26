@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Loader2, X } from "lucide-react";
 
 import { ActionError } from "@/components/console/hosted-parts";
@@ -59,16 +59,22 @@ export function PointForm({ number, ask, onApplied, onClose }: { number: Account
   const [voiceUrl, setVoiceUrl] = useState("");
   const [statusCallback, setStatusCallback] = useState("");
   const [plan, setPlan] = useState<PointPlan | null>(null);
+  // The exact request the plan previewed: Apply sends this, never the live form.
+  const [planRequest, setPlanRequest] = useState<ReturnType<typeof body> | null>(null);
   const [applied, setApplied] = useState<PointPlan | null>(null);
   const action = useAction();
+  // Bumped on every edit, so a dry run that returns after an edit is discarded.
+  const generation = useRef(0);
 
   const valid = (mode === "route" ? baseUrl === "" || WEBHOOK_URL.test(baseUrl) : WEBHOOK_URL.test(voiceUrl))
     && (statusCallback === "" || WEBHOOK_URL.test(statusCallback));
 
   function edit<T>(setter: (value: T) => void) {
     return (value: T) => {
+      generation.current += 1;
       setter(value);
       setPlan(null);
+      setPlanRequest(null);
       setApplied(null);
     };
   }
@@ -84,12 +90,18 @@ export function PointForm({ number, ask, onApplied, onClose }: { number: Account
 
   async function preview(event: FormEvent) {
     event.preventDefault();
-    const result = await action.run(() => accountNumbers.point(body(true)));
-    if (result) setPlan(result);
+    const request = body(true);
+    const started = generation.current;
+    const result = await action.run(() => accountNumbers.point(request));
+    if (result && started === generation.current) {
+      setPlan(result);
+      setPlanRequest(request);
+    }
   }
 
   function apply() {
-    if (!plan) return;
+    if (!plan || !planRequest) return;
+    const confirmed = { ...planRequest, dry_run: false };
     const url = String(plan.change.VoiceUrl ?? "");
     ask({
       title: `Rewire ${formatAddress(number.phone_number)}?`,
@@ -97,10 +109,11 @@ export function PointForm({ number, ask, onApplied, onClose }: { number: Account
       confirm: "Apply",
       tone: "primary",
       onConfirm: async () => {
-        const result = await action.run(() => accountNumbers.point(body(false)));
+        const result = await action.run(() => accountNumbers.point(confirmed));
         if (result) {
           setApplied(result);
           setPlan(null);
+          setPlanRequest(null);
           onApplied();
         }
       },
@@ -212,24 +225,33 @@ export function RevertForm({
   const options = [...(matching.length ? matching : backups)].sort((a, b) => b.modified - a.modified);
   const [backup, setBackup] = useState(options[0]?.name ?? "");
   const [plan, setPlan] = useState<RevertPlan | null>(null);
+  // The backup the plan previewed: Restore applies this one, never the live selection.
+  const [planBackup, setPlanBackup] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
+  const generation = useRef(0);
   const action = useAction();
 
   async function preview(event: FormEvent) {
     event.preventDefault();
-    const result = await action.run(() => accountNumbers.revert({ number: number.phone_number, backup, dry_run: true }));
-    if (result) setPlan(result);
+    const chosen = backup;
+    const started = generation.current;
+    const result = await action.run(() => accountNumbers.revert({ number: number.phone_number, backup: chosen, dry_run: true }));
+    if (result && started === generation.current) {
+      setPlan(result);
+      setPlanBackup(chosen);
+    }
   }
 
   function apply() {
-    if (!plan) return;
+    if (!plan || !planBackup) return;
+    const confirmedBackup = planBackup;
     ask({
       title: `Restore ${formatAddress(number.phone_number)}?`,
-      body: `This rewires the live number from backup ${backup}: inbound calls to it go to ${text(plan.restore.VoiceUrl)} immediately.`,
+      body: `This rewires the live number from backup ${confirmedBackup}: inbound calls to it go to ${text(plan.restore.VoiceUrl)} immediately.`,
       confirm: "Restore",
       tone: "primary",
       onConfirm: async () => {
-        const result = await action.run(() => accountNumbers.revert({ number: number.phone_number, backup, dry_run: false }));
+        const result = await action.run(() => accountNumbers.revert({ number: number.phone_number, backup: confirmedBackup, dry_run: false }));
         if (result) {
           setApplied(true);
           setPlan(null);
@@ -249,7 +271,7 @@ export function RevertForm({
             label="Backup"
             help={matching.length ? undefined : "No backup is named after this number's SID; the API refuses a backup from another number."}
           >
-            <Select value={backup} onValueChange={(value) => { setBackup(value); setPlan(null); setApplied(false); }}>
+            <Select value={backup} onValueChange={(value) => { generation.current += 1; setBackup(value); setPlan(null); setPlanBackup(null); setApplied(false); }}>
               <SelectTrigger id="revert-backup"><SelectValue placeholder="Select a backup" /></SelectTrigger>
               <SelectContent>
                 {options.map((item) => (

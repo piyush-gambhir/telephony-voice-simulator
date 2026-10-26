@@ -234,3 +234,10 @@ async def test_inbox_reads_and_silence_analysis(api, monkeypatch) -> None:
     assert response.status == 200
     assert summary["total"] == 2
     assert (await client.post("/api/analysis/silence", json={"rows": "x"})).status == 400
+
+
+async def test_large_analysis_uploads_fit_the_request_limit(api) -> None:
+    client, _ = api
+    rows = [{"call_uid": str(index), "user_text": "x" * 240} for index in range(5000)]
+    response = await client.post("/api/analysis/silence", json={"rows": rows})
+    assert response.status == 200

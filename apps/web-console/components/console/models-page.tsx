@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Play, RotateCcw } from "lucide-react";
 
 import {
@@ -34,6 +34,8 @@ export function ModelsPage() {
   const runs = useApi(() => models.simulate({ kind }).then(asList), [kind]);
   const extensions = useApi((signal) => models.pbxExtensions(signal), []);
   const rerun = useAction();
+  // Bumped on every kind switch, so a PBX rerun that returns late never lands on IVR.
+  const generation = useRef(0);
 
   const list = runs.data ?? [];
   const selected = list.find((item) => item.scenario_id === selectedId) ?? list[0] ?? null;
@@ -43,8 +45,9 @@ export function ModelsPage() {
   const appliedCount = Object.keys(applied).length;
 
   async function runWithOverrides(next: Record<string, string>) {
+    const started = generation.current;
     const result = await rerun.run(() => models.simulate({ kind: "pbx", overrides: next }));
-    if (result) runs.setData(asList(result));
+    if (result && started === generation.current) runs.setData(asList(result));
   }
 
   return (
@@ -54,6 +57,7 @@ export function ModelsPage() {
           label="Model kind"
           value={kind}
           onChange={(next) => {
+            generation.current += 1;
             setKind(next);
             setSelectedId(null);
             rerun.setError(null);

@@ -181,7 +181,7 @@ async def validate_scenarios(request: web.Request) -> web.Response:
     scenario = optional_string_field(body, "scenario")
     catalog = service_of(request).catalog
     # The catalog validator also reads files by path for the CLI; the browser names scenarios.
-    if scenario is not None and scenario not in catalog.names():
+    if scenario is not None and scenario not in catalog.declared_names():
         raise NotFoundError(f"Unknown scenario: {scenario}")
     return web.json_response(catalog.validate(scenario))
 

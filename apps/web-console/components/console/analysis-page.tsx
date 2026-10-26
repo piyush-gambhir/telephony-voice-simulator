@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { FileUp, Loader2 } from "lucide-react";
 
 import {
@@ -89,9 +89,12 @@ export function AnalysisPage() {
   const [dragging, setDragging] = useState(false);
   const [summary, setSummary] = useState<SilenceSummary | null>(null);
   const action = useAction();
+  const generation = useRef(0);
 
   async function load(file: File | undefined) {
     if (!file) return;
+    // A classification still running for the previous file must not land on this one.
+    generation.current += 1;
     setReadError(null);
     setSummary(null);
     action.setError(null);
@@ -112,8 +115,9 @@ export function AnalysisPage() {
 
   async function classify() {
     if (!parsed?.rows.length) return;
+    const started = generation.current;
     const next = await action.run(() => analysis.silence(parsed.rows));
-    if (next) setSummary(next);
+    if (next && started === generation.current) setSummary(next);
   }
 
   const canClassify = Boolean(parsed?.rows.length) && !action.pending;

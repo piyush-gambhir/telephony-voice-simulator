@@ -23,7 +23,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAction, useApi } from "@/hooks/use-api";
-import { simulatorApi } from "@/lib/simulator-api";
 import { corpus, CORPUS_SOURCE_TYPES, PROMPT_ENGINES, type Operation } from "@/lib/workflows-api";
 
 type Section = "build" | "import" | "prompts" | "public";
@@ -234,7 +233,6 @@ function ImportSection() {
   const [operation, setOperation] = useState<Operation | null>(null);
   const tracked = useOperation<ImportResult>(operation);
   const action = useAction();
-  const calls = useApi((signal) => simulatorApi.calls(signal), []);
 
   const startValue = Number(start);
   const durationValue = Number(duration);
@@ -301,17 +299,10 @@ function ImportSection() {
             <>
               <Field
                 id="import-call"
-                label="Call ID"
-                help={calls.error ? `Recent calls unavailable: ${calls.error}` : "The recording is pulled from RECORDINGS_BUCKET. Pick a recent call or type an agent call ID."}
+                label="Agent call ID"
+                help="The agent's own call ID: its recordings live under livekit/<call ID>/ in RECORDINGS_BUCKET. Simulator call SIDs do not match."
               >
-                <Input id="import-call" list="import-call-options" value={callId} onChange={(event) => setCallId(event.target.value)} autoComplete="off" />
-                <datalist id="import-call-options">
-                  {(calls.data ?? []).slice(0, 100).map((call) => (
-                    <option key={call.id} value={call.id}>
-                      {`${formatWhen(call.started_at)} · ${formatAddress(call.from_address)} to ${formatAddress(call.to_address)}`}
-                    </option>
-                  ))}
-                </datalist>
+                <Input id="import-call" value={callId} onChange={(event) => setCallId(event.target.value)} autoComplete="off" className="font-mono" />
               </Field>
               <div className="grid gap-4 sm:grid-cols-3">
                 <Field id="import-channel" label="Channel">

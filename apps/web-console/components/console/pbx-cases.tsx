@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ListChecks, Loader2, Play } from "lucide-react";
 
 import { EmptyStrip, MISSING, Panel, PanelTitle, TonePill } from "@/components/console/kit";
@@ -19,6 +19,8 @@ export function PbxCases() {
   const [run, setRun] = useState<DealerCaseRun | null>(null);
   const [suite, setSuite] = useState<Suite | null>(null);
   const caseAction = useAction();
+  // Only the most recently clicked case may show its result.
+  const latest = useRef<string | null>(null);
   const suiteAction = useAction();
 
   const list = cases.data ?? [];
@@ -26,10 +28,11 @@ export function PbxCases() {
   const suiteById = new Map((suite?.cases ?? []).map((item) => [item.id, item]));
 
   async function runCase(id: string) {
+    latest.current = id;
     setSelectedId(id);
     setRun(null);
     const result = await caseAction.run(() => pbx.runCase(id));
-    if (result) setRun(result as unknown as DealerCaseRun);
+    if (result && latest.current === id) setRun(result as unknown as DealerCaseRun);
   }
 
   async function runSuite() {

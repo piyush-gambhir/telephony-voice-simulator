@@ -80,3 +80,21 @@ async def test_dealer_call_rejects_a_bad_transfer(client) -> None:
         json={"to_number": "+14155550102", "transfer_method": "blind_refer"},
     )
     assert response.status == 400
+
+
+async def test_one_scenario_validates_even_when_another_file_is_broken(tmp_path: Path) -> None:
+    from telephony_voice_simulator.domains.catalog import ScenarioCatalog
+
+    scenarios = tmp_path / "scenarios"
+    scenarios.mkdir()
+    (scenarios / "good.yaml").write_text("name: good\nexpect: {}\nmachine:\n  main:\n    - hangup: true\n")
+    (scenarios / "bad.yaml").write_text("name: bad\nmachine:\n  main:\n    - wait: -1\n")
+    service = SimulatorService(
+        store=SimulatorStore(tmp_path / "api.db"), catalog=ScenarioCatalog(scenarios)
+    )
+    async with TestClient(TestServer(build_app(service))) as client:
+        good = await client.post("/api/scenarios/validate", json={"scenario": "good"})
+        assert (await good.json())["valid"] is True
+        bad = await client.post("/api/scenarios/validate", json={"scenario": "bad"})
+        report = await bad.json()
+    assert bad.status == 200 and report["valid"] is False and report["scenarios"][0]["error"]
