@@ -2,7 +2,7 @@
   "name": "telephony-voice-simulator",
   "private": true,
   "engines": {
-    "node": ">=24.22.1 <25"
+    "node": ">=24.22.1 <25 || >=26.12.1 <27"
   },
   "license": "Apache-2.0",
   "description": "Monorepo for the telephony simulation backend and web console.",
@@ -28,7 +28,7 @@
     "uat:check": "pnpm --filter simulator-backend uat:check",
     "prompts:check": "pnpm --filter simulator-backend prompts:check"
   },
-  "packageManager": "pnpm@12.11.2",
+  "packageManager": "pnpm@12.15.0",
   "workspaces": [
     "apps/*"
   ]

@@ -1,6 +1,6 @@
 {
   "name": "telephony-voice-simulator-twilio-ivr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "engines": {
     "node": ">=24.22.1 <25"
@@ -14,7 +14,12 @@
     "check:prompts": "python3 ../../apps/simulator-backend/scripts/generate_ivr_prompts.py --check",
     "test": "node --check functions/ivr.protected.js",
     "license:check": "python3 ../../scripts/check_javascript_licenses.py --project twilio",
-    "audit:ci": "npm audit --audit-level=critical"
+    "audit:ci": "npm audit --audit-level=critical",
+    "postinstall": "node scripts/security/apply-backports.cjs",
+    "test:security": "node --test scripts/security/verify-backports.cjs",
+    "pretest": "npm run test:security",
+    "prestart": "npm run test:security",
+    "predeploy": "npm run test:security"
   },
   "devDependencies": {
     "twilio-run": "5.0.1"
