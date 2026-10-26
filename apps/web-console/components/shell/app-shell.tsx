@@ -4,13 +4,24 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   AudioWaveform,
   BookOpen,
+  Bot,
+  Boxes,
   Cable,
+  ChartColumn,
+  ClipboardCheck,
+  CloudUpload,
   ContactRound,
+  FileAudio,
+  Gauge,
+  Hash,
+  Inbox,
   Info,
   ListChecks,
   Menu,
+  Network,
   PhoneCall,
   Workflow,
 } from "lucide-react";
@@ -33,6 +44,40 @@ const GROUPS: Array<{ label: string | null; items: NavItem[] }> = [
       { href: "/console/lines", label: "Lines", icon: PhoneCall, count: (c) => c.lines },
       { href: "/console/ivr", label: "IVR lab", icon: AudioWaveform },
     ],
+  },
+  {
+    label: "Models",
+    items: [
+      { href: "/console/models", label: "Built-in models", icon: Boxes },
+      { href: "/console/pbx", label: "Dealer PBX", icon: Network },
+    ],
+  },
+  {
+    label: "Evaluate",
+    items: [
+      { href: "/console/benchmarks", label: "Benchmarks", icon: Gauge },
+      { href: "/console/uat", label: "UAT", icon: ClipboardCheck },
+      { href: "/console/agents", label: "Agents", icon: Bot },
+    ],
+  },
+  {
+    label: "Twilio",
+    items: [
+      { href: "/console/hosted", label: "Hosted callee", icon: CloudUpload },
+      { href: "/console/numbers", label: "Account numbers", icon: Hash },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
+      { href: "/console/corpus", label: "Corpus", icon: FileAudio },
+      { href: "/console/inbox", label: "Inbox", icon: Inbox },
+      { href: "/console/analysis", label: "Analysis", icon: ChartColumn },
+    ],
+  },
+  {
+    label: "Activity",
+    items: [{ href: "/console/operations", label: "Operations", icon: Activity }],
   },
   {
     label: "Settings",

@@ -22,6 +22,7 @@ import {
 import { EndpointEditor } from "@/components/console/resource-editors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -56,28 +57,6 @@ function SheetSection({ title, description, children }: { title: string; descrip
       </div>
       {children}
     </section>
-  );
-}
-
-function Toggle({ id, checked, onChange, label }: { id: string; checked: boolean; onChange: (value: boolean) => void; label: string }) {
-  return (
-    <button
-      id={id}
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative h-5 w-9 shrink-0 rounded-full outline-none transition-colors duration-[var(--motion-fast)] focus-visible:ring-2 focus-visible:ring-ring/40",
-        checked ? "bg-accent" : "bg-control-active",
-      )}
-    >
-      <span className={cn(
-        "absolute left-0 top-0.5 size-4 rounded-full bg-card [box-shadow:var(--shadow-raise)] transition-transform duration-[var(--motion-fast)]",
-        checked ? "translate-x-[18px]" : "translate-x-0.5",
-      )} />
-    </button>
   );
 }
 
@@ -131,7 +110,7 @@ function ManagedNumberForm({ number, onDone }: { number: ManagedNumber; onDone: 
               Both sides, for playback and debugging. Voicemail scenarios always save the message after the tone.
             </p>
           </div>
-          <Toggle id={`record-${number.id}`} label="Record the full call" checked={recordFullCalls} onChange={setRecordFullCalls} />
+          <Switch id={`record-${number.id}`} label="Record the full call" checked={recordFullCalls} onChange={setRecordFullCalls} />
         </div>
         <div>
           <Button
