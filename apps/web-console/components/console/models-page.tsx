@@ -130,21 +130,21 @@ export function ModelsPage() {
               {list.map((item) => {
                 const active = item.scenario_id === selected?.scenario_id;
                 return (
-                  <li key={item.scenario_id}>
+                  <li key={item.scenario_id} className="min-w-0">
                     <button
                       type="button"
                       aria-pressed={active}
                       onClick={() => setSelectedId(item.scenario_id)}
                       className={cn(
-                        "grid w-full gap-1 rounded-lg px-3 py-2.5 text-left outline-none transition-colors duration-[var(--motion-fast)] focus-visible:ring-2 focus-visible:ring-ring/40",
+                        "grid w-full min-w-0 grid-cols-1 gap-1 rounded-lg px-3 py-2.5 text-left outline-none transition-colors duration-[var(--motion-fast)] focus-visible:ring-2 focus-visible:ring-ring/40",
                         active ? "bg-accent-soft" : "hover:bg-control-hover",
                       )}
                     >
-                      <span className="flex items-center justify-between gap-3">
+                      <span className="flex min-w-0 items-center justify-between gap-3">
                         <span className="min-w-0 truncate text-[13px] font-medium">{item.title}</span>
-                        <OutcomePill outcome={item.outcome} />
+                        <span className="shrink-0"><OutcomePill outcome={item.outcome} /></span>
                       </span>
-                      <span className="t-num text-xs text-muted-foreground">{summary(item)}</span>
+                      <span className="t-num truncate text-xs text-muted-foreground">{summary(item)}</span>
                     </button>
                   </li>
                 );

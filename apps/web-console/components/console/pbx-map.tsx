@@ -35,7 +35,7 @@ export function PbxMap({ map }: { map: DealerMap }) {
   return (
     <div className="grid gap-6">
       <p className="t-num text-[13px] text-muted-foreground">
-        {map.group} · intersite prefix {map.intersite_prefix}
+        Intersite prefix {map.intersite_prefix}
       </p>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

@@ -101,8 +101,8 @@ function ReportList({ reports }: { reports: ReturnType<typeof useApi<ReportListi
           const href = reportHref(report.report_id);
           return (
             <LinkRow key={report.report_id} href={href}>
-              <Td><RowLink href={href} className="t-num text-xs">{report.report_id}</RowLink></Td>
-              <Td className="text-xs">{report.suite ?? MISSING}</Td>
+              <Td><RowLink href={href} className="t-num whitespace-nowrap text-xs">{report.report_id}</RowLink></Td>
+              <Td className="whitespace-nowrap text-xs">{report.suite ?? MISSING}</Td>
               <Td className="t-num whitespace-nowrap text-xs text-muted-foreground">{formatWhen(report.updated_at)}</Td>
               <Td className="t-num text-right text-xs">
                 {count(report.calls)}
