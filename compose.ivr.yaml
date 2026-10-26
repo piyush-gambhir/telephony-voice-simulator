@@ -5,7 +5,7 @@ services:
     command:
       - python
       - -m
-      - telephony_voice_simulator.control.cli
+      - telephony_voice_simulator.cli.main
       - serve
       - --host
       - 0.0.0.0

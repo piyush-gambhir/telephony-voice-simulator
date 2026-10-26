@@ -2,7 +2,7 @@
 
 from .base import ScenarioDefinition, ScenarioKind, TimelineStep
 from .ivr import definitions as ivr_definitions
-from .pbx import definitions as pbx_definitions
+from .pbx.stories import definitions as pbx_definitions
 
 
 def scenario_definitions() -> tuple[ScenarioDefinition, ...]:

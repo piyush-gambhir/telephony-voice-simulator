@@ -31,15 +31,15 @@ _EXPORTED: set[str] = set()
 _VISIBLE_AUDIO: frozenset[str] = frozenset()
 
 sys.path.insert(0, str(BACKEND_SRC))
-from telephony_voice_simulator.corpus.build_corpus import CORPUS  # noqa: E402
-from telephony_voice_simulator.corpus.release_policy import (  # noqa: E402
+from telephony_voice_simulator.corpus.build import CORPUS
+from telephony_voice_simulator.corpus.release_policy import (
     exposed_audio_assets,
     local_audio_enabled,
 )
-from telephony_voice_simulator.domains import scenario_definitions  # noqa: E402
-from telephony_voice_simulator.paths import ASSETS_DIR as ASSETS  # noqa: E402
-from telephony_voice_simulator.paths import SCENARIOS_DIR as SCENARIOS  # noqa: E402
-from telephony_voice_simulator.scenario_validation import validate_scenario  # noqa: E402
+from telephony_voice_simulator.domains import scenario_definitions
+from telephony_voice_simulator.paths import ASSETS_DIR as ASSETS
+from telephony_voice_simulator.paths import SCENARIOS_DIR as SCENARIOS
+from telephony_voice_simulator.domains.amd.validation import validate_scenario
 
 CATEGORIES = [
     {

@@ -7,7 +7,7 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from telephony_voice_simulator.pstn import sms_receiver
+from telephony_voice_simulator.telephony.twilio import sms as sms_receiver
 
 
 @pytest.fixture

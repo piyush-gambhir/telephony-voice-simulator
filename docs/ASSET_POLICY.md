@@ -114,7 +114,7 @@ Regenerate local source assets with:
 
 ```bash
 cd apps/simulator-backend
-uv run python -m telephony_voice_simulator.corpus.build_corpus --only pbx_
+uv run python -m telephony_voice_simulator.corpus.build --only pbx_
 ```
 
 Do not rename corpus files casually: scenario YAML and compiled PSTN programs

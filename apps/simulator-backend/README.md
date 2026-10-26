@@ -124,22 +124,22 @@ library code:
 
 ```bash
 # Run one or every AMD scenario against a LiveKit room.
-uv run python -m telephony_voice_simulator.runner --scenario stock_voicemail_beep_1000
-uv run python -m telephony_voice_simulator.runner --all
+uv run python -m telephony_voice_simulator.integrations.livekit.runner --scenario stock_voicemail_beep_1000
+uv run python -m telephony_voice_simulator.integrations.livekit.runner --all
 
 # Dispatch a deployed agent to a queued PSTN scenario.
-uv run python -m telephony_voice_simulator.agent_call \
+uv run python -m telephony_voice_simulator.integrations.livekit.agent_call \
   --scenario stock_voicemail_beep_1000
 
 # Build/deploy the always-on Twilio Serverless AMD runtime. Its generated WAVs
 # are public Twilio Assets, so an explicit private deployment approval is
 # mandatory.
-uv run python -m telephony_voice_simulator.pstn.deploy_twilio \
+uv run python -m telephony_voice_simulator.telephony.twilio.hosted.deploy \
   --acknowledge-public-audio \
   --audio-deployment-allowlist /absolute/path/to/deployment_allowlist.json
 
 # Build or import rights-reviewed corpus audio.
-uv run python -m telephony_voice_simulator.corpus.build_corpus
+uv run python -m telephony_voice_simulator.corpus.build
 uv run python -m telephony_voice_simulator.corpus.import_asset --help
 ```
 

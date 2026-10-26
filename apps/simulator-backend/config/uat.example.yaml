@@ -22,7 +22,7 @@ steps:
         - run
         - python
         - -m
-        - telephony_voice_simulator.agent_call
+        - telephony_voice_simulator.integrations.livekit.agent_call
         - --scenario
         - "{scenario}"
 

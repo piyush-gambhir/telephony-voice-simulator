@@ -1,6 +1,6 @@
 # AMD benchmark suite.
 #
-#   python -m telephony_voice_simulator.benchmark --suite config/benchmark.example.yaml --dry-run
+#   python -m telephony_voice_simulator.evaluation.benchmark --suite config/benchmark.example.yaml --dry-run
 #
 # Every entry places a REAL outbound PSTN call through the agent's own API and
 # a real inbound leg at the simulator line. Cost and wall-clock scale with

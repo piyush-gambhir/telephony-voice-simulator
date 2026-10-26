@@ -5,8 +5,8 @@ import asyncio
 import numpy as np
 import pytest
 
-from telephony_voice_simulator.bot import TrackAudioOut
-from telephony_voice_simulator.machine import SAMPLE_RATE
+from telephony_voice_simulator.integrations.livekit.callee import TrackAudioOut
+from telephony_voice_simulator.domains.amd.machine import SAMPLE_RATE
 
 
 class BufferedSource:

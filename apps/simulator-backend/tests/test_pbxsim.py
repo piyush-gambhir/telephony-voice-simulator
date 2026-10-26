@@ -6,7 +6,7 @@ from dataclasses import replace
 
 import pytest
 
-from telephony_voice_simulator.pbxsim import (
+from telephony_voice_simulator.domains.pbx.dealer import (
     CASES,
     COSTS,
     CallRequest,
@@ -21,7 +21,12 @@ from telephony_voice_simulator.pbxsim import (
     transfer_matrix,
     validate_group,
 )
-from telephony_voice_simulator.pbxsim.model import CoveragePath, CoveragePoint, Schedule, minutes
+from telephony_voice_simulator.domains.pbx.dealer.model import (
+    CoveragePath,
+    CoveragePoint,
+    Schedule,
+    minutes,
+)
 
 GROUP = default_group()
 

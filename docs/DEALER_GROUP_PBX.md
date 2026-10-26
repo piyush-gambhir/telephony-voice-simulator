@@ -8,7 +8,7 @@ Valley Auto Group is a fictional example. The vendor names and policy settings
 describe this configured model; they do not establish product-wide capabilities
 or defaults. Confirm actual switch and SBC settings for a real installation.
 
-The model lives in `apps/simulator-backend/src/telephony_voice_simulator/pbxsim/`:
+The model lives in `apps/simulator-backend/src/telephony_voice_simulator/domains/pbx/dealer/`:
 
 | File | Contents |
 | --- | --- |
@@ -261,7 +261,7 @@ lookup index automatically. You do not need to manage a private cache:
 
 ```python
 from dataclasses import replace
-from telephony_voice_simulator.pbxsim import default_group, validate_group
+from telephony_voice_simulator.domains.pbx.dealer import default_group, validate_group
 
 group = default_group()
 variant = replace(group, extensions=tuple(

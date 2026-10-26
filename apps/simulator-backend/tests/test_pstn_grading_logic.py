@@ -3,8 +3,8 @@
 import pytest
 import soundfile as sf
 
-from telephony_voice_simulator.machine import SAMPLE_RATE, synth_tone
-from telephony_voice_simulator.pstn.analyze import analyze_call
+from telephony_voice_simulator.domains.amd.machine import SAMPLE_RATE, synth_tone
+from telephony_voice_simulator.grading.analyze import analyze_call
 
 
 @pytest.mark.parametrize('check,options', [
@@ -60,7 +60,7 @@ def test_ambiguous_content_does_not_transcribe_arbitrary_message(tmp_path, monke
     def unexpected(_path):
         pytest.fail('unordered media must not be sent for transcription')
 
-    monkeypatch.setattr('telephony_voice_simulator.pstn.analyze.transcribe_recording', unexpected)
+    monkeypatch.setattr('telephony_voice_simulator.grading.analyze.transcribe_recording', unexpected)
     analysis = analyze_call({'analysis_recording_files': recordings}, {
         'expect': {'message_content': {'expected': 'Hello from the simulator'}},
     }, None)

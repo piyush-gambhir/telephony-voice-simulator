@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from telephony_voice_simulator.machine import SAMPLE_RATE, SimulatedMachine, synth_tone
+from telephony_voice_simulator.domains.amd.machine import SAMPLE_RATE, SimulatedMachine, synth_tone
 
 
 class BufferAudio:
@@ -176,7 +176,7 @@ async def test_dtmf_interrupts_audio_without_claiming_completed_beep(tmp_path: P
 
 async def test_run_preserves_transport_clock(tmp_path: Path, monkeypatch) -> None:
     now = [10.0]
-    monkeypatch.setattr("telephony_voice_simulator.machine.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("telephony_voice_simulator.domains.amd.machine.time.monotonic", lambda: now[0])
     machine, _ = _machine({"main": [{"hangup": True}]}, tmp_path)
     machine.start_clock()
     machine.mark("agent_track_recording_start")

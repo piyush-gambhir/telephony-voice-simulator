@@ -11,10 +11,10 @@ from uuid import uuid4
 
 import pytest
 
-from telephony_voice_simulator.control.mysql_store import MySQLSimulatorStore
-from telephony_voice_simulator.control.service import SimulatorService
-from telephony_voice_simulator.control.store import StoreConflictError
-from telephony_voice_simulator.telephony.providers.mock import MockProvider
+from telephony_voice_simulator.storage.mysql import MySQLSimulatorStore
+from telephony_voice_simulator.service.simulator import SimulatorService
+from telephony_voice_simulator.storage.sqlite import StoreConflictError
+from telephony_voice_simulator.telephony.mock import MockProvider
 
 URI = os.environ.get("SIMULATOR_TEST_MYSQL_URI")
 pytestmark = pytest.mark.skipif(not URI, reason="requires a disposable SIMULATOR_TEST_MYSQL_URI")

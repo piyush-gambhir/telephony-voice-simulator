@@ -58,7 +58,7 @@ mkdir -p "$SIMULATOR_PRIVATE_CORPUS_DIR/assets"
 cd apps/simulator-backend
 SIMULATOR_CORPUS_ASSETS_DIR="$SIMULATOR_PRIVATE_CORPUS_DIR/assets" \
 SIMULATOR_CORPUS_MANIFEST="$SIMULATOR_PRIVATE_CORPUS_DIR/assets_manifest.json" \
-uv run python -m telephony_voice_simulator.corpus.build_corpus
+uv run python -m telephony_voice_simulator.corpus.build
 cd ../..
 ```
 
@@ -177,7 +177,7 @@ requires its own explicit acknowledgement and private deployment allowlist:
 
 ```bash
 cd apps/simulator-backend
-uv run python -m telephony_voice_simulator.pstn.deploy_twilio \
+uv run python -m telephony_voice_simulator.telephony.twilio.hosted.deploy \
   --acknowledge-public-audio \
   --audio-deployment-allowlist /absolute/path/to/deployment_allowlist.json
 ```

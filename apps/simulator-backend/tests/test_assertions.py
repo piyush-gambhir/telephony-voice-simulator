@@ -9,8 +9,12 @@ import numpy as np
 import soundfile as sf
 import pytest
 
-from telephony_voice_simulator.assertions import run_checks, speech_segments_from_wav, summarize_checks
-from telephony_voice_simulator.machine import SAMPLE_RATE, synth_tone
+from telephony_voice_simulator.grading.checks import (
+    run_checks,
+    speech_segments_from_wav,
+    summarize_checks,
+)
+from telephony_voice_simulator.domains.amd.machine import SAMPLE_RATE, synth_tone
 
 
 def _agent_wav(tmp_path: Path, *, speech_at: list[tuple[float, float]], started_at: float = 0.0,

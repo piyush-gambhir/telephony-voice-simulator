@@ -10,7 +10,7 @@ import re
 import yaml
 import pytest
 
-from telephony_voice_simulator.scenario_validation import validate_scenario
+from telephony_voice_simulator.domains.amd.validation import validate_scenario
 
 SIMULATOR = Path(__file__).parent.parent / "src" / "telephony_voice_simulator"
 SCENARIOS = sorted((SIMULATOR / "scenarios").glob("*.yaml"))
@@ -24,7 +24,7 @@ def test_catalog_has_unique_names() -> None:
 
 
 def test_corpus_assets_have_provenance_manifest() -> None:
-    from telephony_voice_simulator.corpus.build_corpus import CORPUS
+    from telephony_voice_simulator.corpus.build import CORPUS
 
     manifest = json.loads(ASSET_MANIFEST.read_text())
     assert set(manifest) == set(CORPUS), "assets_manifest.json must track every CORPUS asset exactly"
@@ -57,7 +57,7 @@ def test_corpus_assets_have_provenance_manifest() -> None:
 def test_local_corpus_assets_are_valid_when_present() -> None:
     import soundfile as sf
 
-    from telephony_voice_simulator.corpus.build_corpus import CORPUS
+    from telephony_voice_simulator.corpus.build import CORPUS
 
     assets_dir = SIMULATOR / "corpus" / "assets"
     manifest = json.loads(ASSET_MANIFEST.read_text())
@@ -83,7 +83,7 @@ def test_public_release_audio_is_explicitly_allowlisted() -> None:
 
 
 def test_privacy_scrubbed_prompts_are_reserved_generic_and_checksum_bound() -> None:
-    from telephony_voice_simulator.corpus.build_corpus import CORPUS
+    from telephony_voice_simulator.corpus.build import CORPUS
 
     manifest = json.loads(ASSET_MANIFEST.read_text())
     privacy_assets = {
@@ -97,7 +97,7 @@ def test_privacy_scrubbed_prompts_are_reserved_generic_and_checksum_bound() -> N
         "reached_name_leave_message.wav",
     }
     source_files = [
-        SIMULATOR / "corpus" / "build_corpus.py",
+        SIMULATOR / "corpus" / "build.py",
         SIMULATOR / "scenarios" / "05_jet_ski_weird_greeting.yaml",
         SIMULATOR / "scenarios" / "13_pixel_call_screen.yaml",
         SIMULATOR / "scenarios" / "22_google_voice_voicemail.yaml",
@@ -140,7 +140,7 @@ def test_privacy_scrubbed_prompts_are_reserved_generic_and_checksum_bound() -> N
 
 @pytest.mark.parametrize("path", SCENARIOS, ids=lambda path: path.stem)
 def test_scenarios_are_valid(path: Path) -> None:
-    from telephony_voice_simulator.corpus.build_corpus import CORPUS
+    from telephony_voice_simulator.corpus.build import CORPUS
 
     manifest_names = set(json.loads(ASSET_MANIFEST.read_text()))
     scenario = validate_scenario(yaml.safe_load(path.read_text()), source=path.name)

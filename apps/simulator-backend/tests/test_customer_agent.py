@@ -8,9 +8,9 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from telephony_voice_simulator.control.store import SimulatorStore
-from telephony_voice_simulator.pstn import customer_agent as customer
-from telephony_voice_simulator.telephony.providers.twilio import webhooks
+from telephony_voice_simulator.storage.sqlite import SimulatorStore
+from telephony_voice_simulator.telephony.twilio import customer
+from telephony_voice_simulator.telephony.twilio import webhooks
 
 SID = 'CA' + '1' * 32
 

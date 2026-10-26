@@ -2,7 +2,7 @@
 
 import httpx
 
-from telephony_voice_simulator.pstn import grade_hosted
+from telephony_voice_simulator.telephony.twilio.hosted import grade as grade_hosted
 
 
 def test_hosted_grade_without_message_audio_is_indeterminate(tmp_path, monkeypatch):
@@ -28,7 +28,7 @@ def test_hosted_grade_aligns_message_timing_to_default_mark(tmp_path, monkeypatc
 
     import soundfile as sf
 
-    from telephony_voice_simulator.machine import SAMPLE_RATE, synth_tone
+    from telephony_voice_simulator.domains.amd.machine import SAMPLE_RATE, synth_tone
 
     monkeypatch.setattr(grade_hosted, 'PSTN_RESULTS_DIR', tmp_path / 'results')
     monkeypatch.setattr(grade_hosted, 'ASSETS_DIR', tmp_path)

@@ -13,7 +13,7 @@ Usage:
       --license-note "Recorded from our test iPhone with consent" \
       --transcript "The person you're calling is screening their calls..."
 
-The asset name must already exist in ``build_corpus.CORPUS``. Keeping stable
+The asset name must already exist in ``corpus.build.CORPUS``. Keeping stable
 asset names lets scenarios switch from synthetic to real audio without YAML
 churn, while tests still enforce provenance for every prompt.
 """
@@ -31,7 +31,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from .build_corpus import ASSETS_DIR, CORPUS, SAMPLE_RATE, SOURCE_MANIFEST
+from .build import ASSETS_DIR, CORPUS, SAMPLE_RATE, SOURCE_MANIFEST
 
 MANIFEST = ASSETS_DIR.parent / "assets_manifest.json"
 

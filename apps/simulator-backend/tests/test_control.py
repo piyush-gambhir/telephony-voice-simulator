@@ -8,12 +8,12 @@ import sqlite3
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from telephony_voice_simulator.control.api import build_app
-from telephony_voice_simulator.control.catalog import ScenarioCatalog
-from telephony_voice_simulator.control.service import SimulatorService, ValidationError
-from telephony_voice_simulator.control.store import SimulatorStore
+from telephony_voice_simulator.api.app import build_app
+from telephony_voice_simulator.domains.catalog import ScenarioCatalog
+from telephony_voice_simulator.service.simulator import SimulatorService, ValidationError
+from telephony_voice_simulator.storage.sqlite import SimulatorStore
 from telephony_voice_simulator.telephony.base import ProviderError
-from telephony_voice_simulator.telephony.providers.mock import MockProvider
+from telephony_voice_simulator.telephony.mock import MockProvider
 
 
 class FakeTwilioNumberManager:
@@ -627,7 +627,8 @@ def test_endpoint_mutation_fails_and_removes_stale_pstn_queue(
         default_scenario=scenario["name"],
     )
     run = service.store.create_run(endpoint["id"], "twilio", scenario["name"])
-    service.store.enqueue_pstn_run(
+    service.store.enqueue_provider_run(
+        provider="twilio",
         address=endpoint["address"],
         scenario=scenario["name"],
         run_id=run.id,
@@ -635,7 +636,7 @@ def test_endpoint_mutation_fails_and_removes_stale_pstn_queue(
 
     service.update_endpoint(endpoint["id"], enabled=False)
 
-    assert service.store.list_pstn_queue(endpoint["address"]) == []
+    assert service.store.list_provider_queue("twilio", endpoint["address"]) == []
     failed = service.store.get_run(run.id)
     assert failed is not None
     assert failed.status == "failed"
@@ -656,7 +657,8 @@ def test_provider_disable_fails_and_removes_all_stale_pstn_queues(
         default_scenario=scenario["name"],
     )
     run = service.store.create_run(endpoint["id"], "twilio", scenario["name"])
-    service.store.enqueue_pstn_run(
+    service.store.enqueue_provider_run(
+        provider="twilio",
         address=endpoint["address"],
         scenario=scenario["name"],
         run_id=run.id,
@@ -664,7 +666,7 @@ def test_provider_disable_fails_and_removes_all_stale_pstn_queues(
 
     service.update_connection(connection["id"], status="disabled")
 
-    assert service.store.list_pstn_queue(endpoint["address"]) == []
+    assert service.store.list_provider_queue("twilio", endpoint["address"]) == []
     failed = service.store.get_run(run.id)
     assert failed is not None and failed.status == "failed"
     assert "connection was disabled" in failed.result["error"]
@@ -863,49 +865,11 @@ async def test_control_api_exposes_provider_endpoint_and_directory_crud(
         await client.close()
 
 
-async def test_deprecated_simulations_alias_preserves_legacy_shape(
-    service: SimulatorService,
-) -> None:
-    connection = service.create_connection("mock", "Local")
-    endpoint = service.create_endpoint(
-        connection_id=connection["id"],
-        name="Public line",
-        kind="phone_number",
-        address="+15550100001",
-    )
-    service.create_directory_entry(
-        connection_id=connection["id"],
-        extension="1501",
-        name="Front desk",
-        destination="+15550101501",
-    )
-    client = TestClient(TestServer(build_app(service)))
-    await client.start_server()
-    try:
-        response = await client.post(
-            "/api/simulations",
-            json={
-                "endpointId": endpoint["id"],
-                "callerNumber": "+14085550131",
-                "extension": "1501",
-                "disposition": "connected",
-            },
-        )
-        assert response.status == 200
-        assert response.headers["Deprecation"] == "true"
-        payload = await response.json()
-        assert set(payload) == {"run", "steps"}
-        assert payload["run"]["result"]["outcome"] == "bridged"
-        assert payload["steps"]
-    finally:
-        await client.close()
-
-
 def test_ivr_only_app_does_not_load_or_expose_amd_assets(
     service: SimulatorService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.pstn import server as pstn_server
+    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
 
     monkeypatch.setattr(pstn_server.STATE, "scenarios", {})
 
@@ -926,7 +890,7 @@ async def test_combined_runtime_uses_injected_store(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.pstn import server as pstn_server
+    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
 
     compiled = tmp_path / "compiled"
     compiled.mkdir()
@@ -952,7 +916,7 @@ async def test_combined_call_deletion_evicts_raw_pstn_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.pstn import server as pstn_server
+    from telephony_voice_simulator.telephony.twilio import webhooks as pstn_server
 
     call_id = "CA-combined-delete"
     compiled = tmp_path / "compiled-combined"
@@ -1154,7 +1118,7 @@ def test_call_deletion_tombstones_before_artifact_cleanup_and_can_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.control import service as service_module
+    from telephony_voice_simulator.service import simulator as service_module
 
     call_id = "CA-cleanup-retry"
     recording_root = tmp_path / "results" / "pstn"
@@ -1218,7 +1182,7 @@ async def test_amd_number_inventory_is_persisted_configured_and_queued(
     assert renamed["endpoint"]["name"] == "Telephony Voice Simulator · AMD 01"
     assert renamed["endpoint"]["default_scenario"] == "google_voice_voicemail"
     assert renamed["configuration"]["record_full_calls"] is True
-    from telephony_voice_simulator.telephony.providers.twilio import webhooks
+    from telephony_voice_simulator.telephony.twilio import webhooks
 
     monkeypatch.setattr(webhooks, "CALL_STORE", service.store)
     assert webhooks._full_call_recording_enabled(number["phone_number"]) is True

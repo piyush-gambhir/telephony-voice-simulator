@@ -7,8 +7,8 @@ import subprocess
 
 import pytest
 
-from telephony_voice_simulator import benchmark
-from telephony_voice_simulator.agent_api import AgentApiConfig
+from telephony_voice_simulator.evaluation import benchmark
+from telephony_voice_simulator.integrations.agent_api import AgentApiConfig
 
 
 def test_expected_class_covers_every_catalog_scenario() -> None:

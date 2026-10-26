@@ -23,9 +23,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-telephony-voice-sim = "telephony_voice_simulator.control.cli:main"
-amd-sim = "telephony_voice_simulator.control.cli:main"
-telephony-sim = "telephony_voice_simulator.control.cli:main"
+telephony-voice-sim = "telephony_voice_simulator.cli.main:main"
 
 [tool.setuptools]
 include-package-data = false
@@ -39,7 +37,7 @@ telephony_voice_simulator = [
     "scenarios/*.yaml",
     "corpus/assets_manifest.json",
     "corpus/public_release_allowlist.json",
-    "pstn/twilio_hosted/*.js",
+    "telephony/twilio/hosted/*.js",
     "templates/*.json",
 ]
 
@@ -70,7 +68,7 @@ extend-ignore = [
 [tool.ruff.lint.per-file-ignores]
 # B023 false positives: each closure is called and finishes inside the same
 # loop iteration, so it never sees a later value of the loop variable.
-"src/telephony_voice_simulator/pstn/compile.py" = ["B023"]
+"src/telephony_voice_simulator/telephony/twilio/compile.py" = ["B023"]
 "tests/test_mysql_integration.py" = ["B023"]
 
 [tool.pytest.ini_options]

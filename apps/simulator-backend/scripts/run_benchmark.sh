@@ -58,10 +58,10 @@ echo "sim api : ${SIMULATOR_API_URL:-http://127.0.0.1:8978}"
 # A wrapper dry run must never reach the paid preflight call.
 for argument in "$@"; do
   if [[ "$argument" == "--dry-run" ]]; then
-    exec "$python" -m telephony_voice_simulator.benchmark --suite "$suite" "$@"
+    exec "$python" -m telephony_voice_simulator.evaluation.benchmark --suite "$suite" "$@"
   fi
 done
-"$python" -m telephony_voice_simulator.benchmark --suite "$suite" "$@" --dry-run
+"$python" -m telephony_voice_simulator.evaluation.benchmark --suite "$suite" "$@" --dry-run
 
 preflight_numbers=(--concurrency 1)
 collect_number=0
@@ -84,11 +84,11 @@ if [[ "$skip_preflight" -eq 0 ]]; then
   # The call's own exit code reflects whether the AGENT passed the scenario,
   # which is not what a preflight is asking. Gate on pipeline health instead:
   # a genuinely failing agent is the result we came for, 93 times over.
-  "$python" -m telephony_voice_simulator.benchmark \
+  "$python" -m telephony_voice_simulator.evaluation.benchmark \
     --suite "$suite" --scenario stock_voicemail_beep_1000 --repeat 1 \
     "${preflight_numbers[@]}" \
     --out "$preflight_dir" || true
-  if ! "$python" -m telephony_voice_simulator.benchmark \
+  if ! "$python" -m telephony_voice_simulator.evaluation.benchmark \
       --preflight-check "$preflight_dir/report.json"; then
     echo "the pipeline is broken — not starting the suite" >&2
     exit 1
@@ -97,4 +97,4 @@ fi
 
 echo
 echo "=== full suite ==="
-exec "$python" -m telephony_voice_simulator.benchmark --suite "$suite" "$@"
+exec "$python" -m telephony_voice_simulator.evaluation.benchmark --suite "$suite" "$@"

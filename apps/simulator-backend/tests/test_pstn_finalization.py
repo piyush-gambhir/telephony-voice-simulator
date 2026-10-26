@@ -12,9 +12,9 @@ import soundfile as sf
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from telephony_voice_simulator.control.store import SimulatorStore
-from telephony_voice_simulator.pstn.compile import compile_scenario
-from telephony_voice_simulator.telephony.providers.twilio import webhooks as runtime
+from telephony_voice_simulator.storage.sqlite import SimulatorStore
+from telephony_voice_simulator.telephony.twilio.compile import compile_scenario
+from telephony_voice_simulator.telephony.twilio import webhooks as runtime
 
 SID = 'CA-finalization'
 RECORDING = 'RE' + '1' * 32
@@ -104,7 +104,7 @@ async def media(monkeypatch):
 
 
 async def test_finalization_waits_for_media_and_deduplicates_callbacks(workspace, media, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, _ = workspace
@@ -143,7 +143,7 @@ async def test_finalization_waits_for_media_and_deduplicates_callbacks(workspace
 async def test_missing_media_is_indeterminate_and_late_media_updates_linked_run(
     workspace, media, monkeypatch,
 ):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, _ = workspace
@@ -172,7 +172,7 @@ async def test_missing_media_is_indeterminate_and_late_media_updates_linked_run(
 
 
 async def test_shutdown_leaves_recoverable_job_and_restart_finishes(workspace, media, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 60)
     client, store, _ = workspace
@@ -194,7 +194,7 @@ async def test_shutdown_leaves_recoverable_job_and_restart_finishes(workspace, m
 
 
 async def test_full_call_download_after_grading_survives_restart(workspace, media, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, _ = workspace
@@ -222,7 +222,7 @@ async def test_full_call_download_after_grading_survives_restart(workspace, medi
 
 
 async def test_deletion_during_download_cannot_restore_files_or_metadata(workspace, media, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, root = workspace
@@ -241,7 +241,7 @@ async def test_deletion_during_download_cannot_restore_files_or_metadata(workspa
 
 
 async def test_stale_nonterminal_status_cannot_reopen_runtime(workspace, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, _ = workspace
@@ -257,7 +257,7 @@ async def test_stale_nonterminal_status_cannot_reopen_runtime(workspace, monkeyp
 
 
 async def test_explicit_absent_media_is_an_observed_failure(workspace, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, _ = workspace
@@ -270,7 +270,7 @@ async def test_explicit_absent_media_is_an_observed_failure(workspace, monkeypat
 
 
 async def test_message_callbacks_keep_execution_order_and_reject_rebinding(workspace):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     client, store, root = workspace
     raw = runtime.STATE.raw_scenarios['test_media']
@@ -310,7 +310,7 @@ async def test_message_callbacks_keep_execution_order_and_reject_rebinding(works
 
 
 async def test_full_call_audio_is_not_graded_as_the_mailbox_message(workspace, media, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, _ = workspace
@@ -330,7 +330,7 @@ async def test_full_call_audio_is_not_graded_as_the_mailbox_message(workspace, m
 
 
 async def test_new_media_arriving_during_analysis_replaces_stale_result(workspace, media, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     entered, release_analysis = Event(), Event()
@@ -372,7 +372,7 @@ async def test_invalid_continuation_fails_closed(workspace, query):
 
 
 async def test_new_message_marks_previous_pass_pending_while_downloading(workspace, media, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     client, store, _ = workspace
@@ -405,7 +405,7 @@ async def test_new_message_marks_previous_pass_pending_while_downloading(workspa
 
 
 async def test_failed_download_cannot_pass_a_silence_expectation(workspace, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     monkeypatch.setattr(runtime, 'RECORDING_DOWNLOAD_ATTEMPTS', 1)
@@ -426,7 +426,7 @@ async def test_failed_download_cannot_pass_a_silence_expectation(workspace, monk
 async def test_analysis_does_not_block_webhooks_and_deletion_discards_its_result(
     workspace, monkeypatch,
 ):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     entered, release = Event(), Event()
@@ -458,7 +458,7 @@ async def test_analysis_does_not_block_webhooks_and_deletion_discards_its_result
 
 
 async def test_analysis_error_is_persisted_and_recovered_on_restart(workspace, monkeypatch):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
     analyze = finalization.analyze_call
@@ -495,7 +495,7 @@ def test_pending_job_discovery_is_not_limited_to_history_page(tmp_path):
 
 
 async def test_missing_later_record_window_keeps_media_incomplete(workspace):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     client, _, root = workspace
     raw = runtime.STATE.raw_scenarios['test_media']
@@ -515,7 +515,7 @@ async def test_missing_later_record_window_keeps_media_incomplete(workspace):
 
 
 async def test_late_binding_during_pending_grading_survives_restart(workspace):
-    from telephony_voice_simulator.telephony.providers.twilio import finalization
+    from telephony_voice_simulator.telephony.twilio import finalization
 
     client, store, _ = workspace
     await answer(client)

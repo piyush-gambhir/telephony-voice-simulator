@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from telephony_voice_simulator.pstn.deploy_twilio import (
+from telephony_voice_simulator.telephony.twilio.hosted.deploy import (
     validate_public_audio_deployment,
 )
 

@@ -27,4 +27,4 @@ ENV SIMULATOR_RUNTIME_DIR=/var/lib/telephony-voice-simulator \
 USER simulator
 
 EXPOSE 8978
-CMD ["python", "-m", "telephony_voice_simulator.control.cli", "serve", "--host", "0.0.0.0"]
+CMD ["python", "-m", "telephony_voice_simulator.cli.main", "serve", "--host", "0.0.0.0"]

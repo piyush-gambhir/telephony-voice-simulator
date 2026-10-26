@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from telephony_voice_simulator import agent_api
+from telephony_voice_simulator.integrations import agent_api
 
 
 def test_dotted_walks_dicts_and_lists() -> None:

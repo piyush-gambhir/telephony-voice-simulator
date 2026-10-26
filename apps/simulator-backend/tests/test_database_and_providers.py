@@ -7,15 +7,17 @@ from threading import Barrier
 
 import pytest
 
-from telephony_voice_simulator.control.database import (
+from telephony_voice_simulator.storage.database import (
     create_simulator_store,
     parse_mysql_uri,
 )
-from telephony_voice_simulator.control.store import (
-    SQLiteSimulatorStore, SimulatorStore, StoreConflictError,
+from telephony_voice_simulator.storage.sqlite import (
+    SQLiteSimulatorStore,
+    SimulatorStore,
+    StoreConflictError,
 )
 from telephony_voice_simulator.telephony.base import RunRequest
-from telephony_voice_simulator.telephony.providers.twilio import TwilioProvider
+from telephony_voice_simulator.telephony.twilio import TwilioProvider
 
 
 def test_sqlite_database_uri_selects_local_repository(tmp_path: Path) -> None:

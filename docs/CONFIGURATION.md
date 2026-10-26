@@ -201,7 +201,7 @@ gitignored `apps/simulator-backend/.env`, then run:
 
 ```bash
 cd apps/simulator-backend
-uv run --env-file .env python -m telephony_voice_simulator.corpus.build_corpus
+uv run --env-file .env python -m telephony_voice_simulator.corpus.build
 ```
 
 Existing corpus files remain cached. Use `--force` only when intentionally

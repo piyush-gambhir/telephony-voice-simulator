@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from telephony_voice_simulator.scenario_validation import asset_path, validate_scenario
+from telephony_voice_simulator.domains.amd.validation import asset_path, validate_scenario
 
 
 @pytest.mark.parametrize("machine, error", [

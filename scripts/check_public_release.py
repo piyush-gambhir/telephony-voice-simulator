@@ -46,7 +46,7 @@ PRIVATE_SUFFIXES = {
 }
 
 sys.path.insert(0, str(BACKEND / "src"))
-from telephony_voice_simulator.corpus.release_policy import (  # noqa: E402
+from telephony_voice_simulator.corpus.release_policy import (
     ReleasePolicyError,
     load_public_allowlist,
 )

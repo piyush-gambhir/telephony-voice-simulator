@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from telephony_voice_simulator.control.catalog import ScenarioCatalog
+from telephony_voice_simulator.domains.catalog import ScenarioCatalog
 from telephony_voice_simulator.domains.ivr import get_scenario as get_ivr_scenario
 from telephony_voice_simulator.domains.ivr import SCENARIOS as IVR_SCENARIOS
 from telephony_voice_simulator.domains.ivr import simulate as simulate_ivr
-from telephony_voice_simulator.domains.pbx import DEPARTMENTS, EXTENSIONS
-from telephony_voice_simulator.domains.pbx import get_scenario as get_pbx_scenario
-from telephony_voice_simulator.domains.pbx import SCENARIOS as PBX_SCENARIOS
-from telephony_voice_simulator.domains.pbx import simulate as simulate_pbx
+from telephony_voice_simulator.domains.pbx.stories import DEPARTMENTS, EXTENSIONS
+from telephony_voice_simulator.domains.pbx.stories import get_scenario as get_pbx_scenario
+from telephony_voice_simulator.domains.pbx.stories import SCENARIOS as PBX_SCENARIOS
+from telephony_voice_simulator.domains.pbx.stories import simulate as simulate_pbx
 
 
 def test_every_ivr_scenario_reaches_its_expected_outcome() -> None:
@@ -116,7 +116,7 @@ def test_unified_scenario_ids_remain_resolvable_as_aliases() -> None:
 
 
 def test_direct_extension_fallback_does_not_invent_an_offline_receptionist():
-    from telephony_voice_simulator.domains import pbx
+    from telephony_voice_simulator.domains.pbx import stories as pbx
 
     scenario = next(item for item in pbx.SCENARIOS if item.direct_extension)
     steps, outcome = pbx.simulate(scenario, {"sales-b": "busy", "frontdesk": "offline"})

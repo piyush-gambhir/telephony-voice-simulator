@@ -9,7 +9,7 @@ import pytest
 
 MACHINE_JS = (
     Path(__file__).parents[1]
-    / "src/telephony_voice_simulator/pstn/twilio_hosted/machine.js"
+    / "src/telephony_voice_simulator/telephony/twilio/hosted/machine.js"
 )
 
 HARNESS = r"""

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ..control.models import (
+from ..models import (
     Endpoint,
     ProviderConnection,
     ProviderDescriptor,

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from .base import ProviderAdapter, ProviderRuntimeStore
-from .providers.mock import MockProvider
-from .providers.telnyx import TelnyxProvider
-from .providers.twilio import LocalTwilioRuntime, TwilioProvider
+from .mock import MockProvider
+from .telnyx import TelnyxProvider
+from .twilio import LocalTwilioRuntime, TwilioProvider
 
 
 def provider_registry(store: ProviderRuntimeStore) -> dict[str, ProviderAdapter]:

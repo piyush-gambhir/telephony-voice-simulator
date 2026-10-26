@@ -6,7 +6,7 @@ import tomllib
 
 import pytest
 
-from telephony_voice_simulator.control.cli import (
+from telephony_voice_simulator.cli.main import (
     _validate_pstn_serve_configuration,
     main,
 )
@@ -153,38 +153,23 @@ def test_public_amd_mode_requires_acknowledgement_and_release_approval(
     _validate_pstn_serve_configuration("0.0.0.0", include_amd=False)
 
 
-def test_legacy_console_scripts_point_to_unified_cli() -> None:
+def test_console_script_points_to_unified_cli() -> None:
     project = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
     scripts = project["project"]["scripts"]
 
-    assert scripts["telephony-voice-sim"] == "telephony_voice_simulator.control.cli:main"
-    assert scripts["amd-sim"] == scripts["telephony-voice-sim"]
-    assert scripts["telephony-sim"] == scripts["telephony-voice-sim"]
-
-
-def test_standalone_pstn_entrypoint_uses_public_audio_gate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from telephony_voice_simulator.pstn import server
-
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://simulator.example.test")
-    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "test-token")
-    monkeypatch.setenv("PSTN_BIND_HOST", "0.0.0.0")
-    monkeypatch.delenv("PSTN_ACKNOWLEDGE_PUBLIC_AUDIO", raising=False)
-
-    with pytest.raises(SystemExit, match="PSTN_ACKNOWLEDGE_PUBLIC_AUDIO"):
-        server.main()
+    assert scripts["telephony-voice-sim"] == "telephony_voice_simulator.cli.main:main"
+    assert set(scripts) == {"telephony-voice-sim"}
 
 
 @pytest.mark.parametrize("module", [
-    "telephony_voice_simulator.pstn.server",
+    "telephony_voice_simulator.telephony.twilio.webhooks",
     "telephony_voice_simulator.telephony.registry",
 ])
 def test_carrier_entrypoints_import_in_a_fresh_process(module):
     import subprocess
     import sys
     result = subprocess.run(
-        [sys.executable, "-c", f"import {module}; from telephony_voice_simulator.control import SimulatorService"],
+        [sys.executable, "-c", f"import {module}; from telephony_voice_simulator.service.simulator import SimulatorService"],
         capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr

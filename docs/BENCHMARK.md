@@ -33,7 +33,7 @@ the checks a sim-only run has to skip.
 
 ## Configure the agent adapter
 
-`telephony_voice_simulator.agent_api` is vendor-neutral: it needs a URL that
+`telephony_voice_simulator.integrations.agent_api` is vendor-neutral: it needs a URL that
 places an outbound call, a JSON body template, and dotted paths to the fields
 in the response and the call record.
 
@@ -77,7 +77,7 @@ as a completed call.
 Verify the wiring on one call before spending a suite:
 
 ```bash
-python -m telephony_voice_simulator.agent_api call --scenario stock_voicemail_beep_1000
+python -m telephony_voice_simulator.integrations.agent_api call --scenario stock_voicemail_beep_1000
 ```
 
 ## Define a suite
@@ -109,8 +109,8 @@ awkward middle (gates and screeners).
 
 ```bash
 cd apps/simulator-backend
-uv run python -m telephony_voice_simulator.benchmark --suite config/benchmark.example.yaml --dry-run
-uv run python -m telephony_voice_simulator.benchmark --suite config/benchmark.example.yaml
+uv run python -m telephony_voice_simulator.evaluation.benchmark --suite config/benchmark.example.yaml --dry-run
+uv run python -m telephony_voice_simulator.evaluation.benchmark --suite config/benchmark.example.yaml
 ```
 
 Useful flags: `--scenario NAME` (repeatable) for an ad-hoc run, `--repeat N`,

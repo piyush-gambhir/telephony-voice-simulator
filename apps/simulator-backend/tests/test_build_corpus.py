@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from telephony_voice_simulator.corpus import build_corpus
+from telephony_voice_simulator.corpus import build as build_corpus
 
 
 def test_builder_binds_generated_audio_to_provenance(
