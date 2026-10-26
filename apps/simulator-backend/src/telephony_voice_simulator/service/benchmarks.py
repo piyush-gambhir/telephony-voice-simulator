@@ -1,4 +1,4 @@
-"""AMD benchmark suite: plan, run, compare, rescore and read finished report_files."""
+"""AMD benchmark suite: plan, run, compare, rescore and read finished reports."""
 
 from __future__ import annotations
 
@@ -14,7 +14,28 @@ from ..evaluation.benchmark.execution import new_run_id, run_suite
 from ..evaluation.benchmark.plan import load_scenarios, resolve_plan
 from ..evaluation.benchmark.scoring import expected_class, preflight_health, rescore_report
 from ..integrations import agent_api
+from ..paths import UAT_CONFIG_DIR
 from .errors import NotFoundError, ValidationError
+
+
+def list_suites() -> list[dict[str, Any]]:
+    """Suite files in the config directory: YAML with a scenario list and no UAT matrix."""
+    import yaml
+
+    suites = []
+    for path in sorted(UAT_CONFIG_DIR.glob("*.y*ml")):
+        try:
+            raw = yaml.safe_load(path.read_text())
+        except (OSError, yaml.YAMLError):
+            continue
+        if isinstance(raw, dict) and isinstance(raw.get("scenarios"), list) and "matrix" not in raw:
+            suites.append({
+                "name": path.name,
+                "suite": raw.get("name") or path.stem,
+                "scenarios": len(raw["scenarios"]),
+                "repeat": raw.get("repeat"),
+            })
+    return suites
 
 
 def _plan(
