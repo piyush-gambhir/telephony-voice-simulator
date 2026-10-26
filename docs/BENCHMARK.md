@@ -12,7 +12,7 @@ A benchmark answers the questions you ship on:
 
 The suite drives real PSTN calls through the agent's own control plane, so a
 run reflects the prompt, model, telephony and answering-machine configuration
-that production would resolve — not a hand-built dispatch payload.
+that production would resolve, not a hand-built dispatch payload.
 
 ## How a benchmark call works
 
@@ -28,12 +28,12 @@ benchmark ──queue scenario──▶ simulator line (Twilio Sync)
 Both halves matter. The sim side proves what actually happened on the wire
 (did the message start after the beep, did the agent talk over the greeting,
 was the message intact). The agent's own call record proves what the agent
-*believed* happened (`ended_reason`, detection layer, AMD verdict and delay) —
+*believed* happened (`ended_reason`, detection layer, AMD verdict and delay),
 the checks a sim-only run has to skip.
 
 ## Configure the agent adapter
 
-`telephony_voice_simulator.integrations.agent_api` is vendor-neutral: it needs a URL that
+`telephony_voice_simulator.integrations.agent_api` (driven through `telephony-voice-sim agents`) is vendor-neutral: it needs a URL that
 places an outbound call, a JSON body template, and dotted paths to the fields
 in the response and the call record.
 
@@ -77,7 +77,7 @@ as a completed call.
 Verify the wiring on one call before spending a suite:
 
 ```bash
-python -m telephony_voice_simulator.integrations.agent_api call --scenario stock_voicemail_beep_1000
+telephony-voice-sim agents call --scenario stock_voicemail_beep_1000
 ```
 
 ## Define a suite
@@ -109,30 +109,51 @@ awkward middle (gates and screeners).
 
 ```bash
 cd apps/simulator-backend
-uv run python -m telephony_voice_simulator.evaluation.benchmark --suite config/benchmark.example.yaml --dry-run
-uv run python -m telephony_voice_simulator.evaluation.benchmark --suite config/benchmark.example.yaml
+telephony-voice-sim benchmark plan --suite config/benchmark.example.yaml
+telephony-voice-sim benchmark run --suite config/benchmark.example.yaml
 ```
 
-Useful flags: `--scenario NAME` (repeatable) for an ad-hoc run, `--repeat N`,
-`--number` (repeatable), `--concurrency`, `--pace`, `--no-audio` to skip collecting
-simulator-side grading, and
-`--out DIR` to place the report.
+`plan` prints the resolved plan, the call count and the expected class of each
+scenario without dialing or needing agent credentials. `run` takes the same
+selection options plus `--no-audio` (skip collecting simulator-side grading) and
+`--out DIR` (report directory). Progress goes to stderr and the final report to
+stdout as JSON.
+
+Selection options (both commands): `--suite FILE`, `--scenario NAME`
+(repeatable, for an ad-hoc run), `--repeat N`, `--number LINE` (repeatable),
+`--concurrency N`, `--pace SECONDS`. They override the suite file.
+
+Other commands:
+
+```bash
+telephony-voice-sim benchmark reports                       # finished and partial runs
+telephony-voice-sim benchmark report bench-1a2b3c4d5e       # one report (add --markdown)
+telephony-voice-sim benchmark rescore bench-1a2b3c4d5e      # re-read under current scoring
+telephony-voice-sim benchmark compare uat=bench-aaa prod=bench-bbb
+telephony-voice-sim benchmark preflight bench-1a2b3c4d5e    # exit 0 if the pipeline worked
+```
+
+A report argument is a report id (a directory under `results/benchmark`), a
+report directory, or a `report.json` path.
 
 `report.json` and `report.md` are replaced atomically after every completed
 attempt. Reports include `planned_calls` and `complete`, so a partial run is
 visible. When an agent call cannot be confirmed terminal, its lane stops before
 reusing that line. An interrupted in-flight attempt may not yet appear in the
-report. The CLI exits nonzero for failed, incomplete, or indeterminate runs.
+report. `benchmark run` exits nonzero for failed, incomplete, or indeterminate runs.
 
-The optional `scripts/run_benchmark.sh PROFILE SUITE` wrapper validates the plan,
-performs one preflight call, then starts the suite only if the pipeline worked.
+The optional `scripts/run_benchmark.sh PROFILE SUITE` wrapper sources the
+profile env file, validates the plan, performs one preflight call
+(`benchmark run --scenario stock_voicemail_beep_1000 --repeat 1`, then
+`benchmark preflight`), and starts the suite only if the pipeline worked.
 Each preflight has a fresh report directory. Passing `--dry-run` to the wrapper
-only prints the plan and places no calls. A failed agent assertion is valid
-preflight evidence; a missing simulator leg or broken API is not.
+only runs `benchmark plan` and places no calls. A failed agent assertion is valid
+preflight evidence; a missing simulator leg or broken API is not. Set
+`TELEPHONY_VOICE_SIM` to use a specific executable.
 
 ## Read the report
 
-Every scenario carries a callee class — `machine`, `human`, or `screener` —
+Every scenario carries a callee class (`machine`, `human`, or `screener`)
 derived from its own `expect` block, or stated outright as
 `expect.callee_class` when the assertions are too unusual to classify.
 
@@ -160,15 +181,15 @@ The benchmark also verifies that the simulator played the requested scenario.
 Calls are matched by the dedicated destination line and start time, so unrelated
 traffic must not share benchmark lines during a run.
 
-Use `--rescore PATH/report.json` to recompute classifications and aggregate
+Use `benchmark rescore REPORT` to recompute classifications and aggregate
 metrics from existing evidence without redialing. This does not rerun audio
 analysis or change stored assertion verdicts. Use
-`--compare baseline=a/report.json candidate=b/report.json` for a side-by-side report.
+`benchmark compare baseline=REPORT candidate=REPORT` for a side-by-side report.
 
 ## Cost and blast radius
 
 Every attempt is a real outbound call and a real inbound leg. Cost and
-wall-clock scale with `scenarios x repeat`. Run `--dry-run` first: it prints
+wall-clock scale with `scenarios x repeat`. Run `benchmark plan` first: it prints
 the call count and the expected class for each scenario without dialing.
 
 Point the suite at a test agent and a test line. A misconfigured body template
