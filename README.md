@@ -66,8 +66,8 @@ The backend also includes:
 - A dealer-group PBX model (`domains/pbx/dealer`) with a declarative three-rooftop
   configuration on legacy on-prem switches, a deterministic router, agent
   transfer evaluation, and 30 cases. See
-  [`docs/DEALER_GROUP_PBX.md`](docs/DEALER_GROUP_PBX.md) and the `dealer-map`,
-  `dealer-call`, `dealer-case`, and `dealer-suite` CLI commands.
+  [`docs/DEALER_GROUP_PBX.md`](docs/DEALER_GROUP_PBX.md) and the `telephony-voice-sim pbx`
+  commands (`map`, `call`, `cases`, `case`, `suite`, `capacity`).
 
 PBX is a deterministic routing model, not a production SIP registrar. Telnyx
 configuration is visible as a preview; live Telnyx Call Control execution is
@@ -132,9 +132,9 @@ pnpm license:check
 pnpm public-release:check
 
 cd apps/simulator-backend
-uv run telephony-voice-sim scenarios
-uv run telephony-voice-sim sim --kind ivr
-uv run telephony-voice-sim sim --kind pbx
+uv run telephony-voice-sim scenarios list
+uv run telephony-voice-sim scenarios simulate --kind ivr
+uv run telephony-voice-sim scenarios simulate --kind pbx
 ```
 
 Start with the [high-level design](docs/HLD.md) for the complete system and

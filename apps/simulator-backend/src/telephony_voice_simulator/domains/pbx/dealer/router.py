@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .model import (
+    WEEKDAYS,
     CallOutcome,
     CoveragePath,
     DealerGroup,
@@ -23,7 +24,6 @@ from .model import (
     Site,
     Trunk,
     Weekday,
-    WEEKDAYS,
     minutes,
 )
 from .validation import require_valid_group

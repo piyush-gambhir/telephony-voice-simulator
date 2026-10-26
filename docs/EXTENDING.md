@@ -33,8 +33,8 @@ expect:
 Run `pnpm scenarios:check` or, from the backend directory:
 
 ```bash
-uv run telephony-voice-sim validate --scenario /absolute/path/short_voicemail.yaml
-uv run telephony-voice-sim validate --all --scenarios-dir /absolute/path/private-scenarios
+uv run telephony-voice-sim scenarios validate --scenario /absolute/path/short_voicemail.yaml
+uv run telephony-voice-sim scenarios validate --all --scenarios-dir /absolute/path/private-scenarios
 ```
 
 Validation never places calls or creates a database. It checks names, step and
@@ -79,7 +79,7 @@ Queued-run cancellation removes only unclaimed queue work. The database
 arbitrates cancellation against an incoming call claiming that run. Cancellation
 returns a conflict once work is claimed; it does not hang up an active call.
 Use `GET /api/runs/{id}` and `POST /api/runs/{id}/cancel`, or
-`telephony-voice-sim cancel-run <id>`.
+`telephony-voice-sim runs cancel <id>`.
 
 ## Add IVR or PBX behavior
 

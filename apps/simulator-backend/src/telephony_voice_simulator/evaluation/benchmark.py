@@ -66,9 +66,9 @@ from typing import Any
 import httpx
 import yaml
 
+from ..domains.amd.validation import validate_scenario
 from ..integrations import agent_api
 from ..paths import RESULTS_DIR, SCENARIOS_DIR
-from ..domains.amd.validation import validate_scenario
 
 BENCHMARK_RESULTS_DIR = RESULTS_DIR / "benchmark"
 

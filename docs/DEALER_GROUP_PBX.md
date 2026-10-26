@@ -71,7 +71,7 @@ testable.
 
 Includes department direct numbers, two individual DIDs, two marketing tracking
 numbers (which change attribution but not routing), and two hosted numbers that
-belong to the voice agent. `telephony-voice-sim dealer-map` prints the full list.
+belong to the voice agent. `telephony-voice-sim pbx map` prints the full list.
 
 ## How routing works
 
@@ -173,7 +173,7 @@ handover. `registered-agent-costs-one-channel` is the same call surviving under
 peering.
 
 ```bash
-uv run telephony-voice-sim dealer-capacity --site used --channels 8
+uv run telephony-voice-sim pbx capacity --site used --channels 8
 ```
 
 ## Running it
@@ -183,33 +183,33 @@ Every command works without a database, credentials, or network access.
 Print the dial plan, trunks, DID inventory, agent integrations, and transfer matrix:
 
 ```bash
-uv run telephony-voice-sim dealer-map
+uv run telephony-voice-sim pbx map
 ```
 
 Run the whole case suite (exit code is non-zero if any case regresses):
 
 ```bash
-uv run telephony-voice-sim dealer-suite
+uv run telephony-voice-sim pbx suite
 ```
 
 List the cases, or run one and read its full timeline:
 
 ```bash
-uv run telephony-voice-sim dealer-case
+uv run telephony-voice-sim pbx cases
 ```
 
 ```bash
-uv run telephony-voice-sim dealer-case agent-blind-transfer-strands-caller
+uv run telephony-voice-sim pbx case agent-blind-transfer-strands-caller
 ```
 
 Route an arbitrary call. This one is a Saturday afternoon service call with every
 advisor tied up, followed by the agent bridging the caller to the service manager:
 
 ```bash
-uv run telephony-voice-sim dealer-call --to +14155550102 --day sat --time 14:00 --presence 1200=busy --presence 1201=busy --presence 1202=busy --presence 1220=busy --transfer-method bridge --transfer-target ext:1210
+uv run telephony-voice-sim pbx call --to +14155550102 --day sat --time 14:00 --presence 1200=busy --presence 1201=busy --presence 1202=busy --presence 1220=busy --transfer-method bridge --transfer-target ext:1210
 ```
 
-Useful flags on `dealer-call`:
+Useful flags on `pbx call`:
 
 | Flag | Effect |
 | --- | --- |

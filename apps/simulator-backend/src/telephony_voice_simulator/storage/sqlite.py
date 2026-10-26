@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ..paths import DATA_DIR
 from ..models import (
     CallRecording,
     DirectoryEntry,
@@ -23,6 +22,7 @@ from ..models import (
     ProviderNumber,
     SimulationRun,
 )
+from ..paths import DATA_DIR
 
 
 class StoreConflictError(RuntimeError):

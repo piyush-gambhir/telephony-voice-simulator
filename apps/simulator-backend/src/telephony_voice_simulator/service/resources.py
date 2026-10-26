@@ -436,3 +436,9 @@ class ResourcesMixin:
 
     def list_scenarios(self) -> list[dict[str, Any]]:
         return self.catalog.list()
+
+    def get_scenario(self, name: str) -> dict[str, Any]:
+        scenario = self.catalog.get(name)
+        if scenario is None:
+            raise NotFoundError(f"Unknown scenario: {name}")
+        return scenario

@@ -45,7 +45,7 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run pytest
-      - run: uv run telephony-voice-sim validate --all
+      - run: uv run telephony-voice-sim scenarios validate --all
       - run: uv run python ../../scripts/check_python_licenses.py
       - run: uv run python scripts/uat_matrix.py --config config/uat.example.yaml --check
       - run: uv run python scripts/generate_ivr_prompts.py --check

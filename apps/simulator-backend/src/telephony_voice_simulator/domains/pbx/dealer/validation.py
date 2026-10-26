@@ -7,7 +7,7 @@ the router reports them as simulated call outcomes.
 
 from __future__ import annotations
 
-from .model import DealerGroup, WEEKDAYS
+from .model import WEEKDAYS, DealerGroup
 
 
 def validate_group(group: DealerGroup) -> tuple[str, ...]:

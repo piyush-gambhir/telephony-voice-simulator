@@ -59,19 +59,19 @@ Numbers that no endpoint manages answer with `PSTN_DEFAULT_SCENARIO`.
 ## Local workflow
 
 ```bash
-uv run telephony-voice-sim add-provider mock "Local simulator"
-uv run telephony-voice-sim providers
-uv run telephony-voice-sim scenarios
-uv run telephony-voice-sim add-endpoint <provider-id> "Test line" 1001 \
+uv run telephony-voice-sim providers add mock "Local simulator"
+uv run telephony-voice-sim providers list
+uv run telephony-voice-sim scenarios list
+uv run telephony-voice-sim lines add <provider-id> "Test line" 1001 \
   --kind extension --scenario ivr_connect_extension
-uv run telephony-voice-sim add-extension <provider-id> 1501 "Front desk" +15550101501 \
+uv run telephony-voice-sim directory add <provider-id> 1501 "Front desk" +15550101501 \
   --department Reception --timeout 25
-uv run telephony-voice-sim directory
-uv run telephony-voice-sim run <endpoint-id> ivr_connect_extension
-uv run telephony-voice-sim simulate-ivr <endpoint-id> +14085550131 1501 \
+uv run telephony-voice-sim directory list
+uv run telephony-voice-sim runs create <endpoint-id> ivr_connect_extension
+uv run telephony-voice-sim runs ivr <endpoint-id> +14085550131 1501 \
   --disposition busy
-uv run telephony-voice-sim runs
-uv run telephony-voice-sim calls
+uv run telephony-voice-sim runs list
+uv run telephony-voice-sim calls list
 ```
 
 Persistence defaults to SQLite. Set
@@ -82,7 +82,7 @@ tests. Call `store.close()` when finished with an embedded store.
 
 Inspect an individual run with `GET /api/runs/{run_id}`. Cancel an assignment
 before its incoming call arrives with `POST /api/runs/{run_id}/cancel` or
-`telephony-voice-sim cancel-run <run-id>`. Cancellation removes only that
+`telephony-voice-sim runs cancel <run-id>`. Cancellation removes only that
 assignment, preserves its history with status `cancelled`, and is idempotent.
 If a call has already claimed the assignment, the API returns `409` and leaves
 the active call untouched.
@@ -90,10 +90,10 @@ the active call untouched.
 Validate authored AMD scenarios without opening a database or starting calls:
 
 ```bash
-uv run telephony-voice-sim validate --all
-uv run telephony-voice-sim validate --scenario stock_voicemail_beep_1000
-uv run telephony-voice-sim validate --scenario /path/to/custom.yaml
-uv run telephony-voice-sim validate --all --scenarios-dir /path/to/scenarios
+uv run telephony-voice-sim scenarios validate --all
+uv run telephony-voice-sim scenarios validate --scenario stock_voicemail_beep_1000
+uv run telephony-voice-sim scenarios validate --scenario /path/to/custom.yaml
+uv run telephony-voice-sim scenarios validate --all --scenarios-dir /path/to/scenarios
 ```
 
 Validation reports each file's result, rejects duplicate names, and exits with

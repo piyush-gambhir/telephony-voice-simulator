@@ -12,8 +12,8 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-from .database import parse_mysql_uri
 from ..models import CallRecording, IncomingCall, SimulationRun
+from .database import parse_mysql_uri
 from .sqlite import SQLiteSimulatorStore, StoreConflictError
 
 _Result = TypeVar("_Result")

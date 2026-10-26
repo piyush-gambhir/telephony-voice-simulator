@@ -13,6 +13,12 @@ class CallsMixin:
     def list_calls(self) -> list[dict[str, Any]]:
         return [call.as_dict() for call in self.store.list_incoming_calls()]
 
+    def get_call(self, call_id: str) -> dict[str, Any]:
+        call = self.store.get_incoming_call(call_id)
+        if call is None:
+            raise NotFoundError(f"Unknown call: {call_id}")
+        return call.as_dict()
+
     def _owned_call_directory(self, call_id: str) -> Path | None:
         """Resolve the direct PSTN result directory for a non-traversing call ID."""
 

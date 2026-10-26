@@ -8,9 +8,9 @@ file records the repository owner's explicit publication decision.
 
 from __future__ import annotations
 
-import json
 import hashlib
 import hmac
+import json
 import os
 from pathlib import Path
 from typing import Mapping

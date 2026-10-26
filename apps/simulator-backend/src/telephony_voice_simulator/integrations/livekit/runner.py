@@ -27,12 +27,12 @@ from typing import Any
 
 import yaml
 
+from ...domains.amd.machine import SimulatedMachine
+from ...domains.amd.validation import validate_scenario
 from ...grading.checks import run_checks, summarize_checks
+from ...paths import ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR, TEMPLATES_DIR
 from .callee import CalleeBot
 from .dispatch import build_metadata, create_dispatch, new_call_id
-from ...domains.amd.machine import SimulatedMachine
-from ...paths import ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR, TEMPLATES_DIR
-from ...domains.amd.validation import validate_scenario
 from .webhook_sink import WebhookSink
 
 

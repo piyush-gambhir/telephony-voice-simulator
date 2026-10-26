@@ -37,8 +37,8 @@ from pathlib import Path
 
 import httpx
 
-from .dispatch import build_metadata, create_dispatch
 from ...paths import TEMPLATES_DIR
+from .dispatch import build_metadata, create_dispatch
 
 SYNC = "https://sync.twilio.com/v1/Services/default"
 

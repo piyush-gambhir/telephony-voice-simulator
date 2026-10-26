@@ -5,10 +5,10 @@ switch itself, so any call can be routed and any transfer can be evaluated.
 """
 
 from .capacity import COSTS, ChannelCost, capacity_report, compare_sites, cost_for
+from .cases import CASES, PbxCase, get_case, run_case, run_suite
 from .dealer_group import VALLEY_AUTO_GROUP, default_group
 from .model import CallOutcome, DealerGroup
 from .router import CallEvent, CallRequest, CallResult, route, route_internal
-from .cases import CASES, PbxCase, get_case, run_case, run_suite
 from .transfer import (
     TransferAttempt,
     TransferMethod,

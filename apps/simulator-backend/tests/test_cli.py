@@ -6,10 +6,8 @@ import tomllib
 
 import pytest
 
-from telephony_voice_simulator.cli.main import (
-    _validate_pstn_serve_configuration,
-    main,
-)
+from telephony_voice_simulator.cli.main import main
+from telephony_voice_simulator.config import validate_serve_configuration
 
 
 def test_validation_cli_reports_all_errors_without_creating_database(
@@ -19,11 +17,7 @@ def test_validation_cli_reports_all_errors_without_creating_database(
     (tmp_path / "bad.yaml").write_text("name: bad\nmachine:\n  main:\n    - wait: -1\n")
     (tmp_path / "broken.yaml").write_text("machine: [")
     monkeypatch.setenv("SIMULATOR_DB_PATH", str(database))
-    monkeypatch.setattr(
-        "sys.argv",
-        ["telephony-voice-sim", "validate", "--all", "--scenarios-dir", str(tmp_path)],
-    )
-    assert main() == 1
+    assert main(["scenarios", "validate", "--all", "--scenarios-dir", str(tmp_path)]) == 1
     report = json.loads(capsys.readouterr().out)
     assert report["valid"] is False
     assert len(report["scenarios"]) == 2
@@ -37,13 +31,8 @@ def test_validation_cli_accepts_named_or_file_scenarios(
 ) -> None:
     scenario = tmp_path / "custom.yaml"
     scenario.write_text("name: example\nexpect: {}\nmachine:\n  main:\n    - hangup: true\n")
-    monkeypatch.setattr(
-        "sys.argv",
-        ["telephony-voice-sim", "validate", "--scenario",
-         str(scenario) if selection == "file" else selection,
-         "--scenarios-dir", str(tmp_path)],
-    )
-    assert main() == 0
+    name = str(scenario) if selection == "file" else selection
+    assert main(["scenarios", "validate", "--scenario", name, "--scenarios-dir", str(tmp_path)]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report["valid"] is True
     assert report["scenarios"][0]["name"] == "example"
@@ -56,9 +45,7 @@ def test_zero_setup_cli_runs_every_ivr_model_without_creating_a_database(
 ) -> None:
     database = tmp_path / "should-not-exist.db"
     monkeypatch.setenv("SIMULATOR_DB_PATH", str(database))
-    monkeypatch.setattr("sys.argv", ["telephony-voice-sim", "simulate"])
-
-    assert main() == 0
+    assert main(["scenarios", "simulate"]) == 0
 
     output = json.loads(capsys.readouterr().out)
     assert len(output) == 7
@@ -73,21 +60,11 @@ def test_zero_setup_cli_accepts_named_pbx_scenario_alias_and_runtime_override(
     monkeypatch,
     capsys,
 ) -> None:
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "telephony-voice-sim",
-            "sim",
-            "pbx_sales_queue_answers",
-            "--pbx",
-            "--set",
-            "sales-a=busy",
-            "--set",
-            "sales-b=offline",
-        ],
-    )
-
-    assert main() == 0
+    argv = [
+        "scenarios", "simulate", "pbx_sales_queue_answers", "--kind", "pbx",
+        "--set", "sales-a=busy", "--set", "sales-b=offline",
+    ]
+    assert main(argv) == 0
 
     output = json.loads(capsys.readouterr().out)
     assert output["scenario_id"] == "sales-mainline-open"
@@ -109,7 +86,7 @@ def test_pstn_serve_rejects_missing_or_non_https_public_url(
     monkeypatch.delenv("PSTN_ALLOW_UNSIGNED_WEBHOOKS", raising=False)
 
     with pytest.raises(SystemExit, match="absolute HTTPS URL"):
-        _validate_pstn_serve_configuration("0.0.0.0")
+        validate_serve_configuration("0.0.0.0")
 
 
 def test_pstn_serve_accepts_https_with_signature_secret(
@@ -119,7 +96,7 @@ def test_pstn_serve_accepts_https_with_signature_secret(
     monkeypatch.setenv("TWILIO_AUTH_TOKEN", "test-token")
     monkeypatch.delenv("PSTN_ALLOW_UNSIGNED_WEBHOOKS", raising=False)
 
-    _validate_pstn_serve_configuration("0.0.0.0")
+    validate_serve_configuration("0.0.0.0")
 
 
 def test_unsigned_webhooks_are_limited_to_loopback_http(
@@ -129,9 +106,9 @@ def test_unsigned_webhooks_are_limited_to_loopback_http(
     monkeypatch.setenv("PSTN_ALLOW_UNSIGNED_WEBHOOKS", "true")
     monkeypatch.delenv("TWILIO_AUTH_TOKEN", raising=False)
 
-    _validate_pstn_serve_configuration("127.0.0.1")
+    validate_serve_configuration("127.0.0.1")
     with pytest.raises(SystemExit, match="absolute HTTPS URL"):
-        _validate_pstn_serve_configuration("0.0.0.0")
+        validate_serve_configuration("0.0.0.0")
 
 
 def test_public_amd_mode_requires_acknowledgement_and_release_approval(
@@ -143,14 +120,14 @@ def test_public_amd_mode_requires_acknowledgement_and_release_approval(
     monkeypatch.delenv("PSTN_ACKNOWLEDGE_PUBLIC_AUDIO", raising=False)
 
     with pytest.raises(SystemExit, match="PSTN_ACKNOWLEDGE_PUBLIC_AUDIO"):
-        _validate_pstn_serve_configuration("0.0.0.0", include_amd=True)
+        validate_serve_configuration("0.0.0.0", include_amd=True)
 
     monkeypatch.setenv("PSTN_ACKNOWLEDGE_PUBLIC_AUDIO", "true")
     with pytest.raises(SystemExit, match="not approved for public exposure"):
-        _validate_pstn_serve_configuration("0.0.0.0", include_amd=True)
+        validate_serve_configuration("0.0.0.0", include_amd=True)
 
     # IVR-only exposes no /assets route and therefore needs no audio approval.
-    _validate_pstn_serve_configuration("0.0.0.0", include_amd=False)
+    validate_serve_configuration("0.0.0.0", include_amd=False)
 
 
 def test_console_script_points_to_unified_cli() -> None:
@@ -173,3 +150,52 @@ def test_carrier_entrypoints_import_in_a_fresh_process(module):
         capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+@pytest.fixture()
+def cli_db(tmp_path: Path, monkeypatch):
+    from telephony_voice_simulator.cli import common
+
+    monkeypatch.setenv("SIMULATOR_DB_PATH", str(tmp_path / "cli.db"))
+    common.service.cache_clear()
+    yield
+    common.service.cache_clear()
+
+
+def _json(capsys):
+    return json.loads(capsys.readouterr().out)
+
+
+def test_cli_manages_lines_end_to_end(cli_db, capsys) -> None:
+    assert main(["providers", "add", "mock", "Local"]) == 0
+    connection = _json(capsys)
+    assert main(["lines", "add", connection["id"], "Desk", "1001", "--kind", "extension",
+                 "--scenario", "ivr_connect_extension"]) == 0
+    line = _json(capsys)
+
+    assert main(["lines", "update", line["id"], "--name", "Front desk", "--enabled", "off"]) == 0
+    updated = _json(capsys)
+    assert updated["name"] == "Front desk"
+    assert updated["enabled"] is False
+
+    assert main(["lines", "delete", line["id"]]) == 0
+    assert _json(capsys) == {"deleted": line["id"]}
+    assert main(["lines", "list"]) == 0
+    assert _json(capsys) == []
+
+
+def test_cli_reports_service_errors_without_a_traceback(cli_db, capsys) -> None:
+    assert main(["runs", "show", "run_missing"]) == 1
+    assert "Unknown run: run_missing" in capsys.readouterr().err
+
+
+def test_cli_pbx_suite_exit_code_follows_the_cases(capsys) -> None:
+    code = main(["pbx", "suite"])
+    report = _json(capsys)
+    assert report["total"] == len(report["cases"]) > 0
+    assert code == (0 if report["passed"] == report["total"] else 1)
+
+
+def test_cli_pbx_capacity_compares_every_site_by_default(capsys) -> None:
+    assert main(["pbx", "capacity"]) == 0
+    assert len(_json(capsys)) >= 3

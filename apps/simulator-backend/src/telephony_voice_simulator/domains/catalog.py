@@ -7,8 +7,8 @@ from typing import Any
 
 import yaml
 
-from . import scenario_entries
 from ..paths import SCENARIOS_DIR
+from . import scenario_entries
 from .amd.validation import validate_scenario
 
 

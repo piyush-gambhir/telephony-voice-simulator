@@ -15,8 +15,8 @@ Destinations are string references so the config reads like a dial plan:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from typing import Literal
 
 Weekday = Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]

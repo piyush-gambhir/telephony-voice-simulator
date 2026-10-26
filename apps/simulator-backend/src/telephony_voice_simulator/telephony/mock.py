@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .base import ProviderAdapter, RunDispatch, RunRequest
 from ..models import ProviderCapabilities, ProviderDescriptor
+from .base import ProviderAdapter, RunDispatch, RunRequest
 
 
 class MockProvider(ProviderAdapter):
