@@ -18,6 +18,8 @@ from ..storage.sqlite import SimulatorStore
 from .errors import ConflictError, NotFoundError, ValidationError
 
 Log = Callable[[str], None]
+# Fits the MySQL column with room to spare.
+TITLE_LIMIT = 200
 Job = Callable[[Log], Any]
 
 
@@ -34,13 +36,26 @@ class OperationRunner:
             if kind in self._active_kinds:
                 raise ConflictError(f"A {kind} operation is already running")
             self._active_kinds.add(kind)
-        operation = self.store.create_operation(kind, title, params)
-        self._executor.submit(self._run, operation.id, kind, job)
+        try:
+            operation = self.store.create_operation(kind, title[:TITLE_LIMIT], params)
+            self._executor.submit(self._run, operation.id, kind, job)
+        except BaseException:
+            self._release(kind)
+            raise
         return operation.as_dict()
 
+    def _release(self, kind: str) -> None:
+        with self._lock:
+            self._active_kinds.discard(kind)
+
     def _run(self, operation_id: str, kind: str, job: Job) -> None:
+        log_lock = threading.Lock()
+
         def log(line: str) -> None:
-            self.store.append_operation_log(operation_id, [str(line)])
+            # Jobs may log from several threads (benchmark lanes); appends rewrite the
+            # stored log, so they run one at a time.
+            with log_lock:
+                self.store.append_operation_log(operation_id, [str(line)])
 
         try:
             self.store.start_operation(operation_id)
@@ -54,8 +69,7 @@ class OperationRunner:
         else:
             self.store.finish_operation(operation_id, result=result)
         finally:
-            with self._lock:
-                self._active_kinds.discard(kind)
+            self._release(kind)
 
     def shutdown(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)

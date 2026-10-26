@@ -12,6 +12,10 @@ from aiohttp import web
 from ..service import ValidationError, corpus
 from .common import bool_field, json_object, json_response, start, string_field
 
+# Builds and imports both rewrite the shared manifest, so they share one operation
+# kind and the runner lets only one of them run at a time.
+CORPUS_KIND = "corpus"
+
 
 def _number(body: dict[str, object], key: str, default: float) -> float:
     value = body.get(key, default)
@@ -27,7 +31,7 @@ async def build(request: web.Request) -> web.Response:
     replace_imported = bool_field(body, "replace_imported")
     return start(
         request,
-        "corpus-build",
+        CORPUS_KIND,
         f"Build corpus{': ' + only if only else ''}",
         {"only": only, "force": force, "replace_imported": replace_imported},
         lambda log: corpus.build_corpus(
@@ -50,7 +54,7 @@ async def import_audio(request: web.Request) -> web.Response:
         raise ValidationError(f"source_type must be one of {', '.join(corpus.SOURCE_TYPES)}")
     return start(
         request,
-        "corpus-import",
+        CORPUS_KIND,
         f"Import {params['asset']}",
         params,
         lambda _log: corpus.import_audio(**params),
@@ -74,7 +78,7 @@ async def import_from_recording(request: web.Request) -> web.Response:
     }
     return start(
         request,
-        "corpus-import",
+        CORPUS_KIND,
         f"Import {params['asset']} from {params['call_id']}",
         params,
         lambda _log: corpus.import_from_recording(**params),

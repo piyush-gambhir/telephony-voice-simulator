@@ -62,17 +62,15 @@ async def list_reports(_request: web.Request) -> web.Response:
 
 
 async def get_report(request: web.Request) -> web.Response:
+    report_id = request.match_info["report_id"]
     markdown = request.query.get("format") == "markdown"
-    return json_response(
-        benchmarks.get_report(request.match_info["report_id"], markdown=markdown)
-    )
+    report = benchmarks.get_report(_report(report_id), markdown=markdown)
+    return json_response({**report, "report_id": report_id} if markdown else report)
 
 
-def _report_id(value: str) -> str:
-    # Reports are addressed by id only; the service also accepts paths for the CLI.
-    if not value or "/" in value or "\\" in value or value.startswith("."):
-        raise ValidationError("report must be a report id")
-    return value
+def _report(report_id: str) -> str:
+    # The service also takes paths for the CLI; browser input resolves by id alone.
+    return str(benchmarks.report_path(report_id))
 
 
 async def compare(request: web.Request) -> web.Response:
@@ -80,17 +78,17 @@ async def compare(request: web.Request) -> web.Response:
     reports = []
     for item in string_list_field(body, "reports"):
         label, separator, report = item.rpartition("=")
-        reports.append(f"{label}={_report_id(report)}" if separator else _report_id(item))
+        reports.append(f"{label}={_report(report)}" if separator else _report(item))
     return json_response(benchmarks.compare(reports=reports))
 
 
 async def rescore(request: web.Request) -> web.Response:
-    return json_response(benchmarks.rescore(report=_report_id(request.match_info["report_id"])))
+    return json_response(benchmarks.rescore(report=_report(request.match_info["report_id"])))
 
 
 async def preflight(request: web.Request) -> web.Response:
     return json_response(
-        benchmarks.preflight(report=_report_id(request.match_info["report_id"]))
+        benchmarks.preflight(report=_report(request.match_info["report_id"]))
     )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -150,6 +151,20 @@ def run(
         "report_dir": str(out_dir),
         "ok": report["complete"] and summary["failed"] == 0 and summary["indeterminate"] == 0,
     }
+
+
+_REPORT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+
+
+def report_path(report_id: str) -> Path:
+    """The report.json of a finished run, by id only: never a path, never outside the results."""
+    root = report_files.BENCHMARK_RESULTS_DIR.resolve()
+    if not _REPORT_ID.fullmatch(report_id or ""):
+        raise ValidationError("report must be a report id")
+    candidate = (root / report_id / "report.json").resolve()
+    if candidate.parent.parent != root or not candidate.is_file():
+        raise NotFoundError(f"Unknown benchmark report: {report_id}")
+    return candidate
 
 
 def _locate(report: str) -> Path:

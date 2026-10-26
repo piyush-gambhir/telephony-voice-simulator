@@ -103,3 +103,31 @@ async def test_unknown_operation_is_404(service: SimulatorService) -> None:
     async with TestClient(TestServer(build_app(service))) as client:
         response = await client.get("/api/operations/op_missing")
     assert response.status == 404
+
+
+async def test_a_failed_start_releases_its_kind(service: SimulatorService, monkeypatch) -> None:
+    original = service.store.create_operation
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(service.store, "create_operation", broken)
+    with pytest.raises(RuntimeError):
+        service.start_operation("build", "First", {}, lambda _log: None)
+    monkeypatch.setattr(service.store, "create_operation", original)
+
+    started = service.start_operation("build", "x" * 400, {}, lambda _log: None)
+    assert len(started["title"]) == 200
+    assert (await _finished(service, started["id"]))["status"] == "succeeded"
+
+
+async def test_log_lines_from_concurrent_threads_are_all_kept(service: SimulatorService) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    def job(log):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda index: log(f"lane {index}"), range(40)))
+
+    started = service.start_operation("benchmark", "Lanes", {}, job)
+    finished = await _finished(service, started["id"])
+    assert sorted(finished["log"]) == sorted(f"lane {index}" for index in range(40))
