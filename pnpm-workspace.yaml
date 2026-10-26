@@ -27,3 +27,11 @@ minimumReleaseAgeExclude:
   - next@16.4.3
   - "@next/bundle-analyzer@16.4.3"
   - zod@4.6.7
+
+# eslint-config-next 16.4.3 bundles plugins whose peer ranges stop at ESLint 9
+# (no newer releases yet). Their rules run correctly on ESLint 10.
+peerDependencyRules:
+  allowedVersions:
+    eslint-plugin-import>eslint: "10"
+    eslint-plugin-jsx-a11y>eslint: "10"
+    eslint-plugin-react>eslint: "10"
