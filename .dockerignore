@@ -51,3 +51,5 @@ apps/web-console/public/audio/**/*.mp3
 apps/web-console/public/audio/**/*.wav
 deploy/twilio-ivr/assets/*.mp3
 results
+**/dist
+**/build

@@ -1243,3 +1243,27 @@ async def test_amd_number_inventory_is_persisted_configured_and_queued(
     assert restored["attached_to_runtime"] is False
     assert manager.numbers[0]["status_callback"] == "https://old-sim.twil.io/status"
     assert manager.numbers[0]["status_callback_method"] == "GET"
+
+
+async def test_cross_site_writes_are_refused_before_reaching_handlers(
+    service: SimulatorService,
+) -> None:
+    body = '{"provider": "mock", "name": "Injected"}'
+    async with TestClient(TestServer(build_app(service))) as client:
+        foreign = await client.post(
+            "/api/providers", data=body,
+            headers={"Origin": "https://evil.example", "Content-Type": "text/plain"},
+        )
+        assert foreign.status == 403
+        assert service.list_connections() == []
+        console = await client.post(
+            "/api/providers", data=body,
+            headers={"Origin": "http://localhost:3000", "Content-Type": "application/json"},
+        )
+        assert console.status == 201
+        assert (await client.get("/api/providers", headers={"Origin": "https://evil.example"})).status == 200
+        dev_proxy = await client.post(
+            "/api/providers", data='{"provider": "mock", "name": "Dev"}',
+            headers={"Origin": "http://localhost:3100", "Content-Type": "application/json"},
+        )
+        assert dev_proxy.status == 201

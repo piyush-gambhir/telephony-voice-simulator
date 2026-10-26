@@ -842,14 +842,15 @@ class SQLiteSimulatorStore:
             ).fetchone()
             return self._claim_queue_row(db, row, provider=provider, address=address, call_id=call_id)
 
-    # MySQL appends a locking read so two retries for one call serialize on its row or gap.
-    _CLAIM_LOCK = ""
+    # MySQL appends this to reads that must lock: two retries for one call serialize on
+    # its row or gap, and queue invalidation locks queue rows in the same order as a claim.
+    _LOCKING_READ = ""
 
     def _existing_queue_claim(self, db: Any, call_id: str | None) -> dict[str, str | None] | None:
         if not call_id:
             return None
         row = db.execute(
-            "SELECT analysis_json FROM incoming_calls WHERE id = ?" + self._CLAIM_LOCK, (call_id,)
+            "SELECT analysis_json FROM incoming_calls WHERE id = ?" + self._LOCKING_READ, (call_id,)
         ).fetchone()
         claim = json.loads(row["analysis_json"]).get("queue_claim") if row else None
         return dict(claim) if isinstance(claim, dict) else None
@@ -918,6 +919,13 @@ class SQLiteSimulatorStore:
         timestamp = _now()
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            # Lock queue rows before runs, like a claim, so a concurrent claim either
+            # finishes first (its run is no longer queued here) or waits for this.
+            db.execute(
+                "SELECT id FROM telephony_run_queue WHERE provider = ? AND address = ?"
+                + self._LOCKING_READ,
+                (provider, address),
+            ).fetchall()
             rows = db.execute(
                 """
                 SELECT DISTINCT queue.run_id, runs.result_json

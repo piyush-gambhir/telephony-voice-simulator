@@ -425,21 +425,42 @@ def build_timeline(
                 )
             )
             return tuple(steps)
+        fallback = _step(
+            "00:12",
+            "extension",
+            "fallback",
+            f"Extension {direct_state.replace('_', ' ')}",
+            "No-answer policy sends the caller to reception fallback.",
+            "Extension ring",
+            direct_target.name,
+            "fallback",
+            role=direct_target.role,
+            device=direct_target.device,
+            extension_state=direct_state,
+        )
+        if not _reception_available(states):
+            # Reception's own overflow is voicemail; never invent an answer.
+            steps.extend(
+                (
+                    fallback,
+                    _step(
+                        "00:18",
+                        "voicemail",
+                        "record",
+                        "Reception unavailable, voicemail answers",
+                        "No receptionist can take the call, so the reception mailbox records it.",
+                        "Voicemail",
+                        "Reception mailbox",
+                        "voicemail",
+                        original_extension=direct_target.ext,
+                    ),
+                    _cdr_step("00:20", "voicemail", "Reception mailbox"),
+                )
+            )
+            return tuple(steps)
         steps.extend(
             (
-                _step(
-                    "00:12",
-                    "extension",
-                    "fallback",
-                    f"Extension {direct_state.replace('_', ' ')}",
-                    "No-answer policy sends the caller to reception fallback.",
-                    "Extension ring",
-                    direct_target.name,
-                    "fallback",
-                    role=direct_target.role,
-                    device=direct_target.device,
-                    extension_state=direct_state,
-                ),
+                fallback,
                 _step(
                     "00:18",
                     "agent",
@@ -588,6 +609,10 @@ def build_timeline(
     return tuple(steps)
 
 
+def _reception_available(states: dict[str, ExtensionState]) -> bool:
+    return any(state_for(extension, states) == "available" for extension in by_department("reception"))
+
+
 def simulate(
     scenario: PbxScenario,
     overrides: dict[str, ExtensionState] | None = None,
@@ -596,7 +621,7 @@ def simulate(
     if scenario.office_state != "open":
         return steps, "voicemail"
     if scenario.direct_extension:
-        return steps, "connected"
+        return steps, steps[-1].outcome
     department = next(
         (item for item in DEPARTMENTS if item.ivr_digit == scenario.ivr_input),
         DEPARTMENTS[0],

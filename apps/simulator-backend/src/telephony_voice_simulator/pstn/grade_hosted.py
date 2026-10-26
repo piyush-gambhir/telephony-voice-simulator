@@ -20,6 +20,7 @@ import json
 import math
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -30,6 +31,7 @@ import yaml
 from ..assertions import summarize_checks
 from ..paths import ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR
 from .analyze import analyze_call
+from .compile import CompiledScenario, compile_scenario
 
 PSTN_RESULTS_DIR = RESULTS_DIR / "pstn"
 API = "https://api.twilio.com/2010-04-01"
@@ -202,6 +204,20 @@ def cmd_smoke(args) -> int:
     return _grade_call(client, account, inbound[0]["sid"])
 
 
+def _compiled(raw: dict) -> CompiledScenario | None:
+    """Recompile the deployed program so a single message can be aligned to its marks.
+
+    Only the returned marks are needed, so audio goes to a scratch directory and never
+    replaces the assets a running PSTN server is serving.
+    """
+    try:
+        with tempfile.TemporaryDirectory() as scratch:
+            return compile_scenario(raw, assets_dir=ASSETS_DIR, out_dir=Path(scratch))
+    except Exception as exc:  # grading still runs; timing checks then stay indeterminate
+        print(f"could not compile {raw.get('name')}: {exc}", file=sys.stderr)
+        return None
+
+
 def grade_call_detail(
     client: httpx.Client,
     account: str,
@@ -272,7 +288,7 @@ def grade_call_detail(
         raw = dict(raw)
         raw["expect"] = dict(raw.get("expect") or {})
         raw["expect"].pop("message_content", None)
-    analysis = analyze_call(call, raw, compiled=None)
+    analysis = analyze_call(call, raw, compiled=_compiled(raw))
     if not mailbox_files:
         # No <Record> audio was downloaded, so media checks have no evidence either way.
         for check in analysis["checks"]:

@@ -63,7 +63,7 @@ class _MySQLConnection:
 class MySQLSimulatorStore(SQLiteSimulatorStore):
     """Persistent repository selected by a ``mysql://`` database URI."""
 
-    _CLAIM_LOCK = " FOR UPDATE"
+    _LOCKING_READ = " FOR UPDATE"
 
     def __init__(self, uri: str) -> None:
         self.settings = parse_mysql_uri(uri)
@@ -260,7 +260,7 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
         )
 
     def fail_provider_queue(self, provider: str, address: str, reason: str) -> int:
-        # Locks runs then queue rows, the reverse of a claim; retry if chosen as deadlock victim.
+        # Retry if InnoDB picks this transaction as a deadlock victim.
         fail = super().fail_provider_queue
         return self._retry_deadlocked_transaction(lambda: fail(provider, address, reason))
 

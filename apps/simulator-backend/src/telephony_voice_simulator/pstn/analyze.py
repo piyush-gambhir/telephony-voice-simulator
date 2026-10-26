@@ -215,7 +215,7 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
             add("message_start_after", False, "no recording captured")
         else:
             first = segments_by_path.get(message, [])
-            mark = spec.get("mark")
+            mark = spec.get("mark", "tone_end")  # the validated default
             if not first:
                 add("message_start_after", False, "no speech in recording (message not left?)")
             elif window is None or mark not in window.get("marks", {}):
