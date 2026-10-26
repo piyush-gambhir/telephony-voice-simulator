@@ -75,8 +75,7 @@ Do not commit those values.
 | `TWILIO_FROM_NUMBER` | none | Owned source number for hosted smoke calls |
 | `IVR_CALLER_ID` | inbound Twilio number | Caller ID for the IVR's bridged outbound leg |
 | `IVR_MAX_ATTEMPTS` | `3` | IVR input attempts, clamped to a safe maximum |
-| `PSTN_DEFAULT_SCENARIO` | none | Fallback AMD scenario for unqueued calls |
-| `PSTN_NUMBER_MAP` | `{}` | JSON map of owned inbound numbers to AMD scenario names |
+| `PSTN_DEFAULT_SCENARIO` | none | AMD scenario for numbers no endpoint manages |
 | `BRIDGE_NUMBER` | none | Human destination for scenarios whose dial target is `bridge` |
 | `PSTN_RECORD_ALL_CALLS` | `false` | Start a dual-channel full-call recording |
 | `PSTN_ALLOW_UNSIGNED_WEBHOOKS` | `false` | Local-only override; never use on a public endpoint |

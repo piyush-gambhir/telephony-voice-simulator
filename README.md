@@ -63,7 +63,7 @@ The backend also includes:
   and artifact collection.
 - Opt-in recordings with private-control-plane playback and deletion of
   simulator-managed metadata and local artifacts.
-- A dealer-group PBX model (`pbxsim`) with a declarative three-rooftop
+- A dealer-group PBX model (`domains/pbx/dealer`) with a declarative three-rooftop
   configuration on legacy on-prem switches, a deterministic router, agent
   transfer evaluation, and 30 cases. See
   [`docs/DEALER_GROUP_PBX.md`](docs/DEALER_GROUP_PBX.md) and the `dealer-map`,

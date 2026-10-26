@@ -500,14 +500,12 @@ shared live.
 | Directory | CRUD under `/api/directory` |
 | Scenarios and runs | `GET /api/scenarios`, `GET/POST /api/runs` |
 | Deterministic IVR simulation | `POST /api/ivr/simulations` |
-| Compatibility | `POST /api/simulations` |
 | Calls and recordings | `GET /api/calls`, call deletion, private-ingress recording media |
 | Twilio AMD | `/twilio/voice`, `/twilio/step`, `/twilio/recording`, `/twilio/status` |
 | Twilio IVR | `/twilio/ivr`, `/twilio/ivr/dial`, `/twilio/ivr/result` |
 | Approved compiled media | `GET /assets/{filename}` |
 
-The CLI exposes the same control-plane concepts and preserves the compatibility
-entry points `amd-sim` and `telephony-sim`.
+The CLI exposes the same control-plane concepts.
 
 ## 13. Trust boundaries and security
 
@@ -697,21 +695,21 @@ Do not introduce a third application or duplicate the catalog/store.
 
 | Concern | Primary source |
 |---|---|
-| API and middleware | `control/api.py` |
-| Business orchestration | `control/service.py` |
-| Persistence and queues | `control/store.py` |
-| Database selection and MySQL | `control/database.py`, `control/mysql_store.py` |
+| API and middleware | `api/app.py` |
+| Business orchestration | `service/` |
+| Persistence and queues | `storage/sqlite.py` |
+| Database selection and MySQL | `storage/database.py`, `storage/mysql.py` |
 | Common provider contract/registry | `telephony/base.py`, `telephony/registry.py` |
-| Twilio provider module | `telephony/providers/twilio/` |
-| Telnyx provider module | `telephony/providers/telnyx.py` |
-| Unified catalog | `control/catalog.py` |
-| CLI and runtime modes | `control/cli.py` |
+| Twilio provider module | `telephony/twilio/` |
+| Telnyx provider module | `telephony/telnyx.py` |
+| Unified catalog | `domains/catalog.py` |
+| CLI and runtime modes | `cli/` |
 | AMD scenarios | `scenarios/*.yaml` |
-| AMD machine and checks | `machine.py`, `assertions.py` |
-| Live Twilio AMD and IVR | `telephony/providers/twilio/webhooks.py` |
-| Twilio compilation and grading | `pstn/compile.py`, `pstn/analyze.py` |
-| IVR and PBX models | `domains/ivr.py`, `domains/pbx.py` |
-| LiveKit execution | `runner.py`, `agent_call.py`, `dispatch.py` |
+| AMD machine and checks | `domains/amd/machine.py`, `grading/checks.py` |
+| Live Twilio AMD and IVR | `telephony/twilio/webhooks.py` routes over `amd.py`, `ivr.py`, `callbacks.py` |
+| Twilio compilation and grading | `telephony/twilio/compile.py`, `grading/analyze.py` |
+| IVR and PBX models | `domains/ivr.py`, `domains/pbx/` |
+| LiveKit execution | `integrations/livekit/` |
 | Corpus policy and tooling | `corpus/`, `scripts/validate_public_audio.py` |
 | Web client | `apps/web-console/components/console/` and `lib/simulator-api.ts` |
 | Deployment | `compose*.yaml`, backend/web Dockerfiles, `deploy/nginx.conf` |

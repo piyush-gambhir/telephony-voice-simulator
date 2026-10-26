@@ -1,6 +1,6 @@
 """Drive a voice agent through its own REST API (provider-neutral adapter).
 
-``agent_call.py`` dispatches a LiveKit worker directly, which bypasses whatever
+``integrations/livekit/agent_call.py`` dispatches a LiveKit worker directly, which bypasses whatever
 control plane normally configures a call. This adapter is the opposite trade:
 it asks the agent's *own* backend to place the outbound call, so the run
 exercises the real prompt, model, telephony and answering-machine configuration

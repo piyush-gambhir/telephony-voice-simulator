@@ -24,13 +24,13 @@ records.
 
 | Layer | Source and findings |
 |---|---|
-| Control plane | `control/api.py`, `service.py`, `store.py`, `mysql_store.py`: shared CRUD, durable queue claims/cancellation, recording containment, privacy tombstones, SQLite/MySQL storage |
-| Scenario authoring | `control/catalog.py`, `scenario_validation.py`, `scenarios/`, `corpus/`: validated AMD vocabulary, provenance and release policy, generated static reference |
-| AMD/media | `machine.py`, `bot.py`, `runner.py`, `pstn/compile.py`, `pstn/analyze.py`, `assertions.py`: room playback, PSTN compilation, timing/content checks, explicit missing-evidence handling |
-| Routing | `domains/ivr.py`, `domains/pbx.py`, `pbxsim/`: built-in journey fixtures plus a richer dealer-group router, channel capacity, schedules and transfer-policy evaluation |
+| Control plane | `api/app.py`, `service.py`, `store.py`, `mysql_store.py`: shared CRUD, durable queue claims/cancellation, recording containment, privacy tombstones, SQLite/MySQL storage |
+| Scenario authoring | `domains/catalog.py`, `domains/amd/validation.py`, `scenarios/`, `corpus/`: validated AMD vocabulary, provenance and release policy, generated static reference |
+| AMD/media | `domains/amd/machine.py`, `integrations/livekit/callee.py`, `integrations/livekit/runner.py`, `telephony/twilio/compile.py`, `grading/analyze.py`, `grading/checks.py`: room playback, PSTN compilation, timing/content checks, explicit missing-evidence handling |
+| Routing | `domains/ivr.py`, `domains/pbx/stories.py`, `domains/pbx/dealer/`: built-in journey fixtures plus a richer dealer-group router, channel capacity, schedules and transfer-policy evaluation |
 | Providers | `telephony/providers/`: Twilio live runtime and management, mock dispatch, Telnyx configuration boundary with live execution explicitly unavailable |
-| Agent evaluation | `agent_api.py`, `agent_call.py`, `benchmark.py`, UAT scripts/config: external-agent dispatch, terminal polling, repetitions, classification scoring and business assertions |
-| Customer/SMS | `pstn/customer_agent.py`, `sms_receiver.py`: optional synthetic customer, bounded speech turns, signed allowlisted SMS inbox |
+| Agent evaluation | `integrations/agent_api.py`, `integrations/livekit/agent_call.py`, `evaluation/benchmark.py`, UAT scripts/config: external-agent dispatch, terminal polling, repetitions, classification scoring and business assertions |
+| Customer/SMS | `telephony/twilio/customer.py`, `sms_receiver.py`: optional synthetic customer, bounded speech turns, signed allowlisted SMS inbox |
 | Console | `console-app.tsx`, resource editors, histories, `use-console-data.ts`, API client: shared operator state, mutations, polling, filtering, recordings and exports |
 | Distribution | Compose overlays, ingress configuration, Dockerfiles, packaging manifests, CI and public release checker: private control API boundary and artifact contents |
 
@@ -72,7 +72,7 @@ commits, pushes, deployments, number changes, or live calls were performed.
 ## Structure to keep
 
 `control/` owns orchestration and persistence; `telephony/` owns carrier adapters;
-`domains/` owns the small built-in routing journeys; `pbxsim/` owns the detailed
+`domains/` owns the small built-in routing journeys; `domains/pbx/dealer/` owns the detailed
 multi-site model; `pstn/` owns compilation, grading and optional customer/SMS
 helpers. Compatibility imports remain for existing callers.
 
@@ -88,7 +88,7 @@ focused tests. A package move alone would add churn.
 
 ## Recording finalization follow-up
 
-Extracted background grading into `telephony/providers/twilio/finalization.py`.
+Extracted background grading into `telephony/twilio/finalization.py`.
 The runtime retains the twelve-second callback grace, then awaits active recording
 downloads. Each request has a fifteen-second timeout and there are six bounded
 attempts. Duplicate callbacks share one download and one grading job.

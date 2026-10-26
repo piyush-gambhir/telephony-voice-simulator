@@ -43,7 +43,7 @@ branch targets, and duplicate names. It does not guarantee that referenced
 speech assets exist or have release approval. Follow [the asset policy](ASSET_POLICY.md)
 for audio provenance and serving permissions.
 
-`scenario_validation.py` is the shared schema used by the catalog, runners,
+`domains/amd/validation.py` is the shared schema used by the catalog, runners,
 PSTN compiler, benchmark loader, and content generator. Add any new step or
 expectation there and implement its behavior in each applicable transport.
 Each step has exactly one operation. Asset paths stay inside the corpus;
@@ -88,7 +88,7 @@ Built-in IVR/PBX definitions live under `domains/` and share
 with their terminal outcome and elapsed duration. Add a case asserting the
 observable routing decision, terminal event, and relevant timing.
 
-The richer dealer-group model lives under `pbxsim/`. Start with
+The richer dealer-group model lives under `domains/pbx/dealer/`. Start with
 [`DEALER_GROUP_PBX.md`](DEALER_GROUP_PBX.md); validate new groups with
 `validate_group` and test routes, schedules, capacity, and transfer outcomes.
 This is a deterministic model, not a SIP registrar.

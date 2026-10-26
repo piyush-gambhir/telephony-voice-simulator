@@ -1,6 +1,6 @@
 """Dealer-group PBX simulation: declarative config plus a deterministic router.
 
-``domains/pbx.py`` describes four dealership call stories. This package models the
+``domains/pbx/stories.py`` describes four dealership call stories. This package models the
 switch itself, so any call can be routed and any transfer can be evaluated.
 """
 

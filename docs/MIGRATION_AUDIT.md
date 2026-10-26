@@ -31,19 +31,19 @@ migrated; private operational measurements remain a separate data asset.
 
 | Former capability | Merged implementation | Status |
 |---|---|---|
-| AMD YAML state machines | `scenarios/`, `machine.py` | Migrated |
-| AMD timing/content assertions | `assertions.py` | Migrated and extended |
-| Room-mode LiveKit callee | `bot.py`, `runner.py`, `webhook_sink.py` | Migrated |
-| Deployed-agent outbound dispatch | `agent_call.py`, `dispatch.py` | Migrated |
-| Local Twilio AMD webhook runtime | `telephony/providers/twilio/webhooks.py` (`/twilio/voice`) | Migrated |
-| Twilio-hosted AMD machine | `pstn/deploy_twilio.py`, `pstn/twilio_hosted/` | Migrated |
-| DTMF relay and call grading | `pstn/compile.py`, `pstn/analyze.py`, `pstn/grade_hosted.py` | Migrated |
+| AMD YAML state machines | `scenarios/`, `domains/amd/machine.py` | Migrated |
+| AMD timing/content assertions | `grading/checks.py` | Migrated and extended |
+| Room-mode LiveKit callee | `integrations/livekit/callee.py`, `integrations/livekit/runner.py`, `integrations/livekit/webhook_sink.py` | Migrated |
+| Deployed-agent outbound dispatch | `integrations/livekit/agent_call.py`, `integrations/livekit/dispatch.py` | Migrated |
+| Local Twilio AMD webhook runtime | `telephony/twilio/webhooks.py` (`/twilio/voice`) | Migrated |
+| Twilio-hosted AMD machine | `telephony/twilio/hosted/deploy.py`, `telephony/twilio/hosted/` | Migrated |
+| DTMF relay and call grading | `telephony/twilio/compile.py`, `grading/analyze.py`, `telephony/twilio/hosted/grade.py` | Migrated |
 | Corpus generation and capture import | `corpus/build_corpus.py`, `corpus/import_asset.py`, `corpus/from_recordings.py` | Migrated |
 | Production-miss classifier | `scripts/analysis/classify_silence.py` | Generalized |
 | Fixed tenant UAT script | `scripts/uat_matrix.py` | Replaced with vendor-neutral pipeline |
 | AMD scenario website | Generated `/docs` routes in `web-console` | Migrated |
 | Telephony IVR model | `domains/ivr.py` | Migrated: 7 behaviorally distinct canonical IDs plus aliases |
-| Telephony PBX model | `domains/pbx.py` | Migrated: departments, extensions, roles, devices, legs, CRM, CDR |
+| Telephony PBX model | `domains/pbx/stories.py` | Migrated: departments, extensions, roles, devices, legs, CRM, CDR |
 | Provider profiles | Independent `telephony/providers` modules plus common registry | Migrated |
 | Extension directory | Shared store/service/API/console/live IVR | Migrated |
 | Persisted call runs | Additive SQLite schema plus optional MySQL repository | Migrated |
@@ -89,7 +89,7 @@ in the merged backend:
   than treated as source.
 - The web console contains no orphaned UI modules; each retained component is
   imported by an application surface.
-- `runner.py`, `agent_call.py`, `deploy_twilio.py`, `grade_hosted.py`, and the
+- `integrations/livekit/runner.py`, `integrations/livekit/agent_call.py`, `deploy_twilio.py`, `grade_hosted.py`, and the
   corpus tools are executable operational entry points, not unused library
   code. They are retained because they cover room, deployed-agent, hosted-PSTN,
   and corpus workflows that the control API does not duplicate.

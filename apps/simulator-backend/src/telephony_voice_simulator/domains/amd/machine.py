@@ -2,7 +2,7 @@
 
 A :class:`SimulatedMachine` executes a scenario's scripted step sequences and
 emits audio through an injected :class:`AudioOut`, so the same engine drives a
-real LiveKit participant (see ``bot.py``) and fast in-process unit tests.
+real LiveKit participant (see ``integrations/livekit/callee.py``) and fast in-process unit tests.
 
 Everything the machine does is stamped into ``timeline`` (seconds since
 ``run()`` started). The assertion layer replays that timeline against the

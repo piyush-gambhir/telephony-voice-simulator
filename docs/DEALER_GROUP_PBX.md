@@ -16,10 +16,11 @@ The model lives in `apps/simulator-backend/src/telephony_voice_simulator/domains
 | `dealer_group.py` | Valley Auto Group — the modelled group itself |
 | `router.py` | Deterministic router that walks a call and emits a timeline |
 | `transfer.py` | Agent-initiated transfer, gated by each rooftop's real limits |
-| `scenarios.py` | 30 cases with expected outcomes |
+| `cases.py` | 30 cases with expected outcomes |
+| `capacity.py` | Channel costs and per-site concurrent agent capacity |
 | `validation.py` | Reusable dial-plan validation with errors naming each source |
 
-This is separate from `domains/pbx.py`, which stores four hand-written dealership
+This is separate from `domains/pbx/stories.py`, which stores four hand-written dealership
 call *stories*. This package models the switch, so any call can be routed.
 
 ## The modelled group
@@ -248,7 +249,7 @@ caller.
 
 Add a rooftop by appending a `Site` plus its trunks, extensions, menus and
 schedules in `dealer_group.py`. Add a behavior by adding a case to
-`scenarios.py` — `test_pbxsim.py` parametrizes over `CASES`, so a new case is
+`cases.py`: `test_dealer_pbx.py` parametrizes over `CASES`, so a new case is
 automatically a test.
 
 Use `validate_group(group)` to collect duplicate identifiers, dangling references,

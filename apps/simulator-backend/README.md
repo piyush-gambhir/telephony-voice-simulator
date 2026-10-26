@@ -54,8 +54,7 @@ Configure a Twilio number with one of these POST webhooks:
 
 A Twilio number has one Voice URL. It cannot target AMD and IVR simultaneously:
 use separate numbers, or explicitly reattach the number when changing modes.
-`PSTN_NUMBER_MAP` is a legacy fallback only for numbers that have never been
-managed through the endpoint control plane.
+Numbers that no endpoint manages answer with `PSTN_DEFAULT_SCENARIO`.
 
 ## Local workflow
 
@@ -74,11 +73,6 @@ uv run telephony-voice-sim simulate-ivr <endpoint-id> +14085550131 1501 \
 uv run telephony-voice-sim runs
 uv run telephony-voice-sim calls
 ```
-
-The installed `amd-sim` and `telephony-sim` commands are compatibility aliases
-for `telephony-voice-sim`. The deprecated `POST /api/simulations` route accepts
-the original camelCase IVR request and returns its `{run, steps}` shape with a
-deprecation header; new clients should use `POST /api/ivr/simulations`.
 
 Persistence defaults to SQLite. Set
 `SIMULATOR_DATABASE_URI=mysql+pymysql://user:password@host:3306/database` to
@@ -154,16 +148,21 @@ multi-step evidence pipeline.
 
 ```text
 src/telephony_voice_simulator/
-├── control/      API, CLI, application service, and SQLite/MySQL repositories
-├── telephony/    Common provider contract plus isolated Twilio/Telnyx modules
-├── domains/      IVR and PBX scenario packs on the shared timeline model
-├── scenarios/    AMD scenario YAML
+├── api/          HTTP control API
+├── cli/          The telephony-voice-sim command
+├── service/      Application service shared by the API and the CLI
+├── storage/      SQLite and MySQL repositories
+├── domains/      Scenario catalog: AMD machine, IVR, PBX stories, dealer-group switch
+├── grading/      AMD checks and call-evidence grading
+├── telephony/    Provider contract, mock, Telnyx, and the Twilio runtime
+├── integrations/ Agent drivers: REST adapter and LiveKit
+├── evaluation/   Benchmark suite
 ├── corpus/       Audio generation, imports, provenance, and assets
-├── pstn/         Provider-neutral AMD compilation and analysis; compatibility entry points
+├── scenarios/    AMD scenario YAML
 ├── templates/    Bundled provider-neutral outbound metadata template
-├── paths.py      Canonical package and writable runtime locations
-├── machine.py    In-process answering-machine state machine
-└── assertions.py AMD timing and content checks
+├── models.py     Shared records
+├── config.py     Runtime configuration checks
+└── paths.py      Canonical package and writable runtime locations
 ```
 
 The local simulator executes every scenario domain. Twilio executes AMD callee

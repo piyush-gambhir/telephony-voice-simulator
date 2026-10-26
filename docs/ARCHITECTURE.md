@@ -69,11 +69,16 @@ another application.
 
 | Package | Responsibility |
 |---|---|
-| `control/` | HTTP/CLI orchestration, shared repository and normalized records |
-| `telephony/` | Provider contracts, registry and carrier-specific runtime/management |
-| `domains/` | Small deterministic IVR and PBX journey fixtures in the shared catalog |
-| `pbxsim/` | Detailed multi-site PBX configuration, routing, capacity and transfer-policy model |
-| `pstn/` | AMD compilation/grading, optional synthetic customer and SMS helpers, legacy entry points |
+| `api/` | HTTP control API over the application service |
+| `cli/` | The `telephony-voice-sim` command over the same service |
+| `service/` | Application service: validation, orchestration and provider dispatch |
+| `storage/` | SQLite and MySQL repositories for every record |
+| `models.py`, `identifiers.py`, `config.py` | Shared records, address validation and runtime configuration checks |
+| `domains/` | Scenario catalog; `amd/` machine and validation, `ivr.py`, `pbx/stories.py` call stories, `pbx/dealer/` multi-site switch model |
+| `grading/` | AMD checks and grading of captured call evidence |
+| `telephony/` | Provider contract and registry; `mock.py`, `telnyx.py`, and `twilio/` (adapter, number management, webhook runtime, synthetic customer, SMS, hosted deploy and grading) |
+| `integrations/` | External agent drivers: the REST adapter and the LiveKit room, dispatch and outbound paths |
+| `evaluation/` | Benchmark suite across scenarios and lines |
 | `corpus/` | Audio generation/import, provenance and public-release policy |
 | `components/console/` | One view per route under `/console`; `console-provider.tsx` shares reads (`use-console-data.ts`) and mutations, `lib/results.ts` joins runs and calls into results |
 
@@ -87,7 +92,7 @@ restart ends the conversation. Call deletion evicts both carrier and customer
 session caches. Public artifacts exclude `*.local.*` scenario files; local
 backend discovery still accepts them.
 
-Twilio grading is coordinated by `telephony/providers/twilio/finalization.py`.
+Twilio grading is coordinated by `telephony/twilio/finalization.py`.
 It saves pending work and the original grading specification in the existing call
 analysis record, coalesces callbacks, waits for downloads, and resumes pending/error
 jobs at startup. Carrier completion and grade completion remain separate facts.

@@ -19,7 +19,6 @@ services:
       IVR_CALLER_ID: ${IVR_CALLER_ID:-}
       BRIDGE_NUMBER: ${BRIDGE_NUMBER:-}
       PSTN_DEFAULT_SCENARIO: ${PSTN_DEFAULT_SCENARIO:-stock_voicemail_beep_1000}
-      PSTN_NUMBER_MAP: ${PSTN_NUMBER_MAP:-{}}
       PSTN_RECORD_ALL_CALLS: ${PSTN_RECORD_ALL_CALLS:-false}
       PSTN_ALLOW_UNSIGNED_WEBHOOKS: "false"
       PSTN_ACKNOWLEDGE_PUBLIC_AUDIO: ${PSTN_ACKNOWLEDGE_PUBLIC_AUDIO:?Set true only after every mounted AMD asset is approved for unauthenticated public serving}
