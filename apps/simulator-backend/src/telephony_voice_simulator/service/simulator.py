@@ -12,11 +12,12 @@ from ..telephony import ProviderAdapter, provider_registry
 from ..telephony.twilio.management import TwilioNumberManager
 from .calls import CallsMixin
 from .numbers import NumbersMixin
+from .operations import OperationsMixin
 from .resources import ResourcesMixin
 from .runs import RunsMixin
 
 
-class SimulatorService(ResourcesMixin, NumbersMixin, RunsMixin, CallsMixin):
+class SimulatorService(ResourcesMixin, NumbersMixin, RunsMixin, CallsMixin, OperationsMixin):
     """Validates input, persists through the store and dispatches through providers."""
 
     def __init__(

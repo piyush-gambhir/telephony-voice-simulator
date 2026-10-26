@@ -168,3 +168,23 @@ class IncomingCall:
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class Operation:
+    """A long-running job (benchmark, deploy, corpus build) and its progress log."""
+
+    id: str
+    kind: str
+    title: str
+    status: Literal["queued", "running", "succeeded", "failed"]
+    params: dict[str, Any] = field(default_factory=dict)
+    result: Any = None
+    error: str | None = None
+    log: list[str] = field(default_factory=list)
+    created_at: str = ""
+    started_at: str | None = None
+    finished_at: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)

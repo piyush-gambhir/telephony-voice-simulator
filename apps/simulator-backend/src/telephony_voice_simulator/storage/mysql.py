@@ -244,6 +244,22 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
                 INDEX telephony_queue_provider_address (provider, address, id)
             ) ENGINE=InnoDB
             """,
+            """
+            CREATE TABLE IF NOT EXISTS operations (
+                id VARCHAR(64) PRIMARY KEY,
+                kind VARCHAR(64) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                params_json LONGTEXT NOT NULL,
+                result_json LONGTEXT,
+                error TEXT,
+                log_json LONGTEXT NOT NULL,
+                created_at VARCHAR(64) NOT NULL,
+                started_at VARCHAR(64),
+                finished_at VARCHAR(64),
+                INDEX operations_created (created_at)
+            ) ENGINE=InnoDB
+            """,
         )
         with self._connect() as db:
             for statement in statements:
