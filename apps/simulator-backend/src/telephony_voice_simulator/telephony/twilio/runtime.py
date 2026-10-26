@@ -19,4 +19,8 @@ class LocalTwilioRuntime:
     def scenario_available(self, scenario_name: str) -> bool:
         from . import state
 
-        return scenario_name in state.STATE.scenarios
+        loaded = state.STATE.scenarios
+        # Only the serving process compiles scenarios. Any other process (the CLI)
+        # queues into the shared store, and the serving runtime rejects a scenario
+        # it cannot play when the call arrives.
+        return not loaded or scenario_name in loaded

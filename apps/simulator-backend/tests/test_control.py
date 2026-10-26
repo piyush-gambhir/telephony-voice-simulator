@@ -547,6 +547,55 @@ async def test_twilio_scenario_compatibility_is_enforced_by_service(
     assert service.list_runs() == []
 
 
+
+async def test_twilio_run_queues_from_a_process_that_is_not_serving(
+    service: SimulatorService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
+
+    monkeypatch.setattr(twilio_state, "STATE", twilio_state.SimState())
+    connection = service.create_connection("twilio", "Twilio local")
+    amd = next(item for item in service.list_scenarios() if item["kind"] == "amd")
+    line = service.create_endpoint(
+        connection_id=connection["id"],
+        name="Queued Twilio line",
+        kind="phone_number",
+        address="+15550100003",
+        routing_mode="queued",
+    )
+
+    run = await service.create_run(line["id"], amd["name"])
+
+    assert run["status"] == "queued"
+    assert service.store.list_provider_queue("twilio", line["address"])[0]["run_id"] == run["id"]
+
+
+async def test_serving_twilio_runtime_refuses_a_scenario_it_cannot_play(
+    service: SimulatorService,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
+
+    serving = twilio_state.SimState()
+    serving.scenarios["some_other_scenario"] = object()
+    monkeypatch.setattr(twilio_state, "STATE", serving)
+    connection = service.create_connection("twilio", "Twilio local")
+    amd = next(item for item in service.list_scenarios() if item["kind"] == "amd")
+    line = service.create_endpoint(
+        connection_id=connection["id"],
+        name="Queued Twilio line",
+        kind="phone_number",
+        address="+15550100004",
+        routing_mode="queued",
+    )
+
+    run = await service.create_run(line["id"], amd["name"])
+
+    assert run["status"] == "failed"
+    assert "cannot play" in run["result"]["error"]
+    assert service.store.list_provider_queue("twilio", line["address"]) == []
+
 def test_twilio_endpoints_require_unique_canonical_e164(
     service: SimulatorService,
 ) -> None:

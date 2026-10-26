@@ -126,7 +126,7 @@ class TwilioProvider(ProviderAdapter):
         scenario_name = str(request.scenario["name"])
         if not self.runtime.scenario_available(scenario_name):
             raise ProviderError(
-                "The Twilio PSTN runtime is not active. Start the API with --with-pstn."
+                f"The running Twilio runtime cannot play {scenario_name}; check its audio corpus."
             )
         self.store.enqueue_provider_run(
             provider=self.descriptor.key,
