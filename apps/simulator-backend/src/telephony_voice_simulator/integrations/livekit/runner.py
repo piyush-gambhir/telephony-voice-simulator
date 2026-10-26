@@ -1,10 +1,9 @@
 """Scenario runner: sink → dispatch → callee bot → assertions → report.
 
 Usage:
-    python -m telephony_voice_simulator.integrations.livekit.runner --scenario \
-      src/telephony_voice_simulator/scenarios/01_stock_voicemail_beep_1000.yaml
-    python -m telephony_voice_simulator.integrations.livekit.runner --all            # every scenario in the folder
-    python -m telephony_voice_simulator.integrations.livekit.runner --all --filter dtmf
+    telephony-voice-sim agents room --scenario stock_voicemail_beep_1000   # catalog name or yaml path
+    telephony-voice-sim agents room --all                                  # every scenario in the folder
+    telephony-voice-sim agents room --all --filter dtmf
 
 Environment (see .env.example): LIVEKIT_URL / LIVEKIT_API_KEY /
 LIVEKIT_API_SECRET, AGENT_NAME, METADATA_TEMPLATE, WEBHOOK_BIND_HOST/PORT.
@@ -16,12 +15,11 @@ webhooks, and ``report.json`` with per-check pass/fail.
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import datetime
 import json
 import os
-import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +28,8 @@ import yaml
 from ...domains.amd.machine import SimulatedMachine
 from ...domains.amd.validation import validate_scenario
 from ...grading.checks import run_checks, summarize_checks
-from ...paths import ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR, TEMPLATES_DIR
+from ...paths import ASSETS_DIR, RESULTS_DIR, TEMPLATES_DIR
+from ...service.errors import ValidationError
 from .callee import CalleeBot
 from .dispatch import build_metadata, create_dispatch, new_call_id
 from .webhook_sink import WebhookSink
@@ -39,8 +38,7 @@ from .webhook_sink import WebhookSink
 def _env(name: str, default: str | None = None) -> str:
     value = os.environ.get(name, default)
     if value is None:
-        print(f"Missing required env var {name} (see .env.example)", file=sys.stderr)
-        sys.exit(2)
+        raise ValidationError(f"Missing required env var {name} (see .env.example)")
     return value
 
 
@@ -128,26 +126,13 @@ async def run_scenario(
     return report
 
 
-async def main() -> int:
-    parser = argparse.ArgumentParser(description="Voice-agent scenario simulator")
-    parser.add_argument("--scenario", help="path to one scenario yaml")
-    parser.add_argument("--all", action="store_true", help="run every scenario")
-    parser.add_argument("--filter", default="", help="substring filter with --all")
-    args = parser.parse_args()
-
-    if args.scenario:
-        paths = [Path(args.scenario)]
-    elif args.all:
-        paths = sorted(SCENARIOS_DIR.glob("*.yaml"))
-        if args.filter:
-            paths = [p for p in paths if args.filter in p.name]
-    else:
-        parser.error("pass --scenario <file> or --all")
-        return 2
-    if not paths:
-        print("No scenarios matched.", file=sys.stderr)
-        return 2
-
+async def run_scenarios(
+    paths: list[Path],
+    *,
+    log: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Run each scenario file in turn behind one webhook sink; returns the summary."""
+    say = log or (lambda _line: None)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     results_root = RESULTS_DIR / stamp
     results_root.mkdir(parents=True, exist_ok=True)
@@ -162,15 +147,15 @@ async def main() -> int:
         for path in paths:
             scenario = load_scenario(path)
             if scenario.get("pstn_only"):
-                print(f"→ {scenario['name']} (skipped: pstn_only)")
+                say(f"-> {scenario['name']} (skipped: pstn_only)")
                 continue
-            print(f"→ {scenario['name']}")
+            say(f"-> {scenario['name']}")
             report = await run_scenario(scenario, sink=sink, results_root=results_root)
             status = "PASS" if report["passed"] else "INDETERMINATE" if report["passed"] is None else "FAIL"
-            print(f"  {status}  ({len(report['checks'])} checks)")
+            say(f"  {status}  ({len(report['checks'])} checks)")
             for check in report["checks"]:
-                flag = "✓" if check["passed"] else "?" if check["passed"] is None else "✗"
-                print(f"    {flag} {check['check']}: {check['detail']}")
+                flag = "ok" if check["passed"] else "?" if check["passed"] is None else "FAIL"
+                say(f"    {flag} {check['check']}: {check['detail']}")
             reports.append(report)
     finally:
         await sink.stop()
@@ -182,9 +167,4 @@ async def main() -> int:
         "reports": reports,
     }
     (results_root / "summary.json").write_text(json.dumps(summary, indent=2))
-    print(f"\n{summary['passed']}/{summary['total']} scenarios passed → {results_root}")
-    return 0 if summary["passed"] == summary["total"] else 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main()))
+    return summary

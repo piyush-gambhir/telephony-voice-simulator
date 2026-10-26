@@ -64,6 +64,9 @@ outbound directions and preserves the actual direction and number pair in call
 history. This webhook does not originate a call itself. Twilio documents these
 directions in its [webhook request parameters](https://www.twilio.com/docs/voice/twiml#request-parameters).
 
+List the configured personas with `telephony-voice-sim customer profiles` and read
+the saved dialogues with `telephony-voice-sim customer sessions [--limit N]`.
+
 The final customer audio is followed by an eight-second pause before hangup.
 Goodbye, errors, call limits, provider completion, and deletion prevent further
 generation. A retry of a generated turn reuses its response while the provider
@@ -84,8 +87,11 @@ with the UAT agent's sender numbers, and `PSTN_SMS_DB` with a private SQLite pat
 The handler validates the Twilio signature and account, rejects media and text
 longer than 1,600 characters, and stores at most 1,000 messages. Duplicate
 MessageSids are acknowledged without another insert. A full inbox returns 503.
-It sends no automatic replies. Read the private inbox to verify the exact body,
-recipient, sender and receive time before sending a controlled customer reply.
+It sends no automatic replies. Read the private inbox with `telephony-voice-sim sms list [--limit N]` (newest
+first; empty until the first delivery) to verify the exact body, recipient,
+sender and receive time before sending a controlled customer reply.
+`telephony-voice-sim sms status` shows the allowlists and whether the inbox is
+configured, without exposing credentials.
 
 Twilio can assign different SIDs to the outgoing and incoming sides of a message
 between two owned numbers. Correlate both IDs with the number pair, body and time.

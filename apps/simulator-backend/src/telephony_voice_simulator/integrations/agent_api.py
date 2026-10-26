@@ -33,27 +33,28 @@ The body template is JSON with ``{sim_number}``, ``{scenario}`` and
 nested objects and arrays).
 
 Usage:
-    python -m telephony_voice_simulator.integrations.agent_api trigger --scenario stock_voicemail_beep_1000
-    python -m telephony_voice_simulator.integrations.agent_api record --call-id 019f8e3c-...
-    python -m telephony_voice_simulator.integrations.agent_api call --scenario dtmf_gate_honored
+    telephony-voice-sim agents trigger --scenario stock_voicemail_beep_1000
+    telephony-voice-sim agents record --call-id 019f8e3c-...
+    telephony-voice-sim agents call --scenario dtmf_gate_honored
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import math
 import os
 import re
-import sys
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+from ..service.errors import ValidationError
 
 DEFAULT_TERMINAL_STATUSES = (
     "completed",
@@ -169,15 +170,15 @@ def _split_paths(name: str, fallback: list[str]) -> list[str]:
 def load_config(*, require_trigger: bool = True) -> AgentApiConfig:
     trigger_url = os.environ.get("AGENT_API_TRIGGER_URL", "").strip()
     if require_trigger and not trigger_url:
-        sys.exit("Set AGENT_API_TRIGGER_URL (see the module docstring).")
+        raise ValidationError("Set AGENT_API_TRIGGER_URL (see the module docstring).")
     body_path = os.environ.get("AGENT_API_BODY", "").strip()
     if require_trigger and not body_path:
-        sys.exit("Set AGENT_API_BODY to a JSON request-body template.")
+        raise ValidationError("Set AGENT_API_BODY to a JSON request-body template.")
     body = {}
     if body_path:
         template_file = Path(body_path).expanduser()
         if not template_file.is_file():
-            sys.exit(f"AGENT_API_BODY not found: {template_file}")
+            raise ValidationError(f"AGENT_API_BODY not found: {template_file}")
         body = json.loads(template_file.read_text())
     if not isinstance(body, dict):
         raise ValueError("AGENT_API_BODY must contain a JSON object")
@@ -217,7 +218,7 @@ def load_config(*, require_trigger: bool = True) -> AgentApiConfig:
 def sim_number() -> str:
     number = os.environ.get("SIM_NUMBER", "").strip()
     if not number:
-        sys.exit("Set SIM_NUMBER to the simulator line the agent should dial.")
+        raise ValidationError("Set SIM_NUMBER to the simulator line the agent should dial.")
     return number
 
 
@@ -297,6 +298,7 @@ def wait_for_terminal(
     interval: float = 10.0,
     progress: bool = True,
     label: str = "",
+    log: Callable[[str], None] | None = None,
 ) -> dict[str, Any] | None:
     """Poll the call record until its status is terminal. None on timeout."""
     if not config.record_url:
@@ -322,7 +324,11 @@ def wait_for_terminal(
         # text that buries the actual results.
         if progress and status != previous:
             prefix = f"{label} " if label else "    "
-            print(f"{prefix}{status or '(pending)':9} call_id={call_id}", flush=True)
+            line = f"{prefix}{status or '(pending)':9} call_id={call_id}"
+            if log is not None:
+                log(line)
+            else:
+                print(line, flush=True)
             previous = status
         if is_terminal(config, record):
             return record
@@ -371,43 +377,3 @@ def extract_outcome(config: AgentApiConfig, record: dict[str, Any] | None) -> di
             else None
         ),
     }
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    sub = parser.add_subparsers(dest="cmd", required=True)
-
-    for name in ("trigger", "call"):
-        cmd = sub.add_parser(name)
-        cmd.add_argument("--scenario", default="stock_voicemail_beep_1000")
-        cmd.add_argument("--number", default="")
-        cmd.add_argument("--timeout", type=float, default=300.0)
-
-    rec = sub.add_parser("record")
-    rec.add_argument("--call-id", required=True)
-
-    args = parser.parse_args()
-    config = load_config(require_trigger=args.cmd != "record")
-    if args.cmd in {"call", "record"} and not config.record_url:
-        parser.error("AGENT_API_RECORD_URL is required to read call outcomes")
-
-    if args.cmd == "record":
-        record = fetch_record(config, args.call_id)
-        print(json.dumps({"record": record, "outcome": extract_outcome(config, record)}, indent=2))
-        return 0 if record else 1
-
-    number = args.number or sim_number()
-    call_id, payload = trigger_call(config, scenario=args.scenario, number=number)
-    print(f"triggered call_id={call_id} scenario={args.scenario} -> dials {number}")
-    if args.cmd == "trigger":
-        print(json.dumps(payload, indent=2))
-        return 0
-
-    record = wait_for_terminal(config, call_id, timeout=args.timeout)
-    outcome = extract_outcome(config, record)
-    print(json.dumps(outcome, indent=2))
-    return 0 if record else 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

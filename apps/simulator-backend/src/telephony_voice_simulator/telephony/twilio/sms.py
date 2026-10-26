@@ -11,14 +11,42 @@ from pathlib import Path
 from aiohttp import web
 
 
+def allowed_numbers() -> set[str]:
+    return set(filter(None, os.environ.get("PSTN_SMS_NUMBERS", "").split(",")))
+
+
+def allowed_senders() -> set[str]:
+    return set(filter(None, os.environ.get("PSTN_SMS_ALLOWED_SENDERS", "").split(",")))
+
+
+def list_messages(limit: int = 50) -> list[dict[str, str]]:
+    """Newest first. Empty when the inbox is unconfigured or nothing has arrived yet."""
+    path = os.environ.get("PSTN_SMS_DB", "")
+    if not path or not Path(path).is_file():
+        return []
+    # Read-only so inspecting the inbox can never create or alter it.
+    uri = Path(path).resolve().as_uri() + "?mode=ro"
+    try:
+        with closing(sqlite3.connect(uri, uri=True)) as db:
+            db.row_factory = sqlite3.Row
+            rows = db.execute(
+                "SELECT message_sid, sender, recipient, body, received_at FROM sms_messages "
+                "ORDER BY received_at DESC, rowid DESC LIMIT ?", (limit,),
+            ).fetchall()
+    except sqlite3.OperationalError:
+        # The file exists but the table does not until the first delivery.
+        return []
+    return [dict(row) for row in rows]
+
+
 async def handle_sms(request: web.Request) -> web.Response:
     from . import security, twiml
 
     form = await request.post()
     if rejected := security.reject_invalid_request(request, form):
         return rejected
-    allowed = set(filter(None, os.environ.get("PSTN_SMS_NUMBERS", "").split(",")))
-    callers = set(filter(None, os.environ.get("PSTN_SMS_ALLOWED_SENDERS", "").split(",")))
+    allowed = allowed_numbers()
+    callers = allowed_senders()
     path = os.environ.get("PSTN_SMS_DB", "")
     if (not path or str(form.get("To", "")) not in allowed
             or str(form.get("From", "")) not in callers
