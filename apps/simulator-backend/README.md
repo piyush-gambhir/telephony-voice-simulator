@@ -108,33 +108,33 @@ configure provider retention or delete that copy through Twilio separately.
 
 Deleting an endpoint does not detach or reconfigure its carrier number. The
 backend retains a local ownership tombstone and rejects that number until it is
-explicitly re-created; use `scripts/twilio_number.py` to attach or restore the
-carrier Voice URL.
+explicitly re-created; use `telephony-voice-sim numbers point` and
+`numbers revert` to attach or restore the carrier Voice URL.
 
 ## Advanced AMD workflows
 
-The migrated operational modules are executable entry points rather than dead
-library code:
+Every workflow is a `telephony-voice-sim` command; `--help` on any group lists
+its actions. Long-running commands print progress on stderr and the JSON
+result on stdout.
 
 ```bash
 # Run one or every AMD scenario against a LiveKit room.
-uv run python -m telephony_voice_simulator.integrations.livekit.runner --scenario stock_voicemail_beep_1000
-uv run python -m telephony_voice_simulator.integrations.livekit.runner --all
+uv run telephony-voice-sim agents room --scenario stock_voicemail_beep_1000
+uv run telephony-voice-sim agents room --all
 
 # Dispatch a deployed agent to a queued PSTN scenario.
-uv run python -m telephony_voice_simulator.integrations.livekit.agent_call \
-  --scenario stock_voicemail_beep_1000
+uv run telephony-voice-sim hosted agent-call --scenario stock_voicemail_beep_1000
 
 # Build/deploy the always-on Twilio Serverless AMD runtime. Its generated WAVs
 # are public Twilio Assets, so an explicit private deployment approval is
 # mandatory.
-uv run python -m telephony_voice_simulator.telephony.twilio.hosted.deploy \
+uv run telephony-voice-sim hosted deploy \
   --acknowledge-public-audio \
   --audio-deployment-allowlist /absolute/path/to/deployment_allowlist.json
 
 # Build or import rights-reviewed corpus audio.
-uv run python -m telephony_voice_simulator.corpus.build
-uv run python -m telephony_voice_simulator.corpus.import_asset --help
+uv run telephony-voice-sim corpus build
+uv run telephony-voice-sim corpus import --help
 ```
 
 The hosted `/machine` runtime uses its own Twilio Sync queue. It is controlled

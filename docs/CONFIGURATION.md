@@ -127,7 +127,10 @@ public-serving decision, not merely permission to mount a private file.
 | `AGENT_WEBHOOK_URL` | Optional agent lifecycle webhook |
 
 The in-process scenario runner additionally uses `WEBHOOK_BIND_HOST`,
-`WEBHOOK_BIND_PORT`, and optional `WEBHOOK_PUBLIC_URL`.
+`WEBHOOK_BIND_PORT`, and optional `WEBHOOK_PUBLIC_URL`. Run it with
+`telephony-voice-sim agents room --scenario NAME|PATH` or `--all [--filter TEXT]`.
+The REST agent adapter (`AGENT_API_*`, see `.env.example`) is driven with
+`telephony-voice-sim agents trigger|call|record`.
 
 ## Grading, corpus, and prompt generation
 
@@ -188,6 +191,11 @@ These optional routes use the existing signed Twilio ingress. See
 | `PSTN_SMS_ALLOWED_SENDERS` | Comma-separated permitted test senders |
 | `PSTN_SMS_DB` | Private SQLite inbox path; unset disables storage |
 
+Inspect this setup with `telephony-voice-sim sms status` (allowlisted numbers and
+senders, whether the inbox exists), `sms list [--limit N]` (newest first),
+`customer profiles` (personas, and which required keys are set as booleans, never
+their values) and `customer sessions [--limit N]` (recorded dialogues).
+
 The customer runtime permits up to 20 retained sessions, 16 turns per call,
 and a 240-second turn-generation window. Generated audio is served with
 `Cache-Control: no-store` and expires after ten minutes. Deletion removes the
@@ -200,7 +208,7 @@ gitignored `apps/simulator-backend/.env`, then run:
 
 ```bash
 cd apps/simulator-backend
-uv run --env-file .env python -m telephony_voice_simulator.corpus.build
+uv run --env-file .env telephony-voice-sim corpus build
 ```
 
 Existing corpus files remain cached. Use `--force` only when intentionally

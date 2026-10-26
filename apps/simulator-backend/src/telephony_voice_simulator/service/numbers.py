@@ -21,8 +21,8 @@ class NumbersMixin:
 
         Two shapes count. ``/machine?mode=voice`` is the optional Twilio
         Serverless deployment. ``/twilio/voice`` is the local runtime, and is
-        exactly the ``target_voice_url`` this service attaches numbers to —
-        without it, a fresh database can never adopt a number, because
+        exactly the ``target_voice_url`` this service attaches numbers to.
+        Without it, a fresh database can never adopt a number, because
         discovery would only ever match the Serverless deployment.
         """
         voice_url = str(remote.get("voice_url") or "")

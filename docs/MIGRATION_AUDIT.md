@@ -39,8 +39,8 @@ migrated; private operational measurements remain a separate data asset.
 | Twilio-hosted AMD machine | `telephony/twilio/hosted/deploy.py`, `telephony/twilio/hosted/` | Migrated |
 | DTMF relay and call grading | `telephony/twilio/compile.py`, `grading/analyze.py`, `telephony/twilio/hosted/grade.py` | Migrated |
 | Corpus generation and capture import | `corpus/build_corpus.py`, `corpus/import_asset.py`, `corpus/from_recordings.py` | Migrated |
-| Production-miss classifier | `scripts/analysis/classify_silence.py` | Generalized |
-| Fixed tenant UAT script | `scripts/uat_matrix.py` | Replaced with vendor-neutral pipeline |
+| Production-miss classifier | `evaluation/silence.py` (`analyze silence`) | Generalized |
+| Fixed tenant UAT script | `evaluation/uat.py` (`uat`) | Replaced with vendor-neutral pipeline |
 | AMD scenario website | Generated `/docs` routes in `web-console` | Migrated |
 | Telephony IVR model | `domains/ivr.py` | Migrated: 7 behaviorally distinct canonical IDs plus aliases |
 | Telephony PBX model | `domains/pbx/stories.py` | Migrated: departments, extensions, roles, devices, legs, CRM, CDR |
@@ -48,7 +48,7 @@ migrated; private operational measurements remain a separate data asset.
 | Extension directory | Shared store/service/API/console/live IVR | Migrated |
 | Persisted call runs | Additive SQLite schema plus optional MySQL repository | Migrated |
 | Twilio Functions IVR | `deploy/twilio-ivr` | Migrated and hardened |
-| IVR prompt generation | `scripts/generate_ivr_prompts.py` | Migrated with neutral prompt source |
+| IVR prompt generation | `corpus/prompts.py` (`corpus prompts`) | Migrated with neutral prompt source |
 | Provider/extension/simulator web UI | `/console` | Rebuilt over the shared API |
 | Old PostgreSQL demo seed | Removed | No demo-data mutation is exposed in the product |
 
@@ -77,8 +77,8 @@ in the merged backend:
 
 ## Dead-code and redundancy audit
 
-- Removed the superseded `pstn/provision.py`; `scripts/twilio_number.py` is the
-  single surgical attach/backup/restore workflow.
+- Removed the superseded `pstn/provision.py`; `numbers point` and
+  `numbers revert` are the single surgical attach/backup/restore workflow.
 - Removed the generic screener and one-step iPhone screener fixtures in favor
   of the fuller Pixel, assistant, and iOS state-transition scenarios.
 - Removed the second IVR connect-happy-path fixture; extension 1502 remains
@@ -89,10 +89,9 @@ in the merged backend:
   than treated as source.
 - The web console contains no orphaned UI modules; each retained component is
   imported by an application surface.
-- `integrations/livekit/runner.py`, `integrations/livekit/agent_call.py`, `deploy_twilio.py`, `grade_hosted.py`, and the
-  corpus tools are executable operational entry points, not unused library
-  code. They are retained because they cover room, deployed-agent, hosted-PSTN,
-  and corpus workflows that the control API does not duplicate.
+- The LiveKit room runner, deployed-agent dispatch, hosted deploy and grading,
+  and the corpus tools are reached through `telephony-voice-sim` command groups
+  (`agents`, `hosted`, `corpus`) over the shared service layer.
 - Provider-specific behavior stays behind adapters. The catalog, storage,
   directory, run history, and timeline model are shared once.
 - The inherited endpoint `routing_mode` is no longer dormant configuration:

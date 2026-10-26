@@ -710,7 +710,7 @@ Do not introduce a third application or duplicate the catalog/store.
 | Twilio compilation and grading | `telephony/twilio/compile.py`, `grading/analyze.py` |
 | IVR and PBX models | `domains/ivr.py`, `domains/pbx/` |
 | LiveKit execution | `integrations/livekit/` |
-| Corpus policy and tooling | `corpus/`, `scripts/validate_public_audio.py` |
+| Corpus policy and tooling | `corpus/`, `service/corpus.py` (`corpus validate-public`) |
 | Web client | `apps/web-console/components/console/` and `lib/simulator-api.ts` |
 | Deployment | `compose*.yaml`, backend/web Dockerfiles, `deploy/nginx.conf` |
 

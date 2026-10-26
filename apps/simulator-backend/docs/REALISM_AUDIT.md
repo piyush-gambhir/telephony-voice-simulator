@@ -125,7 +125,7 @@ To replace a synthetic prompt with a rights-clean internet or device-captured
 clip, use the importer:
 
 ```bash
-uv run python -m telephony_voice_simulator.corpus.import_asset \
+uv run telephony-voice-sim corpus import \
   --asset ios26_name_reason_screen.wav \
   --source /tmp/iphone-screening.m4a \
   --source-type internal_device_capture \
