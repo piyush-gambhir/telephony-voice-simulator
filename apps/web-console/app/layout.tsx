@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
-import { AppHeader } from "@/components/app-header";
-import { AppSidebar } from "@/components/app-sidebar";
+import { ConsoleProvider } from "@/components/console/console-provider";
+import { AppShell } from "@/components/shell/app-shell";
 import { ThemeProvider } from "@/components/theme-provider";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 export const metadata: Metadata = {
   title: {
@@ -29,13 +28,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              <AppHeader />
-              {children}
-            </SidebarInset>
-          </SidebarProvider>
+          <ConsoleProvider>
+            <AppShell>{children}</AppShell>
+          </ConsoleProvider>
         </ThemeProvider>
       </body>
     </html>

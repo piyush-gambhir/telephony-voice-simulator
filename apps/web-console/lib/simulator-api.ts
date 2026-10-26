@@ -111,6 +111,20 @@ export type Scenario = {
   sequences: Array<{ name: string; steps: ScenarioStep[] }>;
 };
 
+export type CheckResult = {
+  check?: string;
+  name?: string;
+  passed?: boolean | null;
+  detail?: string;
+};
+
+export type CallAnalysis = {
+  passed?: boolean | null;
+  graded?: boolean;
+  checks?: CheckResult[];
+  skipped_webhook_side?: string[];
+};
+
 export type SimulationRun = {
   id: string;
   endpoint_id: string;
@@ -137,15 +151,8 @@ export type SimulationRun = {
     destination?: string | null;
     duration_seconds?: number;
     department?: string;
-    analysis?: {
-      passed?: boolean | null;
-      checks?: Array<{
-        check?: string;
-        name?: string;
-        passed?: boolean | null;
-        detail?: string;
-      }>;
-    };
+    call_id?: string;
+    analysis?: CallAnalysis;
   };
   created_at: string;
   completed_at: string | null;
@@ -177,7 +184,7 @@ export type IncomingCall = {
   started_at: string;
   ended_at: string | null;
   duration_s: number | null;
-  analysis: { passed?: boolean | null };
+  analysis: CallAnalysis & { run_id?: string | null };
   recordings: CallRecording[];
   created_at: string;
   updated_at: string;

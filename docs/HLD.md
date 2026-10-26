@@ -539,7 +539,7 @@ flowchart LR
 
 - Operator APIs and the console stay on loopback or private authenticated
   ingress; public carrier ingress never forwards `/api/*`.
-- CORS allows only configured console origins.
+- CORS allows configured console origins and loopback development ports; writes from any other origin are refused.
 - Twilio callbacks require signature validation. Unsigned callbacks are an
   explicit loopback-only test override.
 - `PUBLIC_BASE_URL` must be absolute HTTPS outside isolated local testing.

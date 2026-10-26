@@ -75,7 +75,7 @@ another application.
 | `pbxsim/` | Detailed multi-site PBX configuration, routing, capacity and transfer-policy model |
 | `pstn/` | AMD compilation/grading, optional synthetic customer and SMS helpers, legacy entry points |
 | `corpus/` | Audio generation/import, provenance and public-release policy |
-| `components/console/` | Focused operator views and metrics; shared reads remain in `use-console-data.ts` |
+| `components/console/` | One view per route under `/console`; `console-provider.tsx` shares reads (`use-console-data.ts`) and mutations, `lib/results.ts` joins runs and calls into results |
 
 The dealer-group PBX model has its own CLI suite. It does not execute live
 consult/transfer media and is not yet a control-API scenario domain. Keep that

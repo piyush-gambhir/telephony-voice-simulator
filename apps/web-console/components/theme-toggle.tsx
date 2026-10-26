@@ -19,14 +19,14 @@ export function ThemeToggle() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-xs"
       aria-label="Toggle theme"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
       {mounted && resolvedTheme === "dark" ? (
-        <Sun className="h-[1.2rem] w-[1.2rem]" />
+        <Sun />
       ) : (
-        <Moon className="h-[1.2rem] w-[1.2rem]" />
+        <Moon />
       )}
     </Button>
   );

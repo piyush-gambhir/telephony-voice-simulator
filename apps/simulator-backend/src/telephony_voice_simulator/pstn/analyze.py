@@ -221,13 +221,17 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
             elif window is None or mark not in window.get("marks", {}):
                 add("message_start_after", None, "recording start is not aligned to the requested mark")
             else:
-                delta = float(window["audio_duration"]) - float(window["marks"][mark]) + first[0][0]
+                offset = float(window["audio_duration"]) - float(window["marks"][mark])
+                delta = offset + first[0][0]
                 lo = float(spec.get("min", 0.0))
                 hi = float(spec.get("max", 5.0)) + RECORD_START_SLACK
                 add(
                     "message_start_after",
                     lo - 0.2 <= delta <= hi,
-                    f"delay_after_mark={delta:.2f}s window=[{lo},{hi:.1f}] (+record slack)",
+                    # record_offset: how long after the mark the recording starts, so a
+                    # reader can place the window and the start on the recording's own axis.
+                    f"delay_after_mark={delta:.2f}s window=[{lo},{hi:.1f}] (+record slack) "
+                    f"record_offset={offset:.2f}s",
                 )
 
     if "message_content" in expect:
