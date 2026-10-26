@@ -244,8 +244,8 @@ def _enabled_twilio_endpoint(address: str):
     )
 
 
-def _dequeue_pstn_assignment(address: str) -> dict[str, str | None] | None:
-    """Consume a persisted console assignment, including legacy formatting."""
+def _dequeue_pstn_assignment(address: str, call_id: str) -> dict[str, str | None] | None:
+    """Claim a persisted console assignment for one call, including legacy formatting."""
 
     candidates = [address]
     candidates.extend(
@@ -254,7 +254,7 @@ def _dequeue_pstn_assignment(address: str) -> dict[str, str | None] | None:
         if endpoint.address not in candidates
     )
     for candidate in candidates:
-        assignment = _call_store().dequeue_provider_run("twilio", candidate)
+        assignment = _call_store().dequeue_provider_run("twilio", candidate, call_id)
         if assignment is not None:
             return assignment
     queue = STATE.next_by_number.get(address)
@@ -263,20 +263,21 @@ def _dequeue_pstn_assignment(address: str) -> dict[str, str | None] | None:
     return None
 
 
-def _pick_call_assignment(address: str) -> dict[str, str | None]:
+def _pick_call_assignment(address: str, call_id: str) -> dict[str, str | None]:
     """Resolve managed routing first; legacy environment routing is fallback."""
 
     endpoint = _enabled_twilio_endpoint(address)
     if endpoint is not None:
-        queued = _dequeue_pstn_assignment(address)
+        queued = _dequeue_pstn_assignment(address, call_id)
         if endpoint.routing_mode == "fixed":
             return {
                 "scenario": endpoint.default_scenario
                 or (queued.get("scenario") if queued is not None else None),
                 "run_id": queued.get("run_id") if queued is not None else None,
+                "queue_claim": queued,
             }
         if queued is not None:
-            return queued
+            return {**queued, "queue_claim": queued}
         return {"scenario": endpoint.default_scenario, "run_id": None}
     return {"scenario": STATE.pick_scenario(address), "run_id": None}
 
@@ -712,6 +713,26 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
     return verbs
 
 
+def _runtime_analysis(call: dict) -> dict:
+    """Analysis payload that lets a restarted process resume this exact execution."""
+    from .finalization import snapshot
+
+    analysis: dict = {"runtime": snapshot(call)}
+    if call.get("run_id"):
+        analysis["run_id"] = call["run_id"]
+    if call.get("queue_claim"):
+        # Every analysis write keeps the claim, so a concurrent retry never dequeues again.
+        analysis["queue_claim"] = call["queue_claim"]
+    return analysis
+
+
+def _persist_runtime(call: dict) -> None:
+    # Terminal calls belong to finalization, which owns the analysis field from then on.
+    if call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
+        return
+    _call_store().upsert_incoming_call(call_id=call["call_sid"], analysis=_runtime_analysis(call))
+
+
 async def handle_voice(request: web.Request) -> web.Response:
     form = await request.post()
     if rejection := _reject_invalid_twilio_request(request, form):
@@ -741,7 +762,16 @@ async def handle_voice(request: web.Request) -> web.Response:
     if persisted is not None:
         if persisted.status in {"completed", "failed", "busy", "no-answer", "canceled"}:
             return _twiml("<Hangup/>")
-        if persisted.scenario in STATE.scenarios:
+        from .finalization import restore
+
+        # Resume the saved execution (frozen program, digits, cached replies). A row
+        # holding only a queue claim falls through and reuses that claim below.
+        restored = restore(sid)
+        if restored is not None and "voice_response" in restored:
+            return web.Response(text=restored["voice_response"], content_type="application/xml")
+        if (restored is None and "queue_claim" not in persisted.analysis
+                and persisted.scenario in STATE.scenarios):
+            # Rows saved before runtime snapshots existed keep their original scenario.
             restored = {
                 "call_sid": sid,
                 "to": persisted.to_address or to_number,
@@ -757,7 +787,7 @@ async def handle_voice(request: web.Request) -> web.Response:
             STATE.calls[sid] = restored
             restored["voice_response"] = _twiml(*_segment_twiml(restored, "main", 0)).text
             return web.Response(text=restored["voice_response"], content_type="application/xml")
-    assignment = _pick_call_assignment(to_number)
+    assignment = _pick_call_assignment(to_number, sid)
     scenario = str(assignment.get("scenario") or "")
     run_id = str(assignment.get("run_id") or "") or None
     if not scenario or scenario not in STATE.scenarios:
@@ -779,6 +809,7 @@ async def handle_voice(request: web.Request) -> web.Response:
             recording_status="not_started",
             analysis={
                 "run_id": run_id,
+                "queue_claim": assignment.get("queue_claim"),
                 "rejection_reason": "scenario_unavailable",
             },
         )
@@ -795,6 +826,8 @@ async def handle_voice(request: web.Request) -> web.Response:
         "status": "in-progress",
         "run_id": run_id,
     }
+    if assignment.get("queue_claim"):
+        call["queue_claim"] = assignment["queue_claim"]
     STATE.calls[sid] = call
     from .finalization import capture_scenario
 
@@ -810,7 +843,7 @@ async def handle_voice(request: web.Request) -> web.Response:
         status="in-progress",
         recording_status="starting",
         started_at=_iso(call["answered_at"]),
-        analysis={"run_id": run_id} if run_id else None,
+        analysis=_runtime_analysis(call),
     )
     _update_simulation_run(
         run_id,
@@ -1020,7 +1053,9 @@ async def handle_step(request: web.Request) -> web.Response:
         return rejection
     if _call_is_deleted(sid):
         return _twiml("<Hangup/>")
-    call = STATE.calls.get(sid)
+    from .finalization import restore
+
+    call = STATE.calls.get(sid) or restore(sid)
     if call is None:
         return _twiml("<Hangup/>")
     if call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
@@ -1058,6 +1093,7 @@ async def handle_step(request: web.Request) -> web.Response:
         response = _twiml(*verbs)
         if step is not None:
             call.setdefault("step_responses", {})[step] = response.text
+        _persist_runtime(call)
         return response
 
     if request.query.get("gather"):
@@ -1133,6 +1169,7 @@ async def handle_recording(request: web.Request) -> web.Response:
         if any(key != stored_id and value == window for key, value in windows.items()):
             return web.json_response({"error": "Recording step already assigned"}, status=400)
         windows[stored_id] = window
+        _persist_runtime(call)
     if previous and previous.status in {"completed", "download_failed", "absent"} and status == "in-progress":
         return web.json_response({"ok": True})
     _call_store().upsert_recording(

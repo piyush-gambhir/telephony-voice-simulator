@@ -492,3 +492,42 @@ def test_pending_job_discovery_is_not_limited_to_history_page(tmp_path):
         store.upsert_incoming_call(call_id=f'CA-history-{index}', status='completed')
     assert SID not in {call.id for call in store.list_incoming_calls()}
     assert [call.id for call in store.list_calls_awaiting_finalization()] == [SID]
+
+
+async def test_missing_later_record_window_keeps_media_incomplete(workspace):
+    from telephony_voice_simulator.telephony.providers.twilio import finalization
+
+    client, _, root = workspace
+    raw = runtime.STATE.raw_scenarios['test_media']
+    raw['machine']['main'] = [{'hold': 5}, {'tone': {'duration': 1}}, {'hold': 5}]
+    runtime.STATE.scenarios['test_media'] = compile_scenario(
+        raw, assets_dir=root, out_dir=root / 'compiled',
+    )
+    response = await client.post('/twilio/voice', data={'CallSid': SID})
+    action = urlsplit(ElementTree.fromstring(await response.text()).find('Record').attrib['action'])
+    await client.post(action.path + '?' + action.query, data={'CallSid': SID})
+    response = await client.post('/twilio/recording?step=0', data={
+        'CallSid': SID, 'RecordingSid': RECORDING, 'RecordingStatus': 'absent',
+    })
+    assert response.status == 200
+    _, _, incomplete, _ = finalization.media_state(runtime.STATE.calls[SID])
+    assert incomplete is True
+
+
+async def test_late_binding_during_pending_grading_survives_restart(workspace):
+    from telephony_voice_simulator.telephony.providers.twilio import finalization
+
+    client, store, _ = workspace
+    await answer(client)
+    await complete(client)
+    assert runtime.STATE.finalization_tasks.get(SID) is not None  # still in its callback grace
+    response = await client.post('/twilio/recording?step=0', data={
+        'CallSid': SID, 'RecordingSid': RECORDING, 'RecordingStatus': 'in-progress',
+    })
+    assert response.status == 200
+    saved = store.get_incoming_call(SID).analysis['finalization']
+    assert saved['state'] == 'pending'
+    assert saved['runtime']['recording_windows'] == {RECORDING: 0}
+    runtime.STATE.finalization_tasks.pop(SID).cancel()
+    runtime.STATE.calls.clear()
+    assert finalization.restore(SID)['recording_windows'] == {RECORDING: 0}

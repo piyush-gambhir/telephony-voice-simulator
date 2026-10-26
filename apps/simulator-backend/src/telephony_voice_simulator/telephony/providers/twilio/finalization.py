@@ -39,7 +39,9 @@ def restore(sid: str) -> dict | None:
     if sid in runtime.STATE.calls:
         return runtime.STATE.calls[sid]
     saved = runtime._call_store().get_incoming_call(sid)
-    data = saved.analysis.get("finalization", {}).get("runtime") if saved else None
+    # Prefer the grading snapshot; an active call only has its execution snapshot.
+    data = (saved.analysis.get("finalization", {}).get("runtime")
+            or saved.analysis.get("runtime")) if saved else None
     if not isinstance(data, dict) or not isinstance(data.get("grading_spec"), dict):
         return None
     call = copy.deepcopy(data)
@@ -86,6 +88,10 @@ def media_state(call: dict) -> tuple[list, list[str], bool, dict]:
         evidence["message_recording_window"] = first_segment
         if first is None:
             incomplete = True
+    # Every emitted record window needs its own callback; a missing later window is not evidence.
+    bound = {windows.get(r.id) for r in messages}
+    if len(messages) < len(emitted) or (windows and any(step not in bound for step, _ in emitted)):
+        incomplete = True
     return signature, paths, incomplete, evidence
 
 
@@ -97,13 +103,20 @@ def schedule(call: dict) -> None:
         return
     active = runtime.STATE.finalization_tasks.get(sid)
     if active and not active.done():
+        # Keep late callback bindings (recording windows) recoverable across a restart.
+        pending = call.get("analysis", {}).get("finalization", {})
+        if pending.get("state") == "pending":
+            analysis = {**call["analysis"], "finalization": {**pending, "runtime": snapshot(call)}}
+            if runtime._call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is not None:
+                call["analysis"] = analysis
         return
     signature, _, _, _ = media_state(call)
     previous = call.get("analysis", {}).get("finalization", {})
     if previous.get("state") == "complete" and previous.get("media_signature") == signature:
         return
     capture_scenario(call)
-    analysis = {**call.get("analysis", {}), "graded": False, "passed": None,
+    previous_analysis = {k: v for k, v in call.get("analysis", {}).items() if k != "runtime"}
+    analysis = {**previous_analysis, "graded": False, "passed": None,
                 "finalization": {"state": "pending", "runtime": snapshot(call)}}
     if runtime._call_store().upsert_incoming_call(call_id=sid, analysis=analysis) is None:
         return

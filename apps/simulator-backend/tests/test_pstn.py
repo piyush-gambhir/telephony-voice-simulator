@@ -1233,3 +1233,109 @@ def test_transcribe_returns_none_for_a_missing_file(tmp_path, monkeypatch) -> No
 
     monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
     assert analyze.transcribe_recording(tmp_path / "nope.wav") is None
+
+
+async def test_claimed_assignment_survives_crash_before_call_is_saved(pstn_client) -> None:
+    from telephony_voice_simulator.pstn import server as pstn_server
+
+    client, _state = pstn_client
+    store = pstn_server.CALL_STORE
+    connection = store.create_connection("twilio", "Crash")
+    endpoint = store.create_endpoint(
+        connection_id=connection.id, name="Crash-safe queue", kind="phone_number",
+        address="+15550100006", routing_mode="queued",
+    )
+    first_run = store.update_run(store.create_run(endpoint.id, "twilio", "vm"), status="queued")
+    second_run = store.create_run(endpoint.id, "twilio", "gate")
+    store.enqueue_pstn_run(address=endpoint.address, scenario="vm", run_id=first_run.id)
+    store.enqueue_pstn_run(address=endpoint.address, scenario="gate", run_id=second_run.id)
+
+    # The process claims the first assignment, then dies before saving the call.
+    claim = store.dequeue_provider_run("twilio", endpoint.address, "CA-crash")
+    assert claim == {"scenario": "vm", "run_id": first_run.id}
+    assert store.get_run(first_run.id).status == "in-progress"
+    assert store.dequeue_provider_run("twilio", endpoint.address, "CA-crash") == claim
+
+    retry = await client.post("/twilio/voice", data={"CallSid": "CA-crash", "To": endpoint.address})
+    assert "vm-main-0.wav" in await retry.text()
+    assert store.list_pstn_queue(endpoint.address) == [
+        {"scenario": "gate", "run_id": second_run.id}
+    ]
+
+
+async def test_active_call_resumes_saved_execution_after_restart(pstn_client):
+    client, state = pstn_client
+    state.default_scenario = 'gate'
+    form = {'CallSid': 'CA-mid-call-restart', 'To': '+1555'}
+    initial = await _post_form(client, '/twilio/voice', form)
+    action = _action_path(initial, 'Gather')
+    pressed = await _post_form(client, action, {**form, 'Digits': '5'})
+
+    state.calls.clear()  # process restart: only persisted state remains
+    assert await _post_form(client, action, {**form, 'Digits': '5'}) == pressed
+    assert await _post_form(client, '/twilio/voice', form) == initial
+    call = state.calls[form['CallSid']]
+    assert [digit['digit'] for digit in call['digits']] == ['5']
+    assert call['prompt_plays'] == 1
+    assert len(call['segments']) == 2
+
+
+async def test_recording_binding_survives_restart_before_completion(pstn_client):
+    from telephony_voice_simulator.telephony.providers.twilio import finalization
+
+    client, state = pstn_client
+    state.default_scenario = 'vm'
+    form = {'CallSid': 'CA-binding-restart', 'To': '+1555'}
+    await _post_form(client, '/twilio/voice', form)
+    recording_sid = 'RE' + '2' * 32
+    await _post_form(client, '/twilio/recording?step=0', {
+        **form, 'RecordingSid': recording_sid, 'RecordingStatus': 'in-progress',
+    })
+
+    state.calls.clear()
+    restored = finalization.restore(form['CallSid'])
+    assert restored['recording_windows'] == {recording_sid: 0}
+
+
+async def test_legacy_active_row_keeps_its_scenario_without_dequeuing(pstn_client) -> None:
+    from telephony_voice_simulator.pstn import server as pstn_server
+
+    client, _state = pstn_client
+    store = pstn_server.CALL_STORE
+    connection = store.create_connection("twilio", "Legacy")
+    endpoint = store.create_endpoint(
+        connection_id=connection.id, name="Legacy queue", kind="phone_number",
+        address="+15550100007", routing_mode="queued",
+    )
+    run = store.create_run(endpoint.id, "twilio", "gate")
+    store.enqueue_pstn_run(address=endpoint.address, scenario="gate", run_id=run.id)
+    # A call row written before runtime snapshots existed.
+    store.upsert_incoming_call(call_id="CA-legacy", to_address=endpoint.address, scenario="vm")
+
+    response = await client.post("/twilio/voice", data={"CallSid": "CA-legacy", "To": endpoint.address})
+    assert "vm-main-0.wav" in await response.text()
+    assert store.list_pstn_queue(endpoint.address) == [{"scenario": "gate", "run_id": run.id}]
+
+
+async def test_runtime_saves_keep_the_claim_for_a_concurrent_retry(pstn_client) -> None:
+    from telephony_voice_simulator.pstn import server as pstn_server
+
+    client, _state = pstn_client
+    store = pstn_server.CALL_STORE
+    connection = store.create_connection("twilio", "Concurrent")
+    endpoint = store.create_endpoint(
+        connection_id=connection.id, name="Concurrent retry", kind="phone_number",
+        address="+15550100008", routing_mode="queued",
+    )
+    first_run = store.create_run(endpoint.id, "twilio", "vm")
+    second_run = store.create_run(endpoint.id, "twilio", "gate")
+    store.enqueue_pstn_run(address=endpoint.address, scenario="vm", run_id=first_run.id)
+    store.enqueue_pstn_run(address=endpoint.address, scenario="gate", run_id=second_run.id)
+
+    await client.post("/twilio/voice", data={"CallSid": "CA-concurrent", "To": endpoint.address})
+    # A second worker that missed the saved call reaches the claim lookup after runtime saves.
+    claim = {"scenario": "vm", "run_id": first_run.id}
+    assert store.dequeue_provider_run("twilio", endpoint.address, "CA-concurrent") == claim
+    assert store.list_pstn_queue(endpoint.address) == [
+        {"scenario": "gate", "run_id": second_run.id}
+    ]
