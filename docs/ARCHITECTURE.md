@@ -64,3 +64,33 @@ entry points from the same process:
 PBX remains a deterministic model rather than a SIP registrar or production
 PBX. Adding live SIP/PBX execution is an adapter extension and does not require
 another application.
+
+## Module ownership
+
+| Package | Responsibility |
+|---|---|
+| `control/` | HTTP/CLI orchestration, shared repository and normalized records |
+| `telephony/` | Provider contracts, registry and carrier-specific runtime/management |
+| `domains/` | Small deterministic IVR and PBX journey fixtures in the shared catalog |
+| `pbxsim/` | Detailed multi-site PBX configuration, routing, capacity and transfer-policy model |
+| `pstn/` | AMD compilation/grading, optional synthetic customer and SMS helpers, legacy entry points |
+| `corpus/` | Audio generation/import, provenance and public-release policy |
+| `components/console/` | Focused operator views and metrics; shared reads remain in `use-console-data.ts` |
+
+The dealer-group PBX model has its own CLI suite. It does not execute live
+consult/transfer media and is not yet a control-API scenario domain. Keep that
+distinction visible when comparing its results with a carrier-backed test.
+
+Synthetic customer sessions use the shared call repository for history and
+deletion tombstones. Dialogue/audio generation remains process-local and bounded;
+restart ends the conversation. Call deletion evicts both carrier and customer
+session caches. Public artifacts exclude `*.local.*` scenario files; local
+backend discovery still accepts them.
+
+Twilio grading is coordinated by `telephony/providers/twilio/finalization.py`.
+It saves pending work and the original grading specification in the existing call
+analysis record, coalesces callbacks, waits for downloads, and resumes pending/error
+jobs at startup. Carrier completion and grade completion remain separate facts.
+Late media can revise a grade without adding another call-completed event.
+The mechanism assumes one active Twilio runtime per repository and is not a
+distributed worker queue.

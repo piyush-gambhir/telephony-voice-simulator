@@ -65,6 +65,8 @@ class TwilioNumberManager:
         friendly_name: str | None = None,
         voice_url: str | None = None,
         voice_method: str = "POST",
+        status_callback: str | None = None,
+        status_callback_method: str = "POST",
     ) -> dict[str, Any]:
         account_sid, auth_token = self._credentials()
         data: dict[str, str] = {}
@@ -73,6 +75,9 @@ class TwilioNumberManager:
         if voice_url is not None:
             data["VoiceUrl"] = voice_url
             data["VoiceMethod"] = voice_method
+        if status_callback is not None:
+            data["StatusCallback"] = status_callback
+            data["StatusCallbackMethod"] = status_callback_method
         if not data:
             raise TwilioManagementError("No Twilio number changes were requested.")
         async with httpx.AsyncClient(

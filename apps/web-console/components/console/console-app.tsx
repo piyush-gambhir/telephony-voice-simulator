@@ -3,7 +3,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import {
   Activity,
-  BarChart3,
   Cable,
   Check,
   CircleAlert,
@@ -20,7 +19,6 @@ import {
   Route,
   Server,
   Trash2,
-  Timer,
   Workflow,
 } from "lucide-react";
 
@@ -53,6 +51,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { OverviewMetrics } from "@/components/console/overview-metrics";
 import { AmdNumberManager } from "@/components/console/amd-number-manager";
 import { RunHistory } from "@/components/console/run-history";
 import { CallHistory } from "@/components/console/call-history";
@@ -72,10 +71,8 @@ import {
 import {
   DirectoryEntry,
   Endpoint,
-  IncomingCall,
   ManagedNumber,
   ProviderConnection,
-  Scenario,
   SIMULATOR_API_URL,
   SimulationRun,
   simulatorApi,
@@ -100,30 +97,6 @@ const NAV: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: "providers", label: "Providers", icon: Cable },
   { id: "endpoints", label: "Endpoints", icon: Route },
   { id: "directory", label: "Directory", icon: ContactRound },
-];
-
-const OVERVIEW_STATS: Array<{
-  label: string;
-  value: (data: {
-    connections: ProviderConnection[];
-    endpoints: Endpoint[];
-    directory: DirectoryEntry[];
-    scenarios: Scenario[];
-    runs: SimulationRun[];
-    calls: IncomingCall[];
-  }) => number;
-  icon: typeof Activity;
-}> = [
-  { label: "Provider connections", value: ({ connections }) => connections.length, icon: Cable },
-  {
-    label: "Active endpoints",
-    value: ({ endpoints }) => endpoints.filter((item) => item.enabled).length,
-    icon: PhoneCall,
-  },
-  { label: "Directory routes", value: ({ directory }) => directory.length, icon: ContactRound },
-  { label: "Scenario library", value: ({ scenarios }) => scenarios.length, icon: Workflow },
-  { label: "Recorded runs", value: ({ runs }) => runs.length, icon: Database },
-  { label: "Incoming calls", value: ({ calls }) => calls.length, icon: PhoneCall },
 ];
 
 function EmptyState({
@@ -235,17 +208,6 @@ export function ConsoleApp() {
     () => runs.filter((run) => Boolean(runOutcome(run))),
     [runs]
   );
-  const connectedSimulationRuns = useMemo(
-    () =>
-      completedSimulationRuns.filter((run) =>
-        ["connected", "bridged"].includes(runOutcome(run))
-      ),
-    [completedSimulationRuns]
-  );
-  const connectRate = completedSimulationRuns.length
-    ? Math.round((connectedSimulationRuns.length / completedSimulationRuns.length) * 100)
-    : 0;
-
   async function submitConnection(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -738,71 +700,7 @@ export function ConsoleApp() {
 
               {view === "overview" && (
                 <div className="space-y-5">
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-                    {OVERVIEW_STATS.map(({ label, value, icon: Icon }) => (
-                      <Card key={label}>
-                        <CardContent className="p-5 md:p-6">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm text-muted-foreground">{label}</p>
-                            <Icon className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                          <p className="mt-3 text-3xl font-semibold">
-                            {value({ connections, endpoints, directory, scenarios, runs, calls })}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <Card className="bg-success-soft">
-                      <CardContent className="p-5 md:p-6">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-muted-foreground">Simulation connect rate</p>
-                          <BarChart3 className="size-4 text-success" />
-                        </div>
-                        <p className="mt-3 text-3xl font-semibold">{connectRate}%</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {connectedSimulationRuns.length} connected of{" "}
-                          {completedSimulationRuns.length} outcome-bearing runs
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-warning-soft">
-                      <CardContent className="p-5 md:p-6">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-muted-foreground">Not connected</p>
-                          <CircleAlert className="size-4 text-warning" />
-                        </div>
-                        <p className="mt-3 text-3xl font-semibold">
-                          {completedSimulationRuns.length - connectedSimulationRuns.length}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Busy, no-answer, failed, and abandoned outcomes
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-info-soft">
-                      <CardContent className="p-5 md:p-6">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm text-muted-foreground">Recorded duration</p>
-                          <Timer className="size-4 text-info" />
-                        </div>
-                        <p className="mt-3 text-3xl font-semibold">
-                          {Math.round(
-                            completedSimulationRuns.reduce(
-                              (total, run) => total + runDuration(run),
-                              0
-                            )
-                          )}
-                          s
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Across deterministic IVR call records
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  <OverviewMetrics data={{ connections, endpoints, directory, scenarios, runs, calls }} />
 
                   <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
                     <Card>

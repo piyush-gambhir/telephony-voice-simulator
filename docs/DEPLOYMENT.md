@@ -199,6 +199,9 @@ controls the unified backend queue and does not enqueue hosted calls.
 
 `deploy/twilio-ivr` restores the optional `twilio-run` workflow:
 
+Use Node 22 in this subproject. The pinned `twilio-run@5.0.1` declares Node
+20/22 support, while the main monorepo web console requires Node.js 26.12.1.
+
 ```bash
 cd deploy/twilio-ivr
 cp .env.example .env

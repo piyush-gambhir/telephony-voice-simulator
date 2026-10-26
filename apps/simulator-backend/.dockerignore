@@ -5,6 +5,7 @@
 .venv
 __pycache__
 *.pyc
+**/*.local.*
 data
 private
 recordings
@@ -40,3 +41,5 @@ src/telephony_voice_simulator/corpus/assets/**/*.m4a
 src/telephony_voice_simulator/corpus/assets/**/*.aac
 src/telephony_voice_simulator/corpus/assets/**/*.flac
 src/telephony_voice_simulator/corpus/assets/**/*.ogg
+dist
+build

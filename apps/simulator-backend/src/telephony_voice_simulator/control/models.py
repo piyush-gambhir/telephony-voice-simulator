@@ -152,7 +152,7 @@ class CallRecording:
 class IncomingCall:
     id: str
     provider: str
-    direction: Literal["inbound"]
+    direction: Literal["inbound", "outbound"]
     from_address: str
     to_address: str
     scenario: str | None

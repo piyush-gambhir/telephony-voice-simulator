@@ -1,0 +1,11 @@
+# A human tester answers immediately through the configured test handset.
+# BRIDGE_NUMBER is private deployment configuration, never a bundled destination.
+name: human_roleplay_bridge
+pstn_only: true
+machine:
+  main:
+    - dial: bridge
+expect:
+  callee_class: human
+  webhook_received: true
+  detection_layer_absent: true

@@ -63,6 +63,8 @@ class _MySQLConnection:
 class MySQLSimulatorStore(SQLiteSimulatorStore):
     """Persistent repository selected by a ``mysql://`` database URI."""
 
+    _LOCKING_READ = " FOR UPDATE"
+
     def __init__(self, uri: str) -> None:
         self.settings = parse_mysql_uri(uri)
         try:
@@ -251,10 +253,16 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
         self,
         provider: str,
         address: str,
+        call_id: str | None = None,
     ) -> dict[str, str | None] | None:
         return self._retry_deadlocked_transaction(
-            lambda: self._dequeue_provider_run(provider, address)
+            lambda: self._dequeue_provider_run(provider, address, call_id)
         )
+
+    def fail_provider_queue(self, provider: str, address: str, reason: str) -> int:
+        # Retry if InnoDB picks this transaction as a deadlock victim.
+        fail = super().fail_provider_queue
+        return self._retry_deadlocked_transaction(lambda: fail(provider, address, reason))
 
     def cancel_queued_run(self, run_id: str) -> SimulationRun | None:
         cancel = super().cancel_queued_run
@@ -307,11 +315,15 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
         self,
         provider: str,
         address: str,
+        call_id: str | None = None,
     ) -> dict[str, str | None] | None:
         """Consume one assignment under a MySQL row lock."""
 
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            claimed = self._existing_queue_claim(db, call_id)
+            if claimed is not None:
+                return claimed
             row = db.execute(
                 """
                 SELECT id, scenario, run_id
@@ -323,7 +335,4 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
                 """,
                 (provider, address),
             ).fetchone()
-            if row is None:
-                return None
-            db.execute("DELETE FROM telephony_run_queue WHERE id = ?", (row["id"],))
-        return {"scenario": str(row["scenario"]), "run_id": row["run_id"]}
+            return self._claim_queue_row(db, row, provider=provider, address=address, call_id=call_id)

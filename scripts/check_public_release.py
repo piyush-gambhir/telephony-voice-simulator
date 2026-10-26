@@ -60,6 +60,21 @@ def _audio_names(names: list[str]) -> list[str]:
     )
 
 
+def _is_private_path(relative: str) -> bool:
+    path = PurePosixPath(relative)
+    name = path.name.lower()
+    suffix = path.suffix.lower()
+    return bool(
+        {part.lower() for part in path.parts} & PRIVATE_DIRECTORY_NAMES
+        or suffix in PRIVATE_SUFFIXES
+        or name == ".env"
+        or (name.startswith(".env.") and name != ".env.example")
+        or ".local." in name
+        or (suffix == ".json" and ("credential" in name or "secret" in name))
+        or name.endswith(".sql.gz")
+    )
+
+
 def _validate_allowlist() -> frozenset[str]:
     allowlisted = load_public_allowlist(ALLOWLIST)
     manifest = json.loads(MANIFEST.read_text())
@@ -136,24 +151,7 @@ def _validate_publication_files(allowlisted: frozenset[str]) -> None:
             audio_errors.append(relative)
 
     for relative in publication_files:
-        path = PurePosixPath(relative)
-        lowered_parts = {part.lower() for part in path.parts}
-        name = path.name.lower()
-        suffix = path.suffix.lower()
-        is_private_env = name == ".env" or (
-            name.startswith(".env.") and name != ".env.example"
-        )
-        is_secret_json = suffix == ".json" and (
-            "credential" in name or "secret" in name
-        )
-        is_database_dump = name.endswith(".sql.gz")
-        if (
-            lowered_parts & PRIVATE_DIRECTORY_NAMES
-            or suffix in PRIVATE_SUFFIXES
-            or is_private_env
-            or is_secret_json
-            or is_database_dump
-        ):
+        if _is_private_path(relative):
             private_errors.append(relative)
 
     if audio_errors:
@@ -167,6 +165,11 @@ def _validate_publication_files(allowlisted: frozenset[str]) -> None:
 
 
 def _validate_web_output(allowlisted: frozenset[str]) -> None:
+    content = REPO / "apps" / "web-console" / "content" / "scenarios.json"
+    if content.exists():
+        scenarios = json.loads(content.read_text()).get("scenarios", {})
+        if any(".local." in row.get("file", "") for row in scenarios.values()):
+            raise ValueError("static scenario reference exposes private local scenarios")
     if not WEB_AUDIO.exists():
         return
     allowed_stems = {Path(asset).stem for asset in allowlisted}
@@ -210,9 +213,13 @@ def _archive_members(path: Path) -> list[str]:
 
 def _validate_archive(path: Path, allowlisted: frozenset[str]) -> None:
     allowed_stems = {Path(asset).stem for asset in allowlisted}
+    members = _archive_members(path)
+    private = [name for name in members if _is_private_path(name)]
+    if private:
+        raise ValueError(f"{path}: archive exposes private configuration or data: {private}")
     exposed = [
         name
-        for name in _audio_names(_archive_members(path))
+        for name in _audio_names(members)
         if PurePosixPath(name).stem not in allowed_stems
     ]
     if exposed:

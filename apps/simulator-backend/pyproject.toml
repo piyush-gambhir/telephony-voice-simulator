@@ -45,6 +45,7 @@ telephony_voice_simulator = [
 
 [tool.setuptools.exclude-package-data]
 telephony_voice_simulator = [
+    "scenarios/*.local.*",
     "corpus/assets/*.mp3",
     "corpus/assets/*.wav",
     "corpus/assets/compiled/*",

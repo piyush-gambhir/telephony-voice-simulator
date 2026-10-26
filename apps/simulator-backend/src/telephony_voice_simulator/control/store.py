@@ -817,11 +817,19 @@ class SQLiteSimulatorStore:
         self,
         provider: str,
         address: str,
+        call_id: str | None = None,
     ) -> dict[str, str | None] | None:
-        """Atomically consume the oldest persisted provider assignment."""
+        """Atomically consume the oldest persisted provider assignment.
+
+        With ``call_id`` the claim is saved on that call in the same transaction,
+        and a retry for the same call returns its existing claim.
+        """
 
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            claimed = self._existing_queue_claim(db, call_id)
+            if claimed is not None:
+                return claimed
             row = db.execute(
                 """
                 SELECT id, scenario, run_id
@@ -832,10 +840,58 @@ class SQLiteSimulatorStore:
                 """,
                 (provider, address),
             ).fetchone()
-            if row is None:
-                return None
-            db.execute("DELETE FROM telephony_run_queue WHERE id = ?", (row["id"],))
-        return {"scenario": str(row["scenario"]), "run_id": row["run_id"]}
+            return self._claim_queue_row(db, row, provider=provider, address=address, call_id=call_id)
+
+    # MySQL appends this to reads that must lock: two retries for one call serialize on
+    # its row or gap, and queue invalidation locks queue rows in the same order as a claim.
+    _LOCKING_READ = ""
+
+    def _existing_queue_claim(self, db: Any, call_id: str | None) -> dict[str, str | None] | None:
+        if not call_id:
+            return None
+        row = db.execute(
+            "SELECT analysis_json FROM incoming_calls WHERE id = ?" + self._LOCKING_READ, (call_id,)
+        ).fetchone()
+        claim = json.loads(row["analysis_json"]).get("queue_claim") if row else None
+        return dict(claim) if isinstance(claim, dict) else None
+
+    def _claim_queue_row(
+        self,
+        db: Any,
+        row: Any,
+        *,
+        provider: str,
+        address: str,
+        call_id: str | None,
+    ) -> dict[str, str | None] | None:
+        """Delete one queue row and, for a call, record the claim before commit."""
+
+        if row is None or (call_id and self._call_is_deleted_for_write(db, call_id)):
+            return None
+        claim = {"scenario": str(row["scenario"]), "run_id": row["run_id"]}
+        db.execute("DELETE FROM telephony_run_queue WHERE id = ?", (row["id"],))
+        if call_id:
+            timestamp = _now()
+            db.execute(
+                """
+                INSERT INTO incoming_calls (
+                    id, provider, to_address, status, started_at, analysis_json,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, 'in-progress', ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET analysis_json = excluded.analysis_json
+                """,
+                (call_id, provider, address, timestamp,
+                 json.dumps({"run_id": claim["run_id"], "queue_claim": claim}),
+                 timestamp, timestamp),
+            )
+            if claim["run_id"]:
+                # A claimed run can no longer be cancelled, so stop showing it as queued.
+                db.execute(
+                    """UPDATE simulation_runs SET status = 'in-progress'
+                       WHERE id = ? AND status = 'queued' AND completed_at IS NULL""",
+                    (claim["run_id"],),
+                )
+        return claim
 
     def list_provider_queue(
         self,
@@ -863,6 +919,13 @@ class SQLiteSimulatorStore:
         timestamp = _now()
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            # Lock queue rows before runs, like a claim, so a concurrent claim either
+            # finishes first (its run is no longer queued here) or waits for this.
+            db.execute(
+                "SELECT id FROM telephony_run_queue WHERE provider = ? AND address = ?"
+                + self._LOCKING_READ,
+                (provider, address),
+            ).fetchall()
             rows = db.execute(
                 """
                 SELECT DISTINCT queue.run_id, runs.result_json
@@ -1219,6 +1282,7 @@ class SQLiteSimulatorStore:
         *,
         call_id: str,
         provider: str = "twilio",
+        direction: str = "inbound",
         from_address: str = "",
         to_address: str = "",
         scenario: str | None = None,
@@ -1243,14 +1307,17 @@ class SQLiteSimulatorStore:
                     id, provider, direction, from_address, to_address, scenario,
                     status, recording_status, started_at, ended_at, duration_s,
                     analysis_json, created_at, updated_at
-                ) VALUES (?, ?, 'inbound', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     from_address = CASE WHEN excluded.from_address = '' THEN from_address
                                         ELSE excluded.from_address END,
                     to_address = CASE WHEN excluded.to_address = '' THEN to_address
                                       ELSE excluded.to_address END,
                     scenario = COALESCE(excluded.scenario, scenario),
-                    status = excluded.status,
+                    status = CASE
+                        WHEN incoming_calls.status IN ('completed','failed','busy','no-answer','canceled')
+                         AND excluded.status NOT IN ('completed','failed','busy','no-answer','canceled')
+                        THEN incoming_calls.status ELSE excluded.status END,
                     recording_status = CASE
                         WHEN excluded.recording_status = 'not_started' THEN recording_status
                         ELSE excluded.recording_status END,
@@ -1263,6 +1330,7 @@ class SQLiteSimulatorStore:
                 (
                     call_id,
                     provider,
+                    direction,
                     from_address,
                     to_address,
                     scenario,
@@ -1344,6 +1412,24 @@ class SQLiteSimulatorStore:
         with self._connect() as db:
             row = db.execute("SELECT * FROM incoming_calls WHERE id = ?", (call_id,)).fetchone()
             return self._call(db, row) if row else None
+
+    def list_calls_awaiting_finalization(self) -> list[IncomingCall]:
+        """Recover grading and unfinished media independently of the history page limit."""
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT * FROM incoming_calls AS calls
+                   WHERE calls.provider = 'twilio' AND (calls.analysis_json LIKE ? OR EXISTS (
+                       SELECT 1 FROM call_recordings AS media WHERE media.call_id = calls.id
+                       AND media.status IN ('completed', 'download_failed')
+                       AND media.local_path IS NULL
+                   ))""",
+                ('%"finalization"%',),
+            ).fetchall()
+            calls = [self._call(db, row) for row in rows]
+        return [call for call in calls
+                if call.analysis.get("finalization", {}).get("state") in {"pending", "error"}
+                or any(recording.status in {"completed", "download_failed"} and not recording.local_path
+                       for recording in call.recordings)]
 
     def is_incoming_call_deleted(self, call_id: str) -> bool:
         with self._connect() as db:

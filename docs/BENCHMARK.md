@@ -52,6 +52,11 @@ AGENT_API_DETECTION_LAYER_PATH=providerMetadata.voicemail_detection_layer
 AGENT_API_AMD_PATH=providerMetadata.amd_result
 ```
 
+For controlled UAT runs, set `AGENT_API_ALLOWED_DESTINATIONS` to the dedicated
+test numbers and `AGENT_API_DESTINATION_PATH` to the request field carrying the
+callee (for example, `customerPhone`). The adapter rejects an unlisted number
+or a rendered body that targets a different number before sending any request.
+
 `AGENT_API_BODY` points at a JSON file whose string values are scanned for
 `{sim_number}`, `{scenario}` and `{run_id}`. Start from
 `apps/simulator-backend/config/agent-api.body.example.json`. Keep the real

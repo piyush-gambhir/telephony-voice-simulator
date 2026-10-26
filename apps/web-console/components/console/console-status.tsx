@@ -22,7 +22,9 @@ export function runStatusBadge(run: SimulationRun) {
   if (run.result.graded && run.result.passed === false) {
     return <Badge variant="destructive">Checks failed</Badge>;
   }
-  if (run.result.graded) return <Badge variant="warning">Checks incomplete</Badge>;
+  if (run.result.graded || run.result.passed === null) {
+    return <Badge variant="warning">Checks incomplete</Badge>;
+  }
   return statusBadge(run.status);
 }
 

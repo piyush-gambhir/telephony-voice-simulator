@@ -113,3 +113,13 @@ def test_unified_scenario_ids_remain_resolvable_as_aliases() -> None:
     assert get_ivr_scenario("ivr_connect_extension").name == "connect-1501"
     assert get_ivr_scenario("ivr_retry_after_silence").name == "retry-after-silence"
     assert get_pbx_scenario("pbx_service_queue_overflow").name == "service-overflow"
+
+
+def test_direct_extension_fallback_does_not_invent_an_offline_receptionist():
+    from telephony_voice_simulator.domains import pbx
+
+    scenario = next(item for item in pbx.SCENARIOS if item.direct_extension)
+    steps, outcome = pbx.simulate(scenario, {"sales-b": "busy", "frontdesk": "offline"})
+    assert outcome == "voicemail"
+    assert all(step.label != "Receptionist answers" for step in steps)
+    assert steps[-1].outcome == "voicemail"

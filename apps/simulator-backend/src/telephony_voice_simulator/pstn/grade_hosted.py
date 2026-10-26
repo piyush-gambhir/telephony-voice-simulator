@@ -20,6 +20,7 @@ import json
 import math
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -27,8 +28,10 @@ from xml.sax.saxutils import escape
 import httpx
 import yaml
 
+from ..assertions import summarize_checks
 from ..paths import ASSETS_DIR, RESULTS_DIR, SCENARIOS_DIR
 from .analyze import analyze_call
+from .compile import CompiledScenario, compile_scenario
 
 PSTN_RESULTS_DIR = RESULTS_DIR / "pstn"
 API = "https://api.twilio.com/2010-04-01"
@@ -88,16 +91,27 @@ def cmd_queue(args) -> int:
     client, _ = _client()
     _load_scenario(args.scenario)
     name = f"queue-{args.number}"
-    resp = client.get(f"{SYNC}/Documents/{name}")
-    queue = resp.json().get("data", {}).get("queue", []) if resp.status_code == 200 else []
-    queue.append(args.scenario)
-    payload = {"Data": json.dumps({"queue": queue}), "Ttl": "86400"}
-    if resp.status_code == 200:
-        resp = client.post(f"{SYNC}/Documents/{name}", data=payload)
-    else:
-        resp = client.post(f"{SYNC}/Documents", data={"UniqueName": name, **payload})
+    for _attempt in range(5):
+        resp = client.get(f"{SYNC}/Documents/{name}")
+        if resp.status_code == 200:
+            doc = resp.json()
+            # Keep the machine's call claims; a revision check rejects a concurrent answer's pop.
+            data = dict(doc.get("data") or {})
+            data["queue"] = [*data.get("queue", []), args.scenario]
+            resp = client.post(
+                f"{SYNC}/Documents/{name}",
+                data={"Data": json.dumps(data), "Ttl": "86400"},
+                headers={"If-Match": str(doc.get("revision", ""))},
+            )
+        else:
+            data = {"queue": [args.scenario]}
+            resp = client.post(f"{SYNC}/Documents", data={
+                "UniqueName": name, "Data": json.dumps(data), "Ttl": "86400",
+            })
+        if resp.status_code not in (409, 412):
+            break
     resp.raise_for_status()
-    print(f"queued {args.scenario} on {args.number} (queue={queue})")
+    print(f"queued {args.scenario} on {args.number} (queue={data['queue']})")
     return 0
 
 
@@ -190,6 +204,20 @@ def cmd_smoke(args) -> int:
     return _grade_call(client, account, inbound[0]["sid"])
 
 
+def _compiled(raw: dict) -> CompiledScenario | None:
+    """Recompile the deployed program so a single message can be aligned to its marks.
+
+    Only the returned marks are needed, so audio goes to a scratch directory and never
+    replaces the assets a running PSTN server is serving.
+    """
+    try:
+        with tempfile.TemporaryDirectory() as scratch:
+            return compile_scenario(raw, assets_dir=ASSETS_DIR, out_dir=Path(scratch))
+    except Exception as exc:  # grading still runs; timing checks then stay indeterminate
+        print(f"could not compile {raw.get('name')}: {exc}", file=sys.stderr)
+        return None
+
+
 def grade_call_detail(
     client: httpx.Client,
     account: str,
@@ -260,7 +288,13 @@ def grade_call_detail(
         raw = dict(raw)
         raw["expect"] = dict(raw.get("expect") or {})
         raw["expect"].pop("message_content", None)
-    analysis = analyze_call(call, raw, compiled=None)
+    analysis = analyze_call(call, raw, compiled=_compiled(raw))
+    if not mailbox_files:
+        # No <Record> audio was downloaded, so media checks have no evidence either way.
+        for check in analysis["checks"]:
+            if check["check"] in {"agent_spoke", "message_start_after", "message_content"}:
+                check.update(passed=None, detail="no message recording downloaded")
+        analysis["passed"] = summarize_checks(c["passed"] for c in analysis["checks"])
     call["analysis"] = analysis
     call["artifacts_dir"] = str(out_dir)
     (out_dir / "call.json").write_text(json.dumps(call, indent=2))
