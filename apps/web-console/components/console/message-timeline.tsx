@@ -157,9 +157,7 @@ export function MessageTimeline({
             <div
               className="absolute inset-y-0 rounded-md bg-window"
               style={{ left: at(axis.min), width: `calc(${at(axis.max)} - ${at(axis.min)})` }}
-            >
-              <span className="t-micro absolute -top-5 left-0 whitespace-nowrap text-success">Allowed start</span>
-            </div>
+            />
           )}
 
           <div
@@ -216,6 +214,19 @@ export function MessageTimeline({
           ))}
         </div>
       </div>
+
+      {axis && timing && (
+        <div className="t-num flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-3.5 rounded-sm bg-window" aria-hidden />
+            Allowed start {timing.min} to {timing.max}s{timing.basis === "mark" ? " after tone" : ""}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className={cn("h-2.5 w-0.5 rounded-full", startTone)} aria-hidden />
+            Agent started {timing.start.toFixed(2)}s{timing.basis === "mark" ? " after tone" : ""}
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {source ? (
