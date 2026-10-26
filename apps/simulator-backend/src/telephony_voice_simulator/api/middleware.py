@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from aiohttp import web
 
-from ..service.simulator import ConflictError, NotFoundError, ValidationError
+from ..service import ConflictError, NotFoundError, ValidationError
 
 
 def _allowed_web_origins() -> set[str]:

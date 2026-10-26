@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from aiohttp import web
 
-from ..service.simulator import SimulatorService, ValidationError
+from ..service import SimulatorService, ValidationError
 from .middleware import cors, errors
 
 SERVICE_KEY = web.AppKey("simulator_service", SimulatorService)

@@ -169,7 +169,7 @@ def test_carrier_entrypoints_import_in_a_fresh_process(module):
     import subprocess
     import sys
     result = subprocess.run(
-        [sys.executable, "-c", f"import {module}; from telephony_voice_simulator.service.simulator import SimulatorService"],
+        [sys.executable, "-c", f"import {module}; from telephony_voice_simulator.service import SimulatorService"],
         capture_output=True, text=True, check=False,
     )
     assert result.returncode == 0, result.stderr

@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 
 from telephony_voice_simulator.storage.mysql import MySQLSimulatorStore
-from telephony_voice_simulator.service.simulator import SimulatorService
+from telephony_voice_simulator.service import SimulatorService
 from telephony_voice_simulator.storage.sqlite import StoreConflictError
 from telephony_voice_simulator.telephony.mock import MockProvider
 

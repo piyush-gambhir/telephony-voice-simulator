@@ -10,7 +10,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from telephony_voice_simulator.api.app import build_app
 from telephony_voice_simulator.domains.catalog import ScenarioCatalog
-from telephony_voice_simulator.service.simulator import SimulatorService, ValidationError
+from telephony_voice_simulator.service import SimulatorService, ValidationError
 from telephony_voice_simulator.storage.sqlite import SimulatorStore
 from telephony_voice_simulator.telephony.base import ProviderError
 from telephony_voice_simulator.telephony.mock import MockProvider
@@ -1118,7 +1118,7 @@ def test_call_deletion_tombstones_before_artifact_cleanup_and_can_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from telephony_voice_simulator.service import simulator as service_module
+    from telephony_voice_simulator.service import calls as service_module
 
     call_id = "CA-cleanup-retry"
     recording_root = tmp_path / "results" / "pstn"

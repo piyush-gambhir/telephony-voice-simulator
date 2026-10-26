@@ -44,7 +44,7 @@ from ..domains.pbx.dealer import (
 )
 from ..api.app import build_app
 from ..domains.catalog import ScenarioCatalog
-from ..service.simulator import SimulatorService
+from ..service import SimulatorService
 
 
 def _print(value: Any) -> None:

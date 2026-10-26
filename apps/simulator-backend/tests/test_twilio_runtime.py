@@ -598,7 +598,7 @@ async def test_deleted_call_tombstone_survives_restart_and_rejects_late_callback
     pstn_client,
     monkeypatch,
 ) -> None:
-    from telephony_voice_simulator.service.simulator import SimulatorService
+    from telephony_voice_simulator.service import SimulatorService
     from telephony_voice_simulator.storage.sqlite import SimulatorStore
     from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
