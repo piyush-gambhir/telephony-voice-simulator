@@ -115,6 +115,39 @@ def _check_engine(persona: dict[str, Any]) -> None:
     _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
 
 
+# Agent and branch IDs never change once created, so each process looks them up once.
+_VARIANT_AGENTS: dict[str, str] = {}
+_PINNED_BRANCHES: dict[str, str] = {}
+
+
+def _pinned_branch(agent_id: str) -> str | None:
+    if agent_id not in _PINNED_BRANCHES:
+        branch = _translated(lambda: elevenlabs.find_branch(agent_id, customer.PINNED_BRANCH))
+        if branch is None:
+            return None
+        _PINNED_BRANCHES[agent_id] = branch
+    return _PINNED_BRANCHES[agent_id]
+
+
+def resolve_agent(persona: dict[str, Any]) -> tuple[str, str | None]:
+    """The persona's agent (its engine's base agent, or its variant) and pinned branch.
+
+    The branch is None until ``customer sync-agent`` has created it; calls then run on
+    the agent's live configuration.
+    """
+    base = _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
+    settings = personas.variant(persona)
+    if settings is None:
+        return base, _pinned_branch(base)
+    name = personas.variant_name(settings)
+    if name not in _VARIANT_AGENTS:
+        agent_id = _translated(lambda: elevenlabs.find_agent(name))
+        if agent_id is None:
+            raise ConflictError(f"No ElevenLabs agent '{name}'; run customer sync-agent")
+        _VARIANT_AGENTS[name] = agent_id
+    return _VARIANT_AGENTS[name], _pinned_branch(_VARIANT_AGENTS[name])
+
+
 def queue_persona(
     store: SimulatorStore,
     number: str,
@@ -128,6 +161,9 @@ def queue_persona(
         raise ValidationError(f"{number} is not a persona line in PSTN_CUSTOMER_PROFILES")
     persona = resolve_persona(persona_id, inline)
     _check_engine(persona)
+    if settings := personas.variant(persona):
+        # A queued inline persona may need a variant nobody has synced yet.
+        _sync_variant(settings)
     return store.enqueue_customer_persona(number, persona, label)
 
 
@@ -145,18 +181,73 @@ def _configured_engines() -> list[str]:
     return [e for e, key in elevenlabs.AGENT_ENV.items() if os.environ.get(key)]
 
 
+def _sync_one(agent_id: str, settings: dict[str, Any]) -> dict[str, Any]:
+    """Write the settings to the agent's main branch, then move the pinned branch to them.
+
+    Turns on ElevenLabs versioning for the agent, which cannot be turned off.
+    """
+    main = _translated(
+        lambda: elevenlabs.update_agent(agent_id, settings, enable_versioning=True)
+    )
+    branch = _translated(lambda: elevenlabs.find_branch(agent_id, customer.PINNED_BRANCH))
+    if branch is None:
+        _translated(lambda: elevenlabs.create_branch(
+            agent_id, customer.PINNED_BRANCH, main["version_id"],
+            "Calls and tests from telephony-voice-simulator. Moved only by customer sync-agent.",
+        ))
+        branch = _translated(lambda: elevenlabs.find_branch(agent_id, customer.PINNED_BRANCH))
+        if branch is None:
+            raise ConflictError(f"ElevenLabs did not create the pinned branch on {agent_id}")
+    else:
+        _translated(lambda: elevenlabs.rebase_branch(agent_id, branch))
+    version = _translated(lambda: elevenlabs.branch_version(agent_id, branch))
+    _PINNED_BRANCHES[agent_id] = branch
+    return {"agent_id": agent_id, "branch_id": branch, "version_id": version}
+
+
+def _sync_variant(variant: dict[str, Any]) -> dict[str, Any]:
+    """Create the variant agent from its engine's base agent if needed, then sync it.
+
+    The base agent's current voice is copied each time, so a voice picked in the
+    dashboard reaches every variant at the next sync.
+    """
+    base = _translated(lambda: elevenlabs.customer_agent_id(variant["engine"]))
+    name = personas.variant_name(variant)
+    agent_id = _translated(lambda: elevenlabs.find_agent(name))
+    if agent_id is None:
+        agent_id = _translated(lambda: elevenlabs.duplicate_agent(base, name))
+    _VARIANT_AGENTS[name] = agent_id
+    settings = customer.agent_settings(variant["engine"], variant)
+    voice = (_translated(lambda: elevenlabs.get_agent(base))["conversation_config"]
+             .get("tts", {}).get("voice_id"))
+    if voice:
+        settings["conversation_config"]["tts"]["voice_id"] = voice
+    return {"name": name, **_sync_one(agent_id, settings)}
+
+
 def sync_agent() -> dict[str, Any]:
-    """Push prompt, audio format, call limit, model and override permissions to each agent."""
+    """Configure every persona agent and move each one's pinned branch to the result.
+
+    Base agents get the prompt, audio format, call limit, model and override permissions;
+    each variant needed by a catalog persona on a configured engine is created if missing
+    and gets the same plus its background sound and turn-taking.
+    """
     engines = _configured_engines()
     if "chained" not in engines:
         _translated(elevenlabs.customer_agent_id)
-    applied = {}
-    for engine in engines:
-        agent_id = elevenlabs.customer_agent_id(engine)
-        settings = customer.agent_settings(engine)
-        _translated(lambda a=agent_id, s=settings: elevenlabs.update_agent(a, s))
-        applied[engine] = {"agent_id": agent_id, "applied": settings}
-    return applied
+    bases = {
+        engine: _sync_one(elevenlabs.customer_agent_id(engine), customer.agent_settings(engine))
+        for engine in engines
+    }
+    variants: dict[str, dict[str, Any]] = {}
+    for persona in _catalog().values():
+        settings = personas.variant(persona)
+        if settings and settings["engine"] in engines:
+            name = personas.variant_name(settings)
+            if name not in variants:
+                variants[name] = {**_sync_variant(settings), "personas": []}
+            variants[name]["personas"].append(persona["id"])
+    return {"agents": bases, "variants": list(variants.values())}
 
 
 def _session(call: Any) -> dict[str, Any]:
@@ -176,6 +267,8 @@ def _session(call: Any) -> dict[str, Any]:
         "stopped": call.analysis.get("stopped"),
         "error_type": call.analysis.get("error_type"),
         "transcript_status": (call.analysis.get("elevenlabs") or {}).get("status"),
+        "agent": {k: (call.analysis.get("elevenlabs") or {}).get(k)
+                  for k in ("agent_id", "branch_id", "version_id")},
         "dialogue": call.analysis["customer_dialogue"],
         "grade": call.analysis.get("grade"),
     }
@@ -226,6 +319,9 @@ def _save_transcript(
         "conversation_id": conversation_id,
         "status": detail.get("status"),
         "termination_reason": (detail.get("metadata") or {}).get("termination_reason"),
+        # The exact persona agent version that held the call.
+        "branch_id": detail.get("branch_id") or meta.get("branch_id"),
+        "version_id": detail.get("version_id"),
     })
     saved = store.upsert_incoming_call(
         call_id=call.id,
@@ -308,18 +404,23 @@ def check_persona(
     """Run the persona's fidelity test on its engine's agent: does the customer stay in role?"""
     if not 1 <= repeat <= MAX_REPEAT:
         raise ValidationError(f"repeat must be between 1 and {MAX_REPEAT}")
-    agent_id = _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
+    agent_id, branch_id = resolve_agent(persona)
     body = judge.fidelity_test(
         FIDELITY_NAME.format(persona["id"]), persona, elevenlabs.evaluation_model()
     )
     test_id = _translated(lambda: elevenlabs.save_test(body))
-    invocation_id = _translated(lambda: elevenlabs.run_tests(agent_id, [test_id], repeat=repeat))
+    invocation_id = _translated(lambda: elevenlabs.run_tests(
+        agent_id, [test_id], repeat=repeat, branch_id=branch_id
+    ))
     progress(f"started {repeat} run(s) of {body['name']}")
-    runs = judge.run_results(_wait_for_invocation(invocation_id, FIDELITY_TIMEOUT_SECONDS, progress))
+    invocation = _wait_for_invocation(invocation_id, FIDELITY_TIMEOUT_SECONDS, progress)
+    runs = judge.run_results(invocation)
     return {
         "persona_id": persona["id"],
         "engine": persona["engine"],
         "agent_id": agent_id,
+        "branch_id": invocation.get("branch_id"),
+        "version_id": invocation.get("version_id"),
         "test_id": test_id,
         "invocation_id": invocation_id,
         "evaluation_model": body["evaluation_model"],
@@ -362,7 +463,13 @@ def grade_session(
     dialogue = call.analysis["customer_dialogue"]
     checks = judge.run_checks(persona, dialogue)
     expectations: list[dict[str, Any]] = []
-    grade: dict[str, Any] = {"persona_id": persona["id"], "checks": checks}
+    meta = call.analysis.get("elevenlabs") or {}
+    grade: dict[str, Any] = {
+        "persona_id": persona["id"],
+        # The persona agent version that held the call, so drifting personas show up.
+        "agent": {k: meta.get(k) for k in ("agent_id", "branch_id", "version_id")},
+        "checks": checks,
+    }
     if persona["expectations"]:
         expectations, invocation = _judge(call, persona, dialogue, progress)
         grade.update(invocation)
@@ -390,8 +497,10 @@ def _judge(
     call: Any, persona: dict[str, Any], dialogue: list[dict[str, str]], progress: Progress
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     model = elevenlabs.evaluation_model()
-    agent_id = (call.analysis.get("elevenlabs") or {}).get("agent_id")
-    agent_id = agent_id or _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
+    meta = call.analysis.get("elevenlabs") or {}
+    agent_id, branch_id = meta.get("agent_id"), meta.get("branch_id")
+    if not agent_id:
+        agent_id, branch_id = resolve_agent(persona)
     with _JUDGE_LOCK:
         test_ids: list[str] = []
         bodies: list[dict[str, Any]] = []
@@ -401,7 +510,9 @@ def _judge(
             ))
             bodies.append(body)
             test_ids.append(_translated(lambda body=body: elevenlabs.save_test(body)))
-        invocation_id = _translated(lambda: elevenlabs.run_tests(agent_id, test_ids))
+        invocation_id = _translated(
+            lambda: elevenlabs.run_tests(agent_id, test_ids, branch_id=branch_id)
+        )
         progress(f"judging {len(test_ids)} expectation(s) ({invocation_id})")
         invocation = _wait_for_invocation(invocation_id, JUDGE_TIMEOUT_SECONDS, progress)
     # Slots are shared by every process grading in this workspace; the lock only covers

@@ -38,6 +38,11 @@ MAX_ACTIVE = 20
 MAX_SECONDS = 240
 # Twilio retries the answer webhook; a registered call keeps its TwiML this long.
 RETENTION_SECONDS = MAX_SECONDS + 60
+# ElevenLabs' default wait before the customer re-engages a silent dealership.
+DEFAULT_TURN_TIMEOUT = 7.0
+# The branch every persona agent runs calls and tests on. Only ``customer sync-agent``
+# moves it, so dashboard edits on main reach tests at the next sync, not mid-run.
+PINNED_BRANCH = "telephony-voice-simulator"
 # Speech-to-speech model for the Realtime persona agent.
 REALTIME_MODEL = "eleven_realtime_v1_mini"
 # Persona fields a call may override, mapped to the agent setting they replace.
@@ -55,13 +60,14 @@ def persona_llm() -> str:
     return os.environ.get("ELEVENLABS_PERSONA_LLM", "") or elevenlabs.DEFAULT_EVALUATION_MODEL
 
 
-def agent_settings(engine: str) -> dict[str, Any]:
+def agent_settings(engine: str, variant: dict[str, Any] | None = None) -> dict[str, Any]:
     """Persona agent settings this repository owns, applied by ``customer sync-agent``.
 
     Twilio streams G.711 mu-law at 8 kHz, so the agent must speak and listen in it.
     The chained agent's LLM is pinned; the Realtime agent speaks through its own model.
     Calls may override the first message, language and voice, so those are allowed.
-    The voice itself stays in the ElevenLabs dashboard.
+    The voice itself stays in the ElevenLabs dashboard. A variant adds the background
+    sound and turn-taking that ElevenLabs only sets per agent; a base agent resets them.
     """
     prompt: dict[str, Any] = {"prompt": PERSONA_PROMPT}
     config: dict[str, Any] = {
@@ -69,6 +75,17 @@ def agent_settings(engine: str) -> dict[str, Any]:
         "tts": {"agent_output_audio_format": "ulaw_8000"},
         "asr": {"user_input_audio_format": "ulaw_8000"},
         "conversation": {"max_duration_seconds": MAX_SECONDS},
+    }
+    environment = (variant or {}).get("environment")
+    turn = (variant or {}).get("turn") or {}
+    config["conversation"]["background_sound"] = (
+        {"source_type": "preset", "source_id": environment["background"],
+         "volume": environment["volume"], "crossfade_loop": True}
+        if environment else {"source_type": None, "source_id": None}
+    )
+    config["turn"] = {
+        "turn_eagerness": turn.get("eagerness") or "normal",
+        "turn_timeout": turn.get("timeout_s") or DEFAULT_TURN_TIMEOUT,
     }
     if engine == "realtime":
         config["realtime_model"] = REALTIME_MODEL
@@ -113,6 +130,7 @@ def _allowed_callers() -> list[str]:
 
 
 async def handle_customer(request: web.Request) -> web.Response:
+    from ...service import customer as service
     from . import security, state, twiml
 
     form = await request.post()
@@ -154,8 +172,9 @@ async def handle_customer(request: web.Request) -> web.Response:
     try:
         queued = state.call_store().claim_customer_persona(number)
         persona = queued["persona"] if queued else personas.for_line(allowed[number])
-        agent_id = elevenlabs.customer_agent_id(persona["engine"])
-    except (personas.PersonaError, ValueError) as exc:
+        # Finding a variant agent or the pinned branch may take ElevenLabs lookups.
+        agent_id, branch_id = await asyncio.to_thread(service.resolve_agent, persona)
+    except (personas.PersonaError, ValueError, service.ConflictError) as exc:
         ACTIVE.pop(sid, None)
         state.call_store().upsert_incoming_call(
             **record, status="failed",
@@ -170,7 +189,8 @@ async def handle_customer(request: web.Request) -> web.Response:
     }
     state.call_store().upsert_incoming_call(
         **record, status="in-progress",
-        analysis={**analysis, "elevenlabs": {"agent_id": agent_id, "status": "registering"}},
+        analysis={**analysis, "elevenlabs": {"agent_id": agent_id, "branch_id": branch_id,
+                                             "status": "registering"}},
     )
     try:
         connect = await elevenlabs.register_call(
@@ -181,6 +201,7 @@ async def handle_customer(request: web.Request) -> web.Response:
             user_id=sid,
             dynamic_variables={"customer_profile": persona["profile"]},
             config_override=config_override(persona),
+            branch_id=branch_id,
         )
     except (elevenlabs.ElevenLabsError, ValueError) as exc:
         ACTIVE.pop(sid, None)
@@ -188,7 +209,8 @@ async def handle_customer(request: web.Request) -> web.Response:
             state.call_store().upsert_incoming_call(
                 call_id=sid, status="failed",
                 analysis={**analysis,
-                          "elevenlabs": {"agent_id": agent_id, "status": "failed"},
+                          "elevenlabs": {"agent_id": agent_id, "branch_id": branch_id,
+                                         "status": "failed"},
                           "stopped": "customer_agent_error", "error_type": type(exc).__name__},
             )
         return twiml.twiml("<Reject/>")
@@ -198,7 +220,8 @@ async def handle_customer(request: web.Request) -> web.Response:
     ACTIVE[sid] = (ACTIVE[sid][0], connect)
     state.call_store().upsert_incoming_call(
         call_id=sid,
-        analysis={**analysis, "elevenlabs": {"agent_id": agent_id, "status": "registered"}},
+        analysis={**analysis, "elevenlabs": {"agent_id": agent_id, "branch_id": branch_id,
+                                             "status": "registered"}},
     )
     return web.Response(text=connect, content_type="text/xml")
 

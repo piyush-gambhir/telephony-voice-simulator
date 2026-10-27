@@ -1,6 +1,11 @@
 id: spanish-speaking-owner
 description: Spanish-speaking owner on the Realtime engine, accepts a Saturday slot.
 engine: realtime
+environment:
+  background: restaurant
+  volume: 0.25
+turn:
+  eagerness: patient
 language: es
 first_message: "¿Bueno?"
 profile: >-

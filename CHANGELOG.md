@@ -19,6 +19,13 @@
 - **Persona checks.** `customer check-persona --persona ID [--repeat N]` runs an
   ElevenLabs simulation in which a simulated dealership calls the persona agent,
   and judges whether the customer stayed in character (exit 2 on any failed run).
+- **Background noise and turn-taking.** Personas take `environment` (an ElevenLabs
+  background preset and volume) and `turn` (eagerness, silence timeout). Because
+  ElevenLabs sets these per agent, `sync-agent` creates a variant agent for each
+  combination from the engine's base agent and keeps its voice in step.
+- **Pinned persona agents.** `sync-agent` enables ElevenLabs versioning and keeps a
+  `telephony-voice-simulator` branch on every persona agent; calls, checks and grading
+  run on it, and each session and grade records the exact agent version.
 - API routes for all of the above, and a persona catalog, queue and grade view on
   the console Inbox.
 

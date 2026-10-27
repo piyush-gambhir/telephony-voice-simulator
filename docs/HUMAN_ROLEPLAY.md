@@ -66,6 +66,12 @@ checks:                    # deterministic, on the agent under test's turns
   must_say: [recall]
   must_not_say: [guarantee]
   max_turns: 30
+environment:               # what the dealership hears behind the customer
+  background: office1      # office1, office2, restaurant, city, typing, elevator1-4
+  volume: 0.2              # 0.01 to 1, default 0.15
+turn:
+  eagerness: eager         # patient, normal or eager to take the turn
+  timeout_s: 4             # silence before the customer speaks up again, 1 to 30
 fidelity:                  # the persona's own self-test
   scenario: You are a service advisor... first offer Thursday at 3pm, then Tuesday at 9am.
   conditions:
@@ -79,6 +85,14 @@ synthetic.
 
 Each call copies the persona it ran with onto the call record, so editing a file
 later never changes an old result.
+
+ElevenLabs sets background sound and turn-taking per agent, not per call. A persona
+with `environment` or `turn` therefore runs on a variant agent, named after its
+settings (for example `TVS persona variant: chained office1 0.2 eager`).
+`customer sync-agent` creates each variant the catalog needs by copying its engine's
+base agent, and queueing an inline persona creates its variant if it is missing. A
+variant takes the base agent's voice at every sync; edit the base agent, not the
+variants. Personas without these fields use the base agent.
 
 ### Setup
 
@@ -94,7 +108,21 @@ later never changes an old result.
    Inbox page). It writes the persona prompt kept in this repository, the mu-law 8 kHz
    audio Twilio needs, the four-minute call limit, the model (`ELEVENLABS_PERSONA_LLM`,
    or the Realtime model), and permission for calls to override the first message,
-   language and voice. Each call fills the prompt's `{{customer_profile}}`.
+   language and voice. It creates the variant agents, then pins every persona agent
+   (below). Each call fills the prompt's `{{customer_profile}}`.
+
+### Pinned persona agents
+
+`sync-agent` turns on ElevenLabs versioning for each persona agent (this cannot be
+turned off) and keeps a `telephony-voice-simulator` branch on it. Calls, persona checks
+and grading run on that branch, which only `sync-agent` moves: it writes the settings
+to main and rebases the branch onto main. A voice or prompt edited in the dashboard
+therefore reaches tests at the next sync, never in the middle of a run. Until an agent
+has been synced, its calls run on its live configuration and the Inbox marks them
+Unpinned.
+
+Each session records the agent, branch and exact version that held the call, and a
+grade records the same, so a change in results can be traced to a persona change.
 
 The route rejects unconfigured callers, destinations, accounts and invalid Twilio
 signatures, allows at most 20 calls at once, and registers each CallSid once
@@ -143,7 +171,9 @@ grading, so one simulator process grades one call at a time.
 Before relying on a new persona, run `customer check-persona --persona ID [--repeat N]`.
 ElevenLabs plays the dealership from the persona's `fidelity.scenario` against the
 persona agent and judges whether the customer stayed in character, never invented
-appointments, and met the persona's own conditions.
+appointments, matched its profile, and met the persona's own conditions. A run whose
+`result` is `unknown` was inconclusive rather than failed; read its reasons. Persona
+checks are text simulations, so they do not exercise background sound.
 
 Rough ElevenLabs cost at list prices: a persona check run is about 300 credits, and
 grading is about 100 credits per expectation (1 credit is about $0.0001), on top of the

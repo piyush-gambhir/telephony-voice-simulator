@@ -164,7 +164,7 @@ function CustomerArea() {
   const [fetching, setFetching] = useState<string | null>(null);
   const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
   const { ask, dialog } = useConfirm();
-  const [synced, setSynced] = useState<string[] | null>(null);
+  const [synced, setSynced] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   async function fetchTranscript(callId: string) {
@@ -194,12 +194,14 @@ function CustomerArea() {
   function pushAgentSettings() {
     ask({
       title: "Update the ElevenLabs persona agents?",
-      body: "Overwrites the prompt, the mu-law 8 kHz audio formats, the 4-minute call limit, the model and the per-call override permissions on the agents named by ELEVENLABS_CUSTOMER_AGENT_ID and ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID. Their voices stay as set in ElevenLabs.",
+      body: "Overwrites the prompt, audio formats, call limit, model and override permissions on the persona agents, creates a variant agent for each background sound and turn-taking combination the personas use, and moves each agent's telephony-voice-simulator branch to the result. It turns on ElevenLabs versioning for these agents, which cannot be turned off. Voices stay as set in ElevenLabs.",
       confirm: "Update agents",
       tone: "primary",
       onConfirm: async () => {
         try {
-          setSynced(Object.values(await inbox.customerSyncAgent()).map((agent) => agent.agent_id));
+          const result = await inbox.customerSyncAgent();
+          const bases = Object.keys(result.agents).length;
+          setSynced(`${bases} base agent${bases === 1 ? "" : "s"} and ${result.variants.length} variant${result.variants.length === 1 ? "" : "s"} synced; calls and tests run on their telephony-voice-simulator branches.`);
         } catch (cause) {
           return cause instanceof Error ? cause.message : "Could not update the agent";
         }
@@ -252,7 +254,7 @@ function CustomerArea() {
               <Button size="sm" variant="secondary" className="justify-self-start" onClick={pushAgentSettings}>
                 Push agent settings
               </Button>
-              {synced && <p className="text-xs text-muted-foreground">Updated <span className="font-mono">{synced.join(", ")}</span>.</p>}
+              {synced && <p className="text-xs leading-5 text-muted-foreground">{synced}</p>}
             </div>
           </Panel>
         </div>
@@ -355,6 +357,12 @@ function Dialogue({
           {session.persona_source && "queue_id" in session.persona_source
             ? `queued${session.persona_source.label ? `, ${session.persona_source.label}` : ""}`
             : "line default"}
+          {session.agent.version_id && (
+            <span className="font-mono" title={`Agent ${session.agent.agent_id ?? ""}, branch ${session.agent.branch_id ?? "live"}`}>
+              {session.agent.version_id}
+            </span>
+          )}
+          {session.agent.agent_id && !session.agent.branch_id && <TonePill tone="warning">Unpinned</TonePill>}
         </div>
       )}
       {session.dialogue.length ? (

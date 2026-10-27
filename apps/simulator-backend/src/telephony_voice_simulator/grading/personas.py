@@ -37,7 +37,15 @@ FIDELITY_CONDITIONS = (
     "The customer stayed in character as the customer and never acted as the dealership.",
     "The customer never invented an appointment time, ID or confirmation the advisor did "
     "not offer.",
-    "The customer's answers were consistent with their profile.",
+)
+# The evaluator does not see dynamic variables, so the profile goes into the condition.
+PROFILE_CONDITION = "The customer's answers were consistent with this profile: {profile}"
+# The simulated dealership is the "user" role; without this the evaluator can blame the
+# customer for the dealership's lines.
+FIDELITY_PREFIX = (
+    "In this conversation the agent role is the customer and the user role is a simulated "
+    "dealership, which is expected to speak as the dealership. Judge only the agent role. "
+    "Statement: "
 )
 REPLAY_SCENARIO = "The call already happened as shown in the history. Say a short goodbye."
 # In ElevenLabs' history the persona is the "agent" role, but persona expectations say
@@ -74,7 +82,13 @@ def fidelity_test(name: str, persona: dict[str, Any], model: str) -> dict[str, A
         "type": "simulation",
         "dynamic_variables": {"customer_profile": persona["profile"]},
         "simulation_scenario": fidelity["scenario"] or DEFAULT_SCENARIO,
-        "success_conditions": [*FIDELITY_CONDITIONS, *fidelity["conditions"]],
+        "success_conditions": [
+            FIDELITY_PREFIX + c for c in (
+                *FIDELITY_CONDITIONS,
+                PROFILE_CONDITION.format(profile=persona["profile"]),
+                *fidelity["conditions"],
+            )
+        ],
         "simulation_max_turns": FIDELITY_TURNS,
         "evaluation_model": model,
         "simulated_user_model": model,
@@ -132,6 +146,8 @@ def run_results(invocation: dict[str, Any]) -> list[dict[str, Any]]:
             "test_name": run.get("test_name"),
             "status": run.get("status"),
             "passed": run.get("status") == "passed",
+            # "success", "failure", or "unknown" when the evaluator could not decide.
+            "result": (run.get("condition_result") or {}).get("result"),
             "reasons": [m for m in rationale.get("messages") or [] if m not in _RUN_NOTES],
             "credits": run.get("credits_used"),
         })

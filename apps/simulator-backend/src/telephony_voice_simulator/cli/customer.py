@@ -99,8 +99,9 @@ def register(commands: argparse._SubParsersAction) -> None:
     action(
         actions,
         "sync-agent",
-        "push the persona prompt, audio format, call limit, model and override permissions "
-        "to each configured ElevenLabs agent",
+        "configure each persona agent (creating variant agents for background sound and "
+        "turn-taking) and move its pinned telephony-voice-simulator branch; turns on "
+        "ElevenLabs versioning, which cannot be turned off",
         lambda _a: emit(customer.sync_agent()),
     )
     refresh = action(

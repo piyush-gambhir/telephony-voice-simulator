@@ -20,6 +20,8 @@ from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
 from test_twilio_customer import CONNECT, SID, signed_post
 
+pytestmark = pytest.mark.usefixtures('fake_agents')
+
 LINE = '+15555550100'
 PERSONA = {
     'id': 'test-owner', 'profile': 'Sam, weekday mornings only.', 'first_message': 'Hello?',
@@ -129,16 +131,36 @@ async def test_queued_persona_drives_the_next_call(client, store, registrations)
     assert service.list_queue(store) == []
 
 
-async def test_line_default_persona_and_realtime_engine(client, store, registrations, monkeypatch):
-    await signed_post(client, '/twilio/customer')
-    assert registrations[0]['dynamic_variables']['customer_profile'].startswith('Name: Alex Morgan')
-    assert store.get_incoming_call(SID).analysis['persona']['id'] == 'busy-recall-owner'
+async def test_line_default_persona_runs_on_its_synced_variant(client, store, registrations,
+                                                               fake_agents, monkeypatch):
+    # busy-recall-owner needs office noise and eager turns: a variant, not the base agent.
+    r = await signed_post(client, '/twilio/customer')
+    assert '<Reject' in await r.text()
+    assert store.get_incoming_call(SID).analysis['stopped'] == 'customer_persona_error'
 
+    service.sync_agent()
+    await signed_post(client, '/twilio/customer', CallSid='CA' + '3' * 32)
+    sent = registrations[0]
+    variant = fake_agents.names[personas.variant_name(personas.variant(personas.get('busy-recall-owner')))]
+    assert sent['agent_id'] == variant
+    assert sent['branch_id'] == f'branch_{variant}'
+    assert sent['dynamic_variables']['customer_profile'].startswith('Name: Alex Morgan')
+    meta = store.get_incoming_call('CA' + '3' * 32).analysis['elevenlabs']
+    assert (meta['agent_id'], meta['branch_id']) == (variant, f'branch_{variant}')
+
+
+async def test_realtime_persona_uses_the_realtime_variant(client, store, registrations, monkeypatch):
     monkeypatch.setenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', 'agent_realtime')
     service.queue_persona(store, LINE, persona_id='spanish-speaking-owner')
-    await signed_post(client, '/twilio/customer', CallSid='CA' + '3' * 32)
-    assert registrations[1]['agent_id'] == 'agent_realtime'
-    assert registrations[1]['config_override']['agent']['language'] == 'es'
+    await signed_post(client, '/twilio/customer')
+    assert registrations[0]['agent_id'].startswith('agent_variant_')
+    assert registrations[0]['config_override']['agent']['language'] == 'es'
+
+
+async def test_base_agent_runs_unpinned_until_synced(client, store, registrations, fake_agents):
+    service.queue_persona(store, LINE, persona_id='opt-out-customer')
+    await signed_post(client, '/twilio/customer')
+    assert (registrations[0]['agent_id'], registrations[0]['branch_id']) == ('agent_chained', None)
 
 
 async def test_queued_persona_for_a_missing_engine_rejects_and_records(client, store, monkeypatch):
@@ -152,15 +174,56 @@ async def test_queued_persona_for_a_missing_engine_rejects_and_records(client, s
     assert saved.analysis['stopped'] == 'customer_persona_error'
 
 
-def test_sync_agent_configures_each_engine(store, monkeypatch):
+def test_sync_agent_configures_bases_variants_and_pinned_branches(store, monkeypatch, fake_agents):
     monkeypatch.setenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', 'agent_realtime')
-    sent = {}
-    monkeypatch.setattr(elevenlabs, 'update_agent', lambda a, body: sent.setdefault(a, body))
-    service.sync_agent()
-    assert sent['agent_chained']['conversation_config']['agent']['prompt']['llm'] == 'gpt-6-luna'
-    realtime = sent['agent_realtime']['conversation_config']
-    assert realtime['realtime_model'] == customer.REALTIME_MODEL
-    assert 'llm' not in realtime['agent']['prompt']
+    result = service.sync_agent()
+
+    sent = {agent: body['conversation_config'] for agent, body, _ in fake_agents.updates}
+    assert all(versioning for *_, versioning in fake_agents.updates)
+    assert sent['agent_chained']['agent']['prompt']['llm'] == 'gpt-6-luna'
+    assert sent['agent_chained']['conversation']['background_sound']['source_id'] is None
+    assert sent['agent_chained']['turn']['turn_eagerness'] == 'normal'
+    assert sent['agent_realtime']['realtime_model'] == customer.REALTIME_MODEL
+    assert 'llm' not in sent['agent_realtime']['agent']['prompt']
+    assert set(result['agents']) == {'chained', 'realtime'}
+    assert result['agents']['chained']['branch_id'] == 'branch_agent_chained'
+
+    variants = {v['personas'][0]: v for v in result['variants']}
+    assert set(variants) == {'busy-recall-owner', 'spanish-speaking-owner'}
+    office = sent[variants['busy-recall-owner']['agent_id']]
+    assert office['conversation']['background_sound'] == {
+        'source_type': 'preset', 'source_id': 'office1', 'volume': 0.2, 'crossfade_loop': True}
+    assert office['turn']['turn_eagerness'] == 'eager'
+    assert office['tts']['voice_id'] == 'voice_base'
+    assert variants['busy-recall-owner']['name'] == (
+        'TVS persona variant: chained office1 0.2 eager (telephony-voice-simulator)')
+
+    # A second sync reuses the agents and branches it created.
+    again = service.sync_agent()
+    assert {v['agent_id'] for v in again['variants']} == {v['agent_id'] for v in result['variants']}
+    assert again['agents']['chained']['version_id'] == 'ver_branch_agent_chained'
+
+
+def test_environment_and_turn_validation():
+    persona = personas.validate({'id': 'p', 'profile': 'x', 'environment': {'background': 'city'},
+                                 'turn': {'timeout_s': 3}})
+    assert persona['environment'] == {'background': 'city', 'volume': 0.15}
+    assert persona['turn'] == {'eagerness': None, 'timeout_s': 3.0}
+    assert personas.variant_name(personas.variant(persona)) == (
+        'TVS persona variant: chained city 0.15 normal wait 3s (telephony-voice-simulator)')
+    assert personas.variant(personas.validate({'id': 'p', 'profile': 'x'})) is None
+    for bad in ({'environment': {'background': 'beach'}},
+                {'environment': {'background': 'city', 'volume': 2}},
+                {'turn': {'eagerness': 'rude'}}, {'turn': {'timeout_s': 0}}, {'turn': {}}):
+        with pytest.raises(personas.PersonaError):
+            personas.validate({'id': 'p', 'profile': 'x', **bad})
+
+
+def test_queueing_an_inline_variant_creates_it(store, fake_agents):
+    service.queue_persona(store, LINE, inline={'id': 'street', 'profile': 'Jo.',
+                                               'environment': {'background': 'city'}})
+    assert list(fake_agents.names) == [
+        'TVS persona variant: chained city 0.15 (telephony-voice-simulator)']
 
 
 def test_strip_tags_and_chat_history():
@@ -182,15 +245,16 @@ def _finished_call(store, persona, dialogue=DIALOGUE):
 @pytest.fixture
 def tests_api(monkeypatch):
     """A fake ElevenLabs testing API: saved test bodies, and verdicts by expectation text."""
-    api = {'saved': {}, 'runs': [], 'fail': set(), 'ran_as': {}}
+    api = {'saved': {}, 'runs': [], 'fail': set(), 'ran_as': {}, 'branches': []}
 
     def save(body):
         test_id = f"test_{body['name']}"
         api['saved'][test_id] = body
         return test_id
 
-    def run(agent_id, test_ids, repeat=1):
+    def run(agent_id, test_ids, repeat=1, branch_id=None):
         api['runs'].append((agent_id, test_ids, repeat))
+        api['branches'].append(branch_id)
         return 'suite_1'
 
     def invocation(_id):
@@ -259,14 +323,16 @@ def test_grading_needs_a_finished_transcript_and_a_persona(store, tests_api, mon
         service.grade_session(store, SID)
 
 
-def test_check_persona_runs_its_fidelity_test(store, tests_api):
+def test_check_persona_runs_its_fidelity_test_on_the_pinned_variant(store, tests_api):
+    service.sync_agent()
     result = service.check_persona(personas.get('busy-recall-owner'), repeat=2)
     agent_id, test_ids, repeat = tests_api['runs'][0]
-    assert (agent_id, repeat) == ('agent_chained', 2)
+    assert agent_id.startswith('agent_variant_') and repeat == 2
+    assert tests_api['branches'][0] == f'branch_{agent_id}'
     body = tests_api['saved'][test_ids[0]]
     assert body['name'] == 'TVS persona busy-recall-owner (telephony-voice-simulator)'
     assert body['simulation_scenario'].startswith('You are Jordan')
-    assert 'The customer accepted the Tuesday 9am slot.' in body['success_conditions']
+    assert judge.FIDELITY_PREFIX + 'The customer accepted the Tuesday 9am slot.' in body['success_conditions']
     assert body['simulated_user_model'] == 'gpt-6-luna'
     assert result['passed'] == 2 and len(result['runs']) == 2
     with pytest.raises(ValidationError):

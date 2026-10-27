@@ -16,6 +16,8 @@ from telephony_voice_simulator.storage.sqlite import SimulatorStore
 from telephony_voice_simulator.telephony.twilio import customer
 from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
+pytestmark = pytest.mark.usefixtures('fake_agents')
+
 SID = 'CA' + '1' * 32
 CONNECT = ('<?xml version="1.0" encoding="UTF-8"?><Response><Connect>'
            '<Stream url="wss://api.elevenlabs.io/v1/convai/twilio"/></Connect></Response>')
@@ -89,13 +91,14 @@ async def test_allowed_call_is_handed_to_the_persona_agent(client, registrations
         'agent_id': 'agent_persona', 'from_number': '+15555550101', 'to_number': '+15555550100',
         'direction': 'inbound', 'user_id': SID,
         'dynamic_variables': {'customer_profile': 'You are Alex, book the earliest offered visit.'},
-        'config_override': {},
+        'config_override': {}, 'branch_id': None,
     }]
     saved = twilio_state.call_store().get_incoming_call(SID)
     assert saved.scenario == 'automated_customer'
     assert saved.analysis['persona']['profile'].startswith('You are Alex')
     assert saved.analysis['persona_source'] == {'line': '+15555550100'}
-    assert saved.analysis['elevenlabs'] == {'agent_id': 'agent_persona', 'status': 'registered'}
+    assert saved.analysis['elevenlabs'] == {'agent_id': 'agent_persona', 'branch_id': None,
+                                            'status': 'registered'}
     assert saved.analysis['customer_dialogue'] == []
 
 
@@ -235,21 +238,15 @@ async def test_refresh_errors_are_service_errors(client, registrations, monkeypa
         customer_service.refresh_session(twilio_state.call_store(), SID)
 
 
-def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch):
+def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch, fake_agents):
     monkeypatch.setenv('ELEVENLABS_API_KEY', 'test')
     monkeypatch.setenv('ELEVENLABS_CUSTOMER_AGENT_ID', 'agent_persona')
-    sent = []
-
-    def handler(request):
-        sent.append((request.method, request.url.path, json.loads(request.content)))
-        return httpx.Response(200, json={'agent_id': 'agent_persona'})
-
-    original = elevenlabs._request
-    monkeypatch.setattr(elevenlabs, '_request', lambda m, p, c=None, **kw: original(m, p, _api(handler), **kw))
+    monkeypatch.delenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', raising=False)
+    monkeypatch.setattr(customer_service.personas, 'catalog', dict)
     result = customer_service.sync_agent()
 
-    method, path, body = sent[0]
-    assert (method, path) == ('PATCH', '/v1/convai/agents/agent_persona')
+    agent_id, body, versioning = fake_agents.updates[0]
+    assert (agent_id, versioning) == ('agent_persona', True)
     config = body['conversation_config']
     assert '{{customer_profile}}' in config['agent']['prompt']['prompt']
     assert config['tts']['agent_output_audio_format'] == 'ulaw_8000'
@@ -259,8 +256,10 @@ def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch):
     assert 'realtime_model' not in config
     assert body['platform_settings']['overrides']['conversation_config_override'] == {
         'agent': {'first_message': True, 'language': True}, 'tts': {'voice_id': True}}
-    assert list(result) == ['chained']
-    assert result['chained']['agent_id'] == 'agent_persona'
+    assert result == {'agents': {'chained': {'agent_id': 'agent_persona',
+                                             'branch_id': 'branch_agent_persona',
+                                             'version_id': 'ver_branch_agent_persona'}},
+                      'variants': []}
 
 
 async def test_a_finished_transcript_is_never_refetched_or_replaced(client, registrations, monkeypatch):

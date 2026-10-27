@@ -18,6 +18,13 @@ Fields:
                  substrings of the agent under test's turns), max_turns
   fidelity       persona self-test: scenario (the simulated dealership's script) and
                  conditions (extra rules the customer must follow)
+  environment    what the dealership hears behind the customer: background (an ElevenLabs
+                 preset, see BACKGROUNDS) and volume (0.01 to 1, default 0.15)
+  turn           how the customer takes turns: eagerness ("patient", "normal", "eager")
+                 and timeout_s (seconds of silence before the customer speaks up, 1 to 30)
+
+ElevenLabs sets environment and turn per agent, not per call, so a persona that uses them
+runs on a variant agent (see ``variant``) that ``customer sync-agent`` creates and keeps.
 """
 
 from __future__ import annotations
@@ -31,9 +38,14 @@ import yaml
 
 CATALOG_DIR = Path(__file__).parent / "catalog"
 ENGINES = ("chained", "realtime")
+BACKGROUNDS = ("office1", "office2", "restaurant", "city", "typing",
+               "elevator1", "elevator2", "elevator3", "elevator4")
+EAGERNESS = ("patient", "normal", "eager")
+DEFAULT_VOLUME = 0.15
 _ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 _TEXT_FIELDS = ("description", "first_message", "language", "voice_id")
-_FIELDS = {"id", "profile", "engine", "expectations", "checks", "fidelity", *_TEXT_FIELDS}
+_FIELDS = {"id", "profile", "engine", "expectations", "checks", "fidelity", "environment",
+           "turn", *_TEXT_FIELDS}
 MAX_EXPECTATIONS = 10
 
 
@@ -95,7 +107,60 @@ def validate(raw: Any) -> dict[str, Any]:
         "scenario": scenario.strip() if scenario else None,
         "conditions": _strings(fidelity.get("conditions"), f"{persona_id}: fidelity.conditions"),
     }
+    persona["environment"] = _environment(persona_id, raw.get("environment"))
+    persona["turn"] = _turn(persona_id, raw.get("turn"))
     return persona
+
+
+def _number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def _environment(persona_id: str, raw: Any) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or set(raw) - {"background", "volume"}:
+        raise PersonaError(f"{persona_id}: environment takes background and volume")
+    if raw.get("background") not in BACKGROUNDS:
+        raise PersonaError(f"{persona_id}: environment.background must be one of "
+                           f"{', '.join(BACKGROUNDS)}")
+    volume = raw.get("volume", DEFAULT_VOLUME)
+    if not _number(volume) or not 0.01 <= volume <= 1:
+        raise PersonaError(f"{persona_id}: environment.volume must be between 0.01 and 1")
+    return {"background": raw["background"], "volume": round(float(volume), 2)}
+
+
+def _turn(persona_id: str, raw: Any) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or not raw or set(raw) - {"eagerness", "timeout_s"}:
+        raise PersonaError(f"{persona_id}: turn takes eagerness and timeout_s")
+    eagerness, timeout = raw.get("eagerness"), raw.get("timeout_s")
+    if eagerness is not None and eagerness not in EAGERNESS:
+        raise PersonaError(f"{persona_id}: turn.eagerness must be one of {', '.join(EAGERNESS)}")
+    if timeout is not None and (not _number(timeout) or not 1 <= timeout <= 30):
+        raise PersonaError(f"{persona_id}: turn.timeout_s must be between 1 and 30")
+    return {"eagerness": eagerness, "timeout_s": float(timeout) if timeout is not None else None}
+
+
+def variant(persona: dict[str, Any]) -> dict[str, Any] | None:
+    """The agent-level settings this persona needs beyond its engine's base agent, if any."""
+    if not persona.get("environment") and not persona.get("turn"):
+        return None
+    return {"engine": persona["engine"], "environment": persona.get("environment"),
+            "turn": persona.get("turn")}
+
+
+def variant_name(settings: dict[str, Any]) -> str:
+    """A stable, readable ElevenLabs agent name for a variant, e.g. "chained city 0.2 eager"."""
+    parts = [settings["engine"]]
+    if environment := settings["environment"]:
+        parts += [environment["background"], f"{environment['volume']:g}"]
+    if turn := settings["turn"]:
+        parts += [turn["eagerness"] or "normal"]
+        if turn["timeout_s"] is not None:
+            parts.append(f"wait {turn['timeout_s']:g}s")
+    return f"TVS persona variant: {' '.join(parts)} (telephony-voice-simulator)"
 
 
 def parse(text: str) -> dict[str, Any]:

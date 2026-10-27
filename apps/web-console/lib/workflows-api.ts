@@ -255,8 +255,14 @@ export type CustomerSession = {
   engine: PersonaEngine | null;
   /** Where the persona came from: a queued entry, or the line's default. */
   persona_source: { queue_id: string; label: string | null } | { line: string } | null;
+  /** The persona agent that held the call, its pinned branch, and the exact version. */
+  agent: PersonaAgentPin;
   grade: CustomerGrade | null;
 };
+
+export type PersonaAgentPin = { agent_id: string | null; branch_id: string | null; version_id: string | null };
+
+export type PersonaAgentSync = { agent_id: string; branch_id: string; version_id: string };
 
 export type PersonaEngine = "chained" | "realtime";
 
@@ -271,12 +277,16 @@ export type Persona = {
   expectations: string[];
   checks: { must_say: string[]; must_not_say: string[]; max_turns: number | null };
   fidelity: { scenario: string | null; conditions: string[] };
+  /** Background sound the dealership hears; set per agent, so it runs on a variant agent. */
+  environment: { background: string; volume: number } | null;
+  turn: { eagerness: "patient" | "normal" | "eager" | null; timeout_s: number | null } | null;
 };
 
 export type QueuedPersona = { id: string; number: string; persona: Persona; label: string | null; created_at: string };
 
 export type CustomerGrade = {
   persona_id: string;
+  agent?: PersonaAgentPin;
   passed: boolean;
   checks: Array<{ check: string; passed: boolean }>;
   expectations: Array<{ expectation: string; passed: boolean; reasons: string[] }>;
@@ -306,7 +316,10 @@ export const inbox = {
   customerSessions: (limit = 20, signal?: AbortSignal) => get<CustomerSession[]>(`/api/customer/sessions?limit=${limit}`, signal),
   customerRefresh: (callId: string) => post<CustomerSession>(`/api/customer/sessions/${q(callId)}/refresh`),
   customerSyncAgent: () =>
-    post<Partial<Record<PersonaEngine, { agent_id: string; applied: Json }>>>("/api/customer/agent/sync"),
+    post<{
+      agents: Partial<Record<PersonaEngine, PersonaAgentSync>>;
+      variants: Array<PersonaAgentSync & { name: string; personas: string[] }>;
+    }>("/api/customer/agent/sync"),
   personas: (signal?: AbortSignal) => get<Persona[]>("/api/customer/personas", signal),
   queue: (signal?: AbortSignal) => get<QueuedPersona[]>("/api/customer/queue", signal),
   enqueue: (body: { number: string; persona_id: string; label?: string }) => post<QueuedPersona>("/api/customer/queue", body),

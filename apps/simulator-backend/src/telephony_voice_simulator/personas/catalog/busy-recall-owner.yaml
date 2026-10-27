@@ -1,6 +1,11 @@
 id: busy-recall-owner
-description: Owner with an open recall who only has weekday mornings free.
+description: Busy owner at the office who only has weekday mornings free and cuts in quickly.
 engine: chained
+environment:
+  background: office1
+  volume: 0.2
+turn:
+  eagerness: eager
 first_message: Hello?
 profile: >-
   Name: Alex Morgan. Vehicle: 2021 Ford F-150 with an open recall for a rear-view

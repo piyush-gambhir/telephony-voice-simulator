@@ -100,6 +100,10 @@ export function PersonaCatalog({ lines, refreshKey }: { lines: string[]; refresh
               <span className="font-mono text-[12px] font-medium">{persona.id}</span>
               <EnginePill engine={persona.engine} />
               {persona.language && <TonePill tone="neutral">{persona.language}</TonePill>}
+              {persona.environment && <TonePill tone="neutral">{persona.environment.background} noise</TonePill>}
+              {persona.turn?.eagerness && persona.turn.eagerness !== "normal" && (
+                <TonePill tone="neutral">{persona.turn.eagerness}</TonePill>
+              )}
               <span className="ml-auto flex gap-1.5">
                 <Button size="xs" variant="secondary" disabled={!target} onClick={() => void enqueue(persona)}>Queue</Button>
                 <Button size="xs" variant="ghost" onClick={() => runCheck(persona)}>Check</Button>

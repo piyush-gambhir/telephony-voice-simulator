@@ -55,7 +55,8 @@ def _checked(response: httpx.Response) -> Any:
     if response.status_code >= 400:
         detail = response.text[:300]
         raise ElevenLabsError(f"ElevenLabs returned {response.status_code}: {detail}")
-    return response.json()
+    # Some actions (creating a branch) can answer 200 with no body.
+    return response.json() if response.content else None
 
 
 async def register_call(
@@ -67,6 +68,7 @@ async def register_call(
     user_id: str,
     dynamic_variables: dict[str, str],
     config_override: dict[str, Any] | None = None,
+    branch_id: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> str:
     """TwiML that connects this Twilio call to the agent.
@@ -83,10 +85,11 @@ async def register_call(
             "dynamic_variables": dynamic_variables,
         },
     }
+    client_data = body["conversation_initiation_client_data"]
     if config_override:
-        body["conversation_initiation_client_data"]["conversation_config_override"] = (
-            config_override
-        )
+        client_data["conversation_config_override"] = config_override
+    if branch_id:
+        client_data["branch_id"] = branch_id
     owned = client is None
     client = client or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
     try:
@@ -117,10 +120,78 @@ def _request(method: str, path: str, client: httpx.Client | None = None, **kwarg
 
 
 def update_agent(
-    agent_id: str, body: dict[str, Any], *, client: httpx.Client | None = None
+    agent_id: str,
+    body: dict[str, Any],
+    *,
+    enable_versioning: bool = False,
+    client: httpx.Client | None = None,
 ) -> dict[str, Any]:
-    """PATCH the agent; ``body`` holds ``conversation_config`` and/or ``platform_settings``."""
-    return _request("PATCH", f"/v1/convai/agents/{agent_id}", client, json=body)
+    """PATCH the agent's main branch; ``body`` holds ``conversation_config`` and/or
+    ``platform_settings``. ``enable_versioning`` turns versioning on, which is permanent."""
+    params = {"enable_versioning_if_not_enabled": "true"} if enable_versioning else None
+    return _request("PATCH", f"/v1/convai/agents/{agent_id}", client, json=body, params=params)
+
+
+def get_agent(agent_id: str, *, client: httpx.Client | None = None) -> dict[str, Any]:
+    return _request("GET", f"/v1/convai/agents/{agent_id}", client)
+
+
+def find_agent(name: str, *, client: httpx.Client | None = None) -> str | None:
+    """The ID of the agent with exactly this name, if one exists."""
+    listing = _request(
+        "GET", "/v1/convai/agents", client, params={"search": name, "page_size": 100}
+    )
+    for agent in listing.get("agents") or []:
+        if agent.get("name") == name:
+            return agent["agent_id"]
+    return None
+
+
+def duplicate_agent(agent_id: str, name: str, *, client: httpx.Client | None = None) -> str:
+    return _request(
+        "POST", f"/v1/convai/agents/{agent_id}/duplicate", client, json={"name": name}
+    )["agent_id"]
+
+
+def find_branch(agent_id: str, name: str, *, client: httpx.Client | None = None) -> str | None:
+    listing = _request("GET", f"/v1/convai/agents/{agent_id}/branches", client)
+    for branch in listing.get("results") or []:
+        if branch.get("name") == name and not branch.get("is_archived"):
+            return branch["id"]
+    return None
+
+
+def create_branch(
+    agent_id: str, name: str, parent_version_id: str, description: str,
+    *, client: httpx.Client | None = None,
+) -> dict[str, Any]:
+    """Branch from a version. The answer may be empty; find the branch by name after."""
+    return _request(
+        "POST", f"/v1/convai/agents/{agent_id}/branches", client,
+        json={"name": name, "parent_version_id": parent_version_id, "description": description},
+    )
+
+
+def rebase_branch(agent_id: str, branch_id: str, *, client: httpx.Client | None = None) -> None:
+    """Pull main into the branch as a new version, keeping the branch's own changes.
+
+    A branch already level with main is left as it is.
+    """
+    try:
+        _request(
+            "POST", f"/v1/convai/agents/{agent_id}/branches/{branch_id}/rebase", client, json={}
+        )
+    except ElevenLabsError as exc:
+        if "branch_already_up_to_date" not in str(exc):
+            raise
+
+
+def branch_version(agent_id: str, branch_id: str, *, client: httpx.Client | None = None) -> str:
+    """The version at the tip of the branch."""
+    agent = _request(
+        "GET", f"/v1/convai/agents/{agent_id}", client, params={"branch_id": branch_id}
+    )
+    return agent["version_id"]
 
 
 def find_conversation(
@@ -162,15 +233,18 @@ def save_test(body: dict[str, Any], *, client: httpx.Client | None = None) -> st
 
 
 def run_tests(
-    agent_id: str, test_ids: list[str], *, repeat: int = 1, client: httpx.Client | None = None
+    agent_id: str,
+    test_ids: list[str],
+    *,
+    repeat: int = 1,
+    branch_id: str | None = None,
+    client: httpx.Client | None = None,
 ) -> str:
-    """Start the tests on the agent and return the invocation ID."""
-    result = _request(
-        "POST",
-        f"/v1/convai/agents/{agent_id}/run-tests",
-        client,
-        json={"tests": [{"test_id": t} for t in test_ids], "repeat_count": repeat},
-    )
+    """Start the tests on the agent (on ``branch_id`` when given) and return the invocation ID."""
+    body: dict[str, Any] = {"tests": [{"test_id": t} for t in test_ids], "repeat_count": repeat}
+    if branch_id:
+        body["branch_id"] = branch_id
+    result = _request("POST", f"/v1/convai/agents/{agent_id}/run-tests", client, json=body)
     return result["id"]
 
 
