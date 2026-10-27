@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+from collections import defaultdict
 from typing import Any
 
 from ..integrations import elevenlabs
@@ -22,6 +24,8 @@ REQUIRED_ENV = (
 SCAN_LIMIT = 1000
 # ElevenLabs roles: "user" is the agent under test, "agent" is our persona.
 ROLES = {"user": "user", "agent": "assistant"}
+# Overlapping refreshes of one call run one at a time, so the last write is the newest read.
+_REFRESH_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
 
 
 def profiles() -> dict[str, Any]:
@@ -95,10 +99,18 @@ def refresh_session(store: SimulatorStore, call_id: str) -> dict[str, Any]:
     ``transcript_status`` stays "registered" until ElevenLabs has logged the conversation,
     then follows it ("in-progress", "processing", "done", "failed").
     """
+    with _REFRESH_LOCKS[call_id]:
+        return _refresh_session(store, call_id)
+
+
+def _refresh_session(store: SimulatorStore, call_id: str) -> dict[str, Any]:
     call = store.get_incoming_call(call_id)
     if call is None or "customer_dialogue" not in call.analysis:
         raise NotFoundError(f"Unknown customer session: {call_id}")
     meta = dict(call.analysis.get("elevenlabs") or {})
+    if meta.get("status") == "done":
+        # A finished transcript never changes; keep it rather than refetching.
+        return _session(call)
     agent_id = meta.get("agent_id") or _translated(elevenlabs.customer_agent_id)
     summary = _translated(lambda: elevenlabs.find_conversation(agent_id, call_id))
     if summary is None:

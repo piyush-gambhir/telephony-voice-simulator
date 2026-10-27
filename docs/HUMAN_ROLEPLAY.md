@@ -85,14 +85,13 @@ dialogue once ElevenLabs has processed it.
 
 List the configured personas with `telephony-voice-sim customer profiles` and read
 the saved dialogues with `telephony-voice-sim customer sessions [--limit N]`.
-Goodbye, errors, call limits, provider completion, and deletion prevent further
-generation. A retry of a generated turn reuses its response while the provider
-call is active. Deleting the call also removes generated audio access; cached
-audio expires after ten minutes even if no new call starts.
+Deleting a call removes the simulator's copy only; delete the conversation in
+ElevenLabs separately if its retention matters.
 
-This mode sends the synthetic persona and test-call dialogue to OpenAI, and
-reply text to ElevenLabs. Obtain authorization for those transfers before
-using it. Use synthetic customer facts and controlled UAT agent calls only.
+This mode sends the persona, the full call audio from both sides, and the call's
+numbers to ElevenLabs, which transcribes the call and keeps the conversation and
+its audio under the workspace's retention settings. Obtain authorization for
+those transfers before using it. Use synthetic customer facts and controlled UAT agent calls only.
 A generated reply passing preflight does not prove that the live conversation,
 booking, campaign outcome, or opportunity update works.
 

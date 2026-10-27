@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 
@@ -22,7 +22,7 @@ import {
   useConfirm,
 } from "@/components/console/kit";
 import { Button } from "@/components/ui/button";
-import { useAction, useApi } from "@/hooks/use-api";
+import { useApi } from "@/hooks/use-api";
 import { inbox, type CustomerSession } from "@/lib/workflows-api";
 import { cn } from "@/lib/utils";
 
@@ -159,23 +159,29 @@ function CustomerArea() {
   const selected = list.find((session) => session.call_id === selectedId) ?? null;
   const personas = Object.entries(profiles.data?.profiles ?? {});
   const configured = Object.entries(profiles.data?.configured ?? {});
-  const transcript = useAction();
+  // Fetch state is per session: one session's slow or failed fetch never shows on another.
+  const [fetching, setFetching] = useState<string | null>(null);
+  const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
   const { ask, dialog } = useConfirm();
   const [synced, setSynced] = useState<string | null>(null);
-  // Only the most recently opened session may receive its fetched transcript.
-  const latest = useRef<string | null>(null);
 
   async function fetchTranscript(callId: string) {
-    latest.current = callId;
-    const session = await transcript.run(() => inbox.customerRefresh(callId));
-    if (!session || latest.current !== callId) return;
-    sessions.setData((current) => current?.map((item) => (item.call_id === callId ? session : item)) ?? current);
+    setFetching(callId);
+    setFetchErrors(({ [callId]: _cleared, ...rest }) => rest);
+    try {
+      const session = await inbox.customerRefresh(callId);
+      sessions.setData((current) => current?.map((item) => (item.call_id === callId ? session : item)) ?? current);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Could not fetch the transcript";
+      setFetchErrors((current) => ({ ...current, [callId]: message }));
+    } finally {
+      setFetching((current) => (current === callId ? null : current));
+    }
   }
 
   function open(session: CustomerSession) {
     const next = session.call_id === selectedId ? null : session.call_id;
     setSelectedId(next);
-    transcript.setError(null);
     if (next && session.transcript_status && session.transcript_status !== "done") void fetchTranscript(next);
   }
 
@@ -289,8 +295,8 @@ function CustomerArea() {
           {selected ? (
             <Dialogue
               session={selected}
-              fetching={transcript.pending}
-              error={transcript.error}
+              fetching={fetching === selected.call_id}
+              error={fetchErrors[selected.call_id] ?? null}
               onFetch={() => void fetchTranscript(selected.call_id)}
             />
           ) : (

@@ -253,3 +253,19 @@ def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch):
     assert config['asr']['user_input_audio_format'] == 'ulaw_8000'
     assert config['conversation']['max_duration_seconds'] == customer.MAX_SECONDS
     assert result['agent_id'] == 'agent_persona'
+
+
+async def test_a_finished_transcript_is_never_refetched_or_replaced(client, registrations, monkeypatch):
+    await signed_post(client, '/twilio/customer')
+    store = twilio_state.call_store()
+    saved = store.get_incoming_call(SID)
+    done = [{'role': 'user', 'content': 'Hi'}, {'role': 'assistant', 'content': 'Hello'}]
+    store.upsert_incoming_call(call_id=SID, analysis={
+        **saved.analysis, 'customer_dialogue': done,
+        'elevenlabs': {'agent_id': 'agent_persona', 'status': 'done', 'conversation_id': 'conv_1'}})
+
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError('a finished transcript must not be fetched again')
+
+    monkeypatch.setattr(elevenlabs, '_request', unexpected)
+    assert customer_service.refresh_session(store, SID)['dialogue'] == done
