@@ -213,6 +213,15 @@ class SQLiteSimulatorStore:
                 );
                 CREATE INDEX IF NOT EXISTS telephony_run_queue_provider_address
                     ON telephony_run_queue(provider, address, id);
+                CREATE TABLE IF NOT EXISTS customer_persona_queue (
+                    id TEXT PRIMARY KEY,
+                    number TEXT NOT NULL,
+                    persona_json TEXT NOT NULL,
+                    label TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS customer_persona_queue_number
+                    ON customer_persona_queue(number, created_at);
                 CREATE TABLE IF NOT EXISTS operations (
                     id TEXT PRIMARY KEY,
                     kind TEXT NOT NULL,
@@ -974,6 +983,66 @@ class SQLiteSimulatorStore:
     # Operations: long-running jobs started from the API.
 
     OPERATION_LOG_LIMIT = 1000
+
+    @staticmethod
+    def _queued_persona(row: Any) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "number": row["number"],
+            "persona": json.loads(row["persona_json"]),
+            "label": row["label"],
+            "created_at": row["created_at"],
+        }
+
+    def enqueue_customer_persona(
+        self, number: str, persona: dict[str, Any], label: str | None = None
+    ) -> dict[str, Any]:
+        """Queue a persona for the next call on a customer line."""
+        row = {
+            "id": _id("persona"),
+            "number": number,
+            "persona_json": json.dumps(persona),
+            "label": label,
+            "created_at": _now(),
+        }
+        with self._connect() as db:
+            db.execute(
+                """
+                INSERT INTO customer_persona_queue (id, number, persona_json, label, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                tuple(row.values()),
+            )
+        return self._queued_persona(row)
+
+    def list_customer_persona_queue(self, number: str | None = None) -> list[dict[str, Any]]:
+        query = "SELECT * FROM customer_persona_queue"
+        params: tuple[object, ...] = ()
+        if number:
+            query += " WHERE number = ?"
+            params = (number,)
+        with self._connect() as db:
+            rows = db.execute(query + " ORDER BY created_at, id", params).fetchall()
+        return [self._queued_persona(row) for row in rows]
+
+    def cancel_customer_persona(self, queue_id: str) -> bool:
+        with self._connect() as db:
+            cursor = db.execute("DELETE FROM customer_persona_queue WHERE id = ?", (queue_id,))
+            return cursor.rowcount > 0
+
+    def claim_customer_persona(self, number: str) -> dict[str, Any] | None:
+        """Atomically take the oldest persona queued for ``number``."""
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT * FROM customer_persona_queue WHERE number = ?"
+                " ORDER BY created_at, id LIMIT 1" + self._LOCKING_READ,
+                (number,),
+            ).fetchone()
+            if row is None:
+                return None
+            db.execute("DELETE FROM customer_persona_queue WHERE id = ?", (row["id"],))
+            return self._queued_persona(row)
 
     @staticmethod
     def _operation(row: sqlite3.Row) -> Operation:

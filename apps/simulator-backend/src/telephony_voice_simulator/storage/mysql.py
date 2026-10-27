@@ -245,6 +245,16 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
             ) ENGINE=InnoDB
             """,
             """
+            CREATE TABLE IF NOT EXISTS customer_persona_queue (
+                id VARCHAR(64) PRIMARY KEY,
+                number VARCHAR(64) NOT NULL,
+                persona_json LONGTEXT NOT NULL,
+                label VARCHAR(255),
+                created_at VARCHAR(64) NOT NULL,
+                INDEX customer_persona_queue_number (number, created_at)
+            ) ENGINE=InnoDB
+            """,
+            """
             CREATE TABLE IF NOT EXISTS operations (
                 id VARCHAR(64) PRIMARY KEY,
                 kind VARCHAR(64) NOT NULL,
@@ -283,6 +293,10 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
     def cancel_queued_run(self, run_id: str) -> SimulationRun | None:
         cancel = super().cancel_queued_run
         return self._retry_deadlocked_transaction(lambda: cancel(run_id))
+
+    def claim_customer_persona(self, number: str) -> dict[str, Any] | None:
+        claim = super().claim_customer_persona
+        return self._retry_deadlocked_transaction(lambda: claim(number))
 
     def _call_is_deleted_for_write(self, db: _MySQLConnection, call_id: str) -> bool:
         # A current locking read prevents a late callback from using an old

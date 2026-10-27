@@ -41,21 +41,105 @@ transcript, observed records, and pass/fail evidence for each matrix case.
 
 ## Automated customer
 
-The optional `/twilio/customer` webhook uses OpenAI to write a synthetic customer's
-next reply and ElevenLabs to speak it. Twilio speech gathering supplies the other
-speaker's words. Configure `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`,
-`ELEVENLABS_VOICE_ID`, a private `PSTN_CUSTOMER_PROFILES` JSON file mapping E.164
-callee numbers to synthetic personas, and `PSTN_CUSTOMER_ALLOWED_CALLERS`.
-The routes reject unconfigured callers, destinations, accounts and invalid
-Twilio signatures. Keep these routes on the restricted PSTN ingress.
+The optional `/twilio/customer` webhook hands an allowlisted call to an ElevenLabs
+Agents persona agent. The simulator keeps the Twilio number and the call record:
+it checks the call, picks the persona, registers the call with ElevenLabs
+([register call](https://elevenlabs.io/docs/eleven-agents/phone-numbers/twilio-integration/register-call)),
+and returns the TwiML ElevenLabs answers with. ElevenLabs then holds the whole
+conversation over the call's media stream, with full-duplex turn-taking.
+
+### Personas
+
+A persona is a YAML file: who the customer is, and what the agent under test must
+do with them.
+
+```yaml
+id: busy-recall-owner
+engine: chained            # or realtime
+first_message: Hello?      # optional; also language and voice_id
+profile: >-
+  Name: Alex Morgan. 2021 Ford F-150 with an open camera recall. Weekday mornings only.
+expectations:              # judged one at a time, about the agent under test
+  - The agent offered at least one weekday-morning appointment slot.
+  - The agent read back the booked appointment day and time before ending the call.
+checks:                    # deterministic, on the agent under test's turns
+  must_say: [recall]
+  must_not_say: [guarantee]
+  max_turns: 30
+environment:               # what the dealership hears behind the customer
+  background: office1      # office1, office2, restaurant, city, typing, elevator1-4
+  volume: 0.2              # 0.01 to 1, default 0.15
+turn:
+  eagerness: eager         # patient, normal or eager to take the turn
+  timeout_s: 4             # silence before the customer speaks up again, 1 to 30
+fidelity:                  # the persona's own self-test
+  scenario: You are a service advisor... first offer Thursday at 3pm, then Tuesday at 9am.
+  conditions:
+    - The customer declined the Thursday 3pm afternoon slot.
+```
+
+Three personas ship with the package (`customer personas` lists them). Put private
+ones in `PSTN_CUSTOMER_PERSONAS_DIR`; an id there overrides a bundled one. Write
+expectations about "the agent", meaning the agent under test. Profiles must be
+synthetic.
+
+Each call copies the persona it ran with onto the call record, so editing a file
+later never changes an old result.
+
+ElevenLabs sets background sound and turn-taking per agent, not per call. A persona
+with `environment` or `turn` therefore runs on a variant agent, named after its
+settings (for example `TVS persona variant: chained office1 0.2 eager`).
+`customer sync-agent` creates each variant the catalog needs by copying its engine's
+base agent, and queueing an inline persona creates its variant if it is missing. A
+variant takes the base agent's voice at every sync; edit the base agent, not the
+variants. Personas without these fields use the base agent.
+
+### Setup
+
+1. Create a persona agent in ElevenLabs Agents and set `ELEVENLABS_CUSTOMER_AGENT_ID`.
+   Optionally create a second one for Realtime speech-to-speech and set
+   `ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID`; personas with `engine: realtime` use it.
+   Pick each agent's voice in ElevenLabs.
+2. Set `ELEVENLABS_API_KEY`, `PSTN_CUSTOMER_ALLOWED_CALLERS`, and a private
+   `PSTN_CUSTOMER_PROFILES` JSON file mapping each persona line (E.164) to its default
+   persona id, for example `{"+15555550100": "busy-recall-owner"}`. Free profile text
+   still works as a value, without expectations.
+3. Run `telephony-voice-sim customer sync-agent` (or Push agent settings on the console
+   Inbox page). It writes the persona prompt kept in this repository, the mu-law 8 kHz
+   audio Twilio needs, the four-minute call limit, the model (`ELEVENLABS_PERSONA_LLM`,
+   or the Realtime model), and permission for calls to override the first message,
+   language and voice. It creates the variant agents, then pins every persona agent
+   (below). Each call fills the prompt's `{{customer_profile}}`.
+
+### Pinned persona agents
+
+`sync-agent` turns on ElevenLabs versioning for each persona agent (this cannot be
+turned off) and keeps a `telephony-voice-simulator` branch on it. Calls, persona checks
+and grading run on that branch, which only `sync-agent` moves: it writes the settings
+to main and rebases the branch onto main. A voice or prompt edited in the dashboard
+therefore reaches tests at the next sync, never in the middle of a run. Until an agent
+has been synced, its calls run on its live configuration and the Inbox marks them
+Unpinned.
+
+Each session records the agent, branch and exact version that held the call, and a
+grade records the same, so a change in results can be traced to a persona change.
+
+Queueing a persona whose variant already exists never touches its agent; only
+`sync-agent` moves pinned branches. A variant that has no pinned branch yet is refused
+rather than run unconfigured. Provisioning takes a lock on this host, so run
+`sync-agent` from one machine at a time. Agent and branch IDs are cached for five
+minutes and dropped when ElevenLabs refuses a registration.
+
+The route rejects unconfigured callers, destinations, accounts and invalid Twilio
+signatures, allows at most 20 calls at once, and registers each CallSid once
+(Twilio retries reuse the first registration). A registration or persona failure
+rejects the call and records the error type. Keep these routes on the restricted
+PSTN ingress.
 
 Point only a dedicated test number's voice URL at `/twilio/customer`, with its
 status callback at `/twilio/status`. The ordinary AMD attachment action restores
 `/twilio/voice`, so do not reattach that line while using the customer agent.
-The customer has no dialing or booking tools. It is limited to 16 turns and
-four minutes, and saves dialogue in the simulator's call analysis. Replayed
-turn webhooks reuse the response and audio. Failures end the call and retain
-an error type rather than inventing a customer reply.
+The customer has no dialing or booking tools.
 
 For a controlled customer callback, originate the call separately with the persona
 number as `From`, the allowed dealership number as `To`, and the call's TwiML URL
@@ -64,20 +148,70 @@ outbound directions and preserves the actual direction and number pair in call
 history. This webhook does not originate a call itself. Twilio documents these
 directions in its [webhook request parameters](https://www.twilio.com/docs/voice/twiml#request-parameters).
 
-List the configured personas with `telephony-voice-sim customer profiles` and read
-the saved dialogues with `telephony-voice-sim customer sessions [--limit N]`.
+### Testing an agent change
 
-The final customer audio is followed by an eight-second pause before hangup.
-Goodbye, errors, call limits, provider completion, and deletion prevent further
-generation. A retry of a generated turn reuses its response while the provider
-call is active. Deleting the call also removes generated audio access; cached
-audio expires after ten minutes even if no new call starts.
+This is the loop for a person or a coding agent checking a change to the agent under
+test. Every command prints JSON; `grade` and `check-persona` exit 2 on failure.
 
-This mode sends the synthetic persona and test-call dialogue to OpenAI, and
-reply text to ElevenLabs. Obtain authorization for those transfers before
-using it. Use synthetic customer facts and controlled UAT agent calls only.
-A generated reply passing preflight does not prove that the live conversation,
-booking, campaign outcome, or opportunity update works.
+```bash
+telephony-voice-sim customer queue +15555550100 --persona opt-out-customer --label my-branch
+# trigger the agent under test to call +15555550100 (or originate the callback)
+telephony-voice-sim customer sessions --limit 1
+telephony-voice-sim customer grade CALL_ID --wait
+```
+
+`queue` sets the persona for that line's next call only; later calls fall back to the
+line's default. Pass `--file persona.yaml` or `--inline '{...}'` instead of `--persona`
+to test a persona that is not in the catalog. `customer queued` and `customer unqueue`
+show and remove waiting entries. A persona is consumed when a call claims it, even if
+registration then fails.
+
+`grade` waits for ElevenLabs to finish the transcript (with `--wait`), runs the
+deterministic checks, then one ElevenLabs judge test per expectation: the transcript is
+replayed as history and `ELEVENLABS_EVALUATION_MODEL` judges that one statement. The
+verdicts and the evaluator's reasons are stored on the call and shown on the Inbox
+page. The call passes only when every check and expectation passes. Judge tests are
+reusable slots named `TVS judge slot N` in the ElevenLabs workspace, rewritten for each
+grading, so one simulator process grades one call at a time.
+
+Before relying on a new persona, run `customer check-persona --persona ID [--repeat N]`.
+ElevenLabs plays the dealership from the persona's `fidelity.scenario` against the
+persona agent and judges whether the customer stayed in character, never invented
+appointments, matched its profile, and met the persona's own conditions. A run whose
+`result` is `unknown` was inconclusive rather than failed; read its reasons. Persona
+checks are text simulations, so they do not exercise background sound.
+
+Rough ElevenLabs cost at list prices: a persona check run is about 300 credits, and
+grading is about 100 credits per expectation (1 credit is about $0.0001), on top of the
+call minutes.
+
+### Transcripts
+
+Transcripts live in ElevenLabs. Each call is registered with its CallSid as the
+conversation's user ID. `telephony-voice-sim customer refresh CALL_ID` (or opening
+the session on the Inbox page) copies the transcript into the call's dialogue once
+ElevenLabs has processed it, without the Realtime model's expression tags such as
+`[friendly]`.
+
+To receive transcripts without polling, add a post-call transcription webhook in the
+ElevenLabs workspace pointing at `/elevenlabs/post-call` on the PSTN ingress, and set
+`ELEVENLABS_WEBHOOK_SECRET` to its secret. The route verifies the signature, refuses
+events older than 30 minutes, stores the transcript, and grades the call in the
+background when its persona has expectations or checks. A grading failure is saved on
+the call as `grade_error`.
+
+List the persona lines with `telephony-voice-sim customer profiles` and read the saved
+dialogues and grades with `telephony-voice-sim customer sessions [--limit N]`.
+Deleting a call removes the simulator's copy only; delete the conversation in
+ElevenLabs separately if its retention matters.
+
+This mode sends the persona, the full call audio from both sides, and the call's
+numbers to ElevenLabs, which transcribes the call and keeps the conversation and its
+audio under the workspace's retention settings. Grading and persona checks also send
+the transcript and the persona to ElevenLabs, whose evaluator model processes them.
+Obtain authorization for those transfers before using it. Use synthetic customer facts
+and controlled UAT agent calls only. A passing grade checks the conversation; it does
+not prove that the booking, campaign outcome, or opportunity update was saved.
 
 ## Controlled SMS inbox
 

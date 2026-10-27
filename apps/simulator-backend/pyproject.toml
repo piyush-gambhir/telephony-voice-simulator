@@ -39,6 +39,7 @@ telephony_voice_simulator = [
     "corpus/public_release_allowlist.json",
     "telephony/twilio/hosted/*.js",
     "templates/*.json",
+    "personas/catalog/*.yaml",
 ]
 
 [tool.setuptools.exclude-package-data]

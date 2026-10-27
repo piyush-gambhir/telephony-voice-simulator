@@ -182,11 +182,15 @@ These optional routes use the existing signed Twilio ingress. See
 
 | Variable | Purpose |
 |---|---|
-| `PSTN_CUSTOMER_PROFILES` | Private JSON file mapping persona E.164 numbers to synthetic profile text |
+| `PSTN_CUSTOMER_PROFILES` | Private JSON file mapping persona line E.164 numbers to a default persona id (or free profile text) |
 | `PSTN_CUSTOMER_ALLOWED_CALLERS` | Comma-separated allowed counterpart numbers, also checked for outbound calls |
-| `CUSTOMER_AGENT_MODEL` | Customer reply model; default `gpt-4.1-mini` |
-| `OPENAI_API_KEY` | Required for synthetic replies |
-| `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | Required for synthetic voice playback |
+| `PSTN_CUSTOMER_PERSONAS_DIR` | Optional directory of private persona YAML files; they override bundled personas with the same id |
+| `ELEVENLABS_API_KEY` | Required to register customer calls, read transcripts, and run persona checks and grading |
+| `ELEVENLABS_CUSTOMER_AGENT_ID` | The chained (speech-to-text, LLM, text-to-speech) persona agent |
+| `ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID` | Optional Realtime persona agent, used by personas with `engine: realtime` |
+| `ELEVENLABS_PERSONA_LLM` | Model `customer sync-agent` pins on the chained agent, default `gpt-6-luna` |
+| `ELEVENLABS_EVALUATION_MODEL` | Model that judges persona checks and grading and plays the simulated dealership, default `gpt-6-luna` |
+| `ELEVENLABS_WEBHOOK_SECRET` | Secret of the ElevenLabs post-call webhook; unset refuses `/elevenlabs/post-call` |
 | `PSTN_SMS_NUMBERS` | Comma-separated inbox recipient numbers |
 | `PSTN_SMS_ALLOWED_SENDERS` | Comma-separated permitted test senders |
 | `PSTN_SMS_DB` | Private SQLite inbox path; unset disables storage |

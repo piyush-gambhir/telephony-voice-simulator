@@ -1,0 +1,28 @@
+id: busy-recall-owner
+description: Busy owner at the office who only has weekday mornings free and cuts in quickly.
+engine: chained
+environment:
+  background: office1
+  volume: 0.2
+turn:
+  eagerness: eager
+first_message: Hello?
+profile: >-
+  Name: Alex Morgan. Vehicle: 2021 Ford F-150 with an open recall for a rear-view
+  camera fix. Availability: weekday mornings only, never afternoons or weekends.
+  Behavior: friendly but busy, answers briefly. Declines any afternoon slot and
+  accepts the first weekday-morning slot offered.
+expectations:
+  - The agent told the customer there is an open recall on their vehicle.
+  - The agent offered at least one weekday-morning appointment slot.
+  - The agent read back the booked appointment day and time before ending the call.
+checks:
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are Jordan, a service advisor at Valley Ford, calling a customer about an
+    open recall on their F-150. First offer this Thursday at 3pm. If they decline,
+    offer Tuesday at 9am. If they accept a slot, read back the booking and say goodbye.
+  conditions:
+    - The customer declined the Thursday 3pm afternoon slot.
+    - The customer accepted the Tuesday 9am slot.
