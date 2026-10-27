@@ -165,6 +165,7 @@ function CustomerArea() {
   const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
   const { ask, dialog } = useConfirm();
   const [synced, setSynced] = useState<string[] | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   async function fetchTranscript(callId: string) {
     setFetching(callId);
@@ -211,7 +212,7 @@ function CustomerArea() {
       {dialog}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">Configuration</h2>
-        <RefreshButton loading={loading} label="Refresh" onClick={() => { profiles.reload(); sessions.reload(); }} />
+        <RefreshButton loading={loading} label="Refresh" onClick={() => { profiles.reload(); sessions.reload(); setRefreshKey((key) => key + 1); }} />
       </div>
       <InlineError message={profiles.error} />
       {profiles.data && (
@@ -257,7 +258,7 @@ function CustomerArea() {
         </div>
       )}
 
-      {profiles.data && <PersonaCatalog lines={lines.map(([number]) => number)} />}
+      {profiles.data && <PersonaCatalog lines={lines.map(([number]) => number)} refreshKey={refreshKey} />}
 
       <h2 className="mt-2 text-sm font-semibold">Sessions</h2>
       <InlineError message={sessions.error} />

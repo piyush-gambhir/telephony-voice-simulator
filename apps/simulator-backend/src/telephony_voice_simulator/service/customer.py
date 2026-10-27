@@ -270,14 +270,22 @@ def store_conversation(store: SimulatorStore, data: dict[str, Any]) -> dict[str,
     call_id = data.get("user_id") or client_data.get("user_id")
     if not isinstance(call_id, str) or not data.get("conversation_id"):
         return None
-    call = store.get_incoming_call(call_id)
-    if call is None or "customer_dialogue" not in call.analysis:
-        return None
     with _REFRESH_LOCKS[call_id]:
+        # Read inside the lock, so a grade saved meanwhile is kept rather than overwritten.
+        call = store.get_incoming_call(call_id)
+        if call is None or "customer_dialogue" not in call.analysis:
+            return None
         saved = _save_transcript(store, call, data["conversation_id"], data)
-    persona = saved.analysis.get("persona") or {}
-    gradable = persona.get("expectations") or any((persona.get("checks") or {}).values())
-    return {"call_id": call_id, "grade_pending": bool(gradable) and not saved.analysis.get("graded")}
+        persona = saved.analysis.get("persona") or {}
+        gradable = persona.get("expectations") or any((persona.get("checks") or {}).values())
+        # Duplicate deliveries must not start a second paid grading.
+        claim = bool(gradable) and not saved.analysis.get("graded") \
+            and not saved.analysis.get("grading")
+        if claim:
+            store.upsert_incoming_call(
+                call_id=call_id, analysis={**saved.analysis, "grading": True}
+            )
+    return {"call_id": call_id, "grade_pending": claim}
 
 
 def _wait_for_invocation(invocation_id: str, timeout: float, progress: Progress) -> dict[str, Any]:
@@ -363,12 +371,19 @@ def grade_session(
         "passed": all(c["passed"] for c in checks) and all(e["passed"] for e in expectations),
         "graded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     })
-    saved = store.upsert_incoming_call(
-        call_id=call_id, analysis={**call.analysis, "grade": grade, "graded": True}
-    )
-    if saved is None:
-        raise NotFoundError(f"Unknown customer session: {call_id}")
+    _update_analysis(store, call_id, {"grade": grade, "graded": True, "grading": False,
+                                      "grade_error": None})
     return grade
+
+
+def _update_analysis(store: SimulatorStore, call_id: str, changes: dict[str, Any]) -> None:
+    """Merge ``changes`` into the call's current analysis, under the call's lock."""
+    with _REFRESH_LOCKS[call_id]:
+        call = store.get_incoming_call(call_id)
+        if call is None or store.upsert_incoming_call(
+            call_id=call_id, analysis={**call.analysis, **changes}
+        ) is None:
+            raise NotFoundError(f"Unknown customer session: {call_id}")
 
 
 def _judge(
@@ -378,15 +393,21 @@ def _judge(
     agent_id = (call.analysis.get("elevenlabs") or {}).get("agent_id")
     agent_id = agent_id or _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
     with _JUDGE_LOCK:
-        test_ids = []
+        test_ids: list[str] = []
+        bodies: list[dict[str, Any]] = []
         for slot, expectation in enumerate(persona["expectations"], start=1):
-            body = judge.judge_test(
+            body = _translated(lambda slot=slot, expectation=expectation: judge.judge_test(
                 JUDGE_SLOT_NAME.format(slot), persona, dialogue, expectation, model
-            )
+            ))
+            bodies.append(body)
             test_ids.append(_translated(lambda body=body: elevenlabs.save_test(body)))
         invocation_id = _translated(lambda: elevenlabs.run_tests(agent_id, test_ids))
         progress(f"judging {len(test_ids)} expectation(s) ({invocation_id})")
         invocation = _wait_for_invocation(invocation_id, JUDGE_TIMEOUT_SECONDS, progress)
+    # Slots are shared by every process grading in this workspace; the lock only covers
+    # this one. Each run records the test as it ran, so check it judged our transcript.
+    if not judge.ran_as_saved(invocation, dict(zip(test_ids, bodies, strict=True))):
+        raise ConflictError("Another grading rewrote the judge tests mid-run; grade again")
     by_test = {run["test_id"]: run for run in judge.run_results(invocation)}
     results = [
         {
@@ -406,8 +427,7 @@ def grade_quietly(store: SimulatorStore, call_id: str) -> None:
         grade_session(store, call_id)
     except (ConflictError, NotFoundError, ValidationError) as exc:
         log.warning("Grading %s failed: %s", call_id, exc)
-        call = store.get_incoming_call(call_id)
-        if call is not None:
-            store.upsert_incoming_call(
-                call_id=call_id, analysis={**call.analysis, "grade_error": str(exc)}
-            )
+        try:
+            _update_analysis(store, call_id, {"grade_error": str(exc), "grading": False})
+        except NotFoundError:
+            pass

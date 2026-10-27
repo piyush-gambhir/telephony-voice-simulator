@@ -232,7 +232,8 @@ async def handle_post_call(request: web.Request) -> web.Response:
         return web.json_response({"ignored": event.get("type")})
     data = event.get("data") or {}
     store = state.call_store()
-    saved = service.store_conversation(store, data)
+    # Storing waits on the call's refresh lock, which a refresh holds across HTTP requests.
+    saved = await asyncio.to_thread(service.store_conversation, store, data)
     if saved and saved.get("grade_pending"):
         # Grading takes a minute of ElevenLabs test runs; answer the webhook first.
         task = asyncio.create_task(asyncio.to_thread(service.grade_quietly, store, saved["call_id"]))

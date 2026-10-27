@@ -182,7 +182,7 @@ def _finished_call(store, persona, dialogue=DIALOGUE):
 @pytest.fixture
 def tests_api(monkeypatch):
     """A fake ElevenLabs testing API: saved test bodies, and verdicts by expectation text."""
-    api = {'saved': {}, 'runs': [], 'fail': set()}
+    api = {'saved': {}, 'runs': [], 'fail': set(), 'ran_as': {}}
 
     def save(body):
         test_id = f"test_{body['name']}"
@@ -200,6 +200,7 @@ def tests_api(monkeypatch):
             condition = api['saved'][test_id]['success_conditions'][-1]
             failed = any(text in condition for text in api['fail'])
             runs.append({'test_id': test_id, 'test_name': api['saved'][test_id]['name'],
+                         'test_info': api['ran_as'].get(test_id, api['saved'][test_id]),
                          'status': 'failed' if failed else 'passed', 'credits_used': 95,
                          'condition_result': {'rationale': {'messages': ['Criterion 1 checked.']}}})
         return {'test_runs': runs}
@@ -309,3 +310,35 @@ def test_cli_grade_exits_2_when_the_grade_fails(store, tests_api, monkeypatch, c
     monkeypatch.setattr('telephony_voice_simulator.cli.customer.service', lambda: type('S', (), {'store': store}))
     assert cli_main(['customer', 'grade', SID]) == 2
     assert json.loads(capsys.readouterr().out)['passed'] is False
+
+
+def test_grading_refuses_verdicts_from_slots_another_process_rewrote(store, tests_api):
+    _finished_call(store, PERSONA)
+    slot = 'test_TVS judge slot 1 (telephony-voice-simulator)'
+    tests_api['ran_as'][slot] = {'success_conditions': ['someone else'], 'chat_history': []}
+    with pytest.raises(ConflictError, match='rewrote'):
+        service.grade_session(store, SID)
+    assert 'grade' not in store.get_incoming_call(SID).analysis
+
+
+def test_overlong_transcripts_are_recorded_as_grading_errors(store, tests_api):
+    _finished_call(store, PERSONA, DIALOGUE * 70)
+    service.grade_quietly(store, SID)
+    analysis = store.get_incoming_call(SID).analysis
+    assert 'judging allows 200' in analysis['grade_error']
+    assert analysis['grading'] is False
+
+
+def test_duplicate_post_call_deliveries_grade_once(store):
+    _finished_call(store, PERSONA)
+    data = {'conversation_id': 'conv_1', 'user_id': SID, 'status': 'done', 'transcript': []}
+    assert service.store_conversation(store, data)['grade_pending'] is True
+    assert service.store_conversation(store, data)['grade_pending'] is False
+
+
+def test_a_late_transcript_write_keeps_a_saved_grade(store, tests_api):
+    _finished_call(store, PERSONA)
+    service.grade_session(store, SID)
+    service.store_conversation(store, {'conversation_id': 'conv_1', 'user_id': SID,
+                                       'status': 'done', 'transcript': []})
+    assert store.get_incoming_call(SID).analysis['graded'] is True

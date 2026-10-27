@@ -136,3 +136,18 @@ def run_results(invocation: dict[str, Any]) -> list[dict[str, Any]]:
             "credits": run.get("credits_used"),
         })
     return results
+
+
+def ran_as_saved(invocation: dict[str, Any], bodies: dict[str, dict[str, Any]]) -> bool:
+    """Whether every run judged the conditions and history its test was saved with."""
+    for run in invocation.get("test_runs") or []:
+        body, info = bodies.get(run.get("test_id")), run.get("test_info") or {}
+        if body is None:
+            return False
+        ran_history = [(t.get("role"), t.get("message")) for t in info.get("chat_history") or []]
+        saved_history = [(t["role"], t["message"]) for t in body["chat_history"]]
+        if info.get("success_conditions") != body["success_conditions"] or (
+            ran_history != saved_history
+        ):
+            return False
+    return True

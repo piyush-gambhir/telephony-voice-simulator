@@ -27,9 +27,10 @@ export function EnginePill({ engine }: { engine: Persona["engine"] }) {
 }
 
 /** The persona catalog with its queue: queue a persona for a line's next call, or check it. */
-export function PersonaCatalog({ lines }: { lines: string[] }) {
-  const personas = useApi((signal) => inbox.personas(signal), []);
-  const queue = useApi((signal) => inbox.queue(signal), []);
+export function PersonaCatalog({ lines, refreshKey }: { lines: string[]; refreshKey: number }) {
+  const personas = useApi((signal) => inbox.personas(signal), [refreshKey]);
+  // Calls consume queued personas, so the page's Refresh reloads the queue too.
+  const queue = useApi((signal) => inbox.queue(signal), [refreshKey]);
   const [line, setLine] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [check, setCheck] = useState<Operation | null>(null);
