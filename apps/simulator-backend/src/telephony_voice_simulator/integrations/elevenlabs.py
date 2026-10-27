@@ -14,6 +14,12 @@ import httpx
 
 API_URL = "https://api.elevenlabs.io"
 TIMEOUT_SECONDS = 10.0
+AGENT_ENV = {
+    "chained": "ELEVENLABS_CUSTOMER_AGENT_ID",
+    "realtime": "ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID",
+}
+# Accepted by ElevenLabs for simulations as of 2026-10; gpt-6-sol and gpt-5.5 are not.
+DEFAULT_EVALUATION_MODEL = "gpt-6-luna"
 
 
 class ElevenLabsError(RuntimeError):
@@ -27,11 +33,18 @@ def api_key() -> str:
     return key
 
 
-def customer_agent_id() -> str:
-    agent_id = os.environ.get("ELEVENLABS_CUSTOMER_AGENT_ID", "")
+def customer_agent_id(engine: str = "chained") -> str:
+    """The persona agent for an engine: chained (ASR, LLM, TTS) or Realtime speech-to-speech."""
+    key = AGENT_ENV[engine]
+    agent_id = os.environ.get(key, "")
     if not agent_id:
-        raise ValueError("Set ELEVENLABS_CUSTOMER_AGENT_ID to the persona agent's ID")
+        raise ValueError(f"Set {key} to the {engine} persona agent's ID")
     return agent_id
+
+
+def evaluation_model() -> str:
+    """The OpenAI model ElevenLabs uses to judge tests and play the simulated dealership."""
+    return os.environ.get("ELEVENLABS_EVALUATION_MODEL", "") or DEFAULT_EVALUATION_MODEL
 
 
 def _headers() -> dict[str, str]:
@@ -53,6 +66,7 @@ async def register_call(
     direction: str,
     user_id: str,
     dynamic_variables: dict[str, str],
+    config_override: dict[str, Any] | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> str:
     """TwiML that connects this Twilio call to the agent.
@@ -69,6 +83,10 @@ async def register_call(
             "dynamic_variables": dynamic_variables,
         },
     }
+    if config_override:
+        body["conversation_initiation_client_data"]["conversation_config_override"] = (
+            config_override
+        )
     owned = client is None
     client = client or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
     try:
@@ -99,14 +117,10 @@ def _request(method: str, path: str, client: httpx.Client | None = None, **kwarg
 
 
 def update_agent(
-    agent_id: str, conversation_config: dict[str, Any], *, client: httpx.Client | None = None
+    agent_id: str, body: dict[str, Any], *, client: httpx.Client | None = None
 ) -> dict[str, Any]:
-    return _request(
-        "PATCH",
-        f"/v1/convai/agents/{agent_id}",
-        client,
-        json={"conversation_config": conversation_config},
-    )
+    """PATCH the agent; ``body`` holds ``conversation_config`` and/or ``platform_settings``."""
+    return _request("PATCH", f"/v1/convai/agents/{agent_id}", client, json=body)
 
 
 def find_conversation(
@@ -125,3 +139,40 @@ def find_conversation(
 
 def get_conversation(conversation_id: str, *, client: httpx.Client | None = None) -> dict[str, Any]:
     return _request("GET", f"/v1/convai/conversations/{conversation_id}", client)
+
+
+def find_test(name: str, *, client: httpx.Client | None = None) -> str | None:
+    """The ID of the test with exactly this name, if one exists."""
+    listing = _request(
+        "GET", "/v1/convai/agent-testing", client, params={"search": name, "page_size": 100}
+    )
+    for test in listing.get("tests") or []:
+        if test.get("name") == name:
+            return test["id"]
+    return None
+
+
+def save_test(body: dict[str, Any], *, client: httpx.Client | None = None) -> str:
+    """Create the test named ``body["name"]``, or replace the one that already has that name."""
+    test_id = find_test(body["name"], client=client)
+    if test_id:
+        _request("PUT", f"/v1/convai/agent-testing/{test_id}", client, json=body)
+        return test_id
+    return _request("POST", "/v1/convai/agent-testing/create", client, json=body)["id"]
+
+
+def run_tests(
+    agent_id: str, test_ids: list[str], *, repeat: int = 1, client: httpx.Client | None = None
+) -> str:
+    """Start the tests on the agent and return the invocation ID."""
+    result = _request(
+        "POST",
+        f"/v1/convai/agents/{agent_id}/run-tests",
+        client,
+        json={"tests": [{"test_id": t} for t in test_ids], "repeat_count": repeat},
+    )
+    return result["id"]
+
+
+def get_invocation(invocation_id: str, *, client: httpx.Client | None = None) -> dict[str, Any]:
+    return _request("GET", f"/v1/convai/test-invocations/{invocation_id}", client)

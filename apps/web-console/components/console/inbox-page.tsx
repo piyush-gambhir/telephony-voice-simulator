@@ -21,9 +21,10 @@ import {
   TonePill,
   useConfirm,
 } from "@/components/console/kit";
+import { EnginePill, GradeSection, PersonaCatalog } from "@/components/console/customer-personas";
 import { Button } from "@/components/ui/button";
 import { useApi } from "@/hooks/use-api";
-import { inbox, type CustomerSession } from "@/lib/workflows-api";
+import { inbox, type CustomerGrade, type CustomerSession } from "@/lib/workflows-api";
 import { cn } from "@/lib/utils";
 
 type Area = "sms" | "customer";
@@ -157,13 +158,13 @@ function CustomerArea() {
   const loading = profiles.loading || sessions.loading;
   const list = sessions.data ?? [];
   const selected = list.find((session) => session.call_id === selectedId) ?? null;
-  const personas = Object.entries(profiles.data?.profiles ?? {});
+  const lines = Object.entries(profiles.data?.profiles ?? {});
   const configured = Object.entries(profiles.data?.configured ?? {});
   // Fetch state is per session: one session's slow or failed fetch never shows on another.
   const [fetching, setFetching] = useState<string | null>(null);
   const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
   const { ask, dialog } = useConfirm();
-  const [synced, setSynced] = useState<string | null>(null);
+  const [synced, setSynced] = useState<string[] | null>(null);
 
   async function fetchTranscript(callId: string) {
     setFetching(callId);
@@ -179,6 +180,10 @@ function CustomerArea() {
     }
   }
 
+  function graded(callId: string, grade: CustomerGrade) {
+    sessions.setData((current) => current?.map((item) => (item.call_id === callId ? { ...item, grade } : item)) ?? current);
+  }
+
   function open(session: CustomerSession) {
     const next = session.call_id === selectedId ? null : session.call_id;
     setSelectedId(next);
@@ -187,13 +192,13 @@ function CustomerArea() {
 
   function pushAgentSettings() {
     ask({
-      title: "Update the ElevenLabs persona agent?",
-      body: "Overwrites the prompt, the mu-law 8 kHz audio formats and the 4-minute call limit on the agent named by ELEVENLABS_CUSTOMER_AGENT_ID. Its voice and voice mode stay as set in ElevenLabs.",
-      confirm: "Update agent",
+      title: "Update the ElevenLabs persona agents?",
+      body: "Overwrites the prompt, the mu-law 8 kHz audio formats, the 4-minute call limit, the model and the per-call override permissions on the agents named by ELEVENLABS_CUSTOMER_AGENT_ID and ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID. Their voices stay as set in ElevenLabs.",
+      confirm: "Update agents",
       tone: "primary",
       onConfirm: async () => {
         try {
-          setSynced((await inbox.customerSyncAgent()).agent_id);
+          setSynced(Object.values(await inbox.customerSyncAgent()).map((agent) => agent.agent_id));
         } catch (cause) {
           return cause instanceof Error ? cause.message : "Could not update the agent";
         }
@@ -212,10 +217,10 @@ function CustomerArea() {
       {profiles.data && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-start">
           <Panel>
-            <PanelTitle aside={personas.length}>Personas</PanelTitle>
-            {personas.length ? (
+            <PanelTitle aside={lines.length}>Persona lines</PanelTitle>
+            {lines.length ? (
               <ul className="grid gap-2">
-                {personas.map(([number, profile]) => (
+                {lines.map(([number, profile]) => (
                   <li key={number} className="grid gap-1 rounded-lg bg-surface-1 px-3 py-2.5 sm:grid-cols-[150px_1fr] sm:gap-3">
                     <span className="t-num text-[13px] font-medium">{formatAddress(number)}</span>
                     <span className="whitespace-pre-wrap break-words text-[13px] leading-5 text-muted-foreground">
@@ -225,7 +230,7 @@ function CustomerArea() {
                 ))}
               </ul>
             ) : (
-              <EmptyStrip title="No personas" body="Set PSTN_CUSTOMER_PROFILES to a JSON file mapping each number to its persona." />
+              <EmptyStrip title="No persona lines" body="Set PSTN_CUSTOMER_PROFILES to a JSON file mapping each number to its default persona id." />
             )}
             <div className="mt-4 grid gap-2">
               <h3 className="text-[13px] font-medium">Allowed callers</h3>
@@ -234,7 +239,7 @@ function CustomerArea() {
           </Panel>
           <Panel>
             <PanelTitle>Environment</PanelTitle>
-            <ul className="grid gap-1.5">
+            <ul className="grid grid-cols-1 gap-1.5">
               {configured.map(([key, present]) => (
                 <li key={key} className="flex items-center justify-between gap-3">
                   <span className="min-w-0 truncate font-mono text-[11.5px]">{key}</span>
@@ -246,11 +251,13 @@ function CustomerArea() {
               <Button size="sm" variant="secondary" className="justify-self-start" onClick={pushAgentSettings}>
                 Push agent settings
               </Button>
-              {synced && <p className="text-xs text-muted-foreground">Updated <span className="font-mono">{synced}</span>.</p>}
+              {synced && <p className="text-xs text-muted-foreground">Updated <span className="font-mono">{synced.join(", ")}</span>.</p>}
             </div>
           </Panel>
         </div>
       )}
+
+      {profiles.data && <PersonaCatalog lines={lines.map(([number]) => number)} />}
 
       <h2 className="mt-2 text-sm font-semibold">Sessions</h2>
       <InlineError message={sessions.error} />
@@ -258,7 +265,7 @@ function CustomerArea() {
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)] xl:items-start">
           <DataTable label="Synthetic customer sessions">
             <thead>
-              <tr><Th>When</Th><Th>From</Th><Th>To</Th><Th>Direction</Th><Th>Status</Th><Th>Duration</Th><Th>Stop reason</Th></tr>
+              <tr><Th>When</Th><Th>From</Th><Th>To</Th><Th>Persona</Th><Th>Status</Th><Th>Duration</Th><Th>Grade</Th><Th>Stop reason</Th></tr>
             </thead>
             <tbody>
               {list.map((session) => {
@@ -283,9 +290,10 @@ function CustomerArea() {
                     </Td>
                     <Td className="t-num whitespace-nowrap">{formatAddress(session.from)}</Td>
                     <Td className="t-num whitespace-nowrap">{formatAddress(session.to)}</Td>
-                    <Td className="capitalize">{session.direction}</Td>
+                    <Td className="whitespace-nowrap font-mono text-[12px]">{session.persona_id ?? MISSING}</Td>
                     <Td className="whitespace-nowrap">{session.status.replace(/_/g, " ")}</Td>
                     <Td className="t-num">{formatDuration(session.duration_s)}</Td>
+                    <Td>{session.grade ? <TonePill tone={session.grade.passed ? "success" : "danger"}>{session.grade.passed ? "Passed" : "Failed"}</TonePill> : MISSING}</Td>
                     <Td className="whitespace-nowrap text-muted-foreground">{stopReason(session)}</Td>
                   </tr>
                 );
@@ -298,6 +306,7 @@ function CustomerArea() {
               fetching={fetching === selected.call_id}
               error={fetchErrors[selected.call_id] ?? null}
               onFetch={() => void fetchTranscript(selected.call_id)}
+              onGraded={(grade) => graded(selected.call_id, grade)}
             />
           ) : (
             <EmptyStrip title="No session selected" body="Select a session to read its dialogue." />
@@ -320,11 +329,13 @@ function Dialogue({
   fetching,
   error,
   onFetch,
+  onGraded,
 }: {
   session: CustomerSession;
   fetching: boolean;
   error: string | null;
   onFetch: () => void;
+  onGraded: (grade: CustomerGrade) => void;
 }) {
   const pending = session.transcript_status != null && session.transcript_status !== "done";
   return (
@@ -336,6 +347,15 @@ function Dialogue({
       }>
         {formatAddress(session.from)} to {formatAddress(session.to)}
       </PanelTitle>
+      {session.persona_id && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-mono text-foreground">{session.persona_id}</span>
+          {session.engine && <EnginePill engine={session.engine} />}
+          {session.persona_source && "queue_id" in session.persona_source
+            ? `queued${session.persona_source.label ? `, ${session.persona_source.label}` : ""}`
+            : "line default"}
+        </div>
+      )}
       {session.dialogue.length ? (
         <ol className="grid gap-2" aria-label="Dialogue">
           {session.dialogue.map((turn, index) => {
@@ -365,6 +385,15 @@ function Dialogue({
           </Button>
           {error && <span role="alert" className="text-xs text-danger">{error}</span>}
         </div>
+      )}
+      {session.persona_id && (
+        <GradeSection
+          key={session.call_id}
+          callId={session.call_id}
+          grade={session.grade}
+          ready={session.transcript_status === "done"}
+          onGraded={onGraded}
+        />
       )}
     </Panel>
   );

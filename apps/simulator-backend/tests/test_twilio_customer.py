@@ -89,9 +89,12 @@ async def test_allowed_call_is_handed_to_the_persona_agent(client, registrations
         'agent_id': 'agent_persona', 'from_number': '+15555550101', 'to_number': '+15555550100',
         'direction': 'inbound', 'user_id': SID,
         'dynamic_variables': {'customer_profile': 'You are Alex, book the earliest offered visit.'},
+        'config_override': {},
     }]
     saved = twilio_state.call_store().get_incoming_call(SID)
     assert saved.scenario == 'automated_customer'
+    assert saved.analysis['persona']['profile'].startswith('You are Alex')
+    assert saved.analysis['persona_source'] == {'line': '+15555550100'}
     assert saved.analysis['elevenlabs'] == {'agent_id': 'agent_persona', 'status': 'registered'}
     assert saved.analysis['customer_dialogue'] == []
 
@@ -252,7 +255,12 @@ def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch):
     assert config['tts']['agent_output_audio_format'] == 'ulaw_8000'
     assert config['asr']['user_input_audio_format'] == 'ulaw_8000'
     assert config['conversation']['max_duration_seconds'] == customer.MAX_SECONDS
-    assert result['agent_id'] == 'agent_persona'
+    assert config['agent']['prompt']['llm'] == 'gpt-6-luna'
+    assert 'realtime_model' not in config
+    assert body['platform_settings']['overrides']['conversation_config_override'] == {
+        'agent': {'first_message': True, 'language': True}, 'tts': {'voice_id': True}}
+    assert list(result) == ['chained']
+    assert result['chained']['agent_id'] == 'agent_persona'
 
 
 async def test_a_finished_transcript_is_never_refetched_or_replaced(client, registrations, monkeypatch):

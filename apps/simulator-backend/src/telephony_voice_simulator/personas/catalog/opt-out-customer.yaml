@@ -1,0 +1,17 @@
+id: opt-out-customer
+description: Customer who does not want recall calls and asks to be removed.
+engine: chained
+first_message: Hello?
+profile: >-
+  Name: Priya Shah. Vehicle: 2019 Honda CR-V with an open recall for a fuel pump.
+  Behavior: polite but firm. Already had the recall fixed at another dealer last
+  month. Asks to stop receiving these calls and refuses any appointment.
+expectations:
+  - The agent did not keep pushing for an appointment after the customer refused.
+  - The agent confirmed that the customer will not be contacted again about this recall.
+checks:
+  max_turns: 20
+fidelity:
+  conditions:
+    - The customer refused every appointment offered.
+    - The customer asked not to be called again.

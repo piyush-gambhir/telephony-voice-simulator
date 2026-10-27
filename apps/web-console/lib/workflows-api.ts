@@ -251,6 +251,50 @@ export type CustomerSession = {
   transcript_status: string | null;
   /** "user" is the agent being tested; "assistant" is the synthetic customer. */
   dialogue: Array<{ role: "user" | "assistant"; content: string }>;
+  persona_id: string | null;
+  engine: PersonaEngine | null;
+  /** Where the persona came from: a queued entry, or the line's default. */
+  persona_source: { queue_id: string; label: string | null } | { line: string } | null;
+  grade: CustomerGrade | null;
+};
+
+export type PersonaEngine = "chained" | "realtime";
+
+export type Persona = {
+  id: string;
+  profile: string;
+  engine: PersonaEngine;
+  description?: string;
+  first_message?: string;
+  language?: string;
+  voice_id?: string;
+  expectations: string[];
+  checks: { must_say: string[]; must_not_say: string[]; max_turns: number | null };
+  fidelity: { scenario: string | null; conditions: string[] };
+};
+
+export type QueuedPersona = { id: string; number: string; persona: Persona; label: string | null; created_at: string };
+
+export type CustomerGrade = {
+  persona_id: string;
+  passed: boolean;
+  checks: Array<{ check: string; passed: boolean }>;
+  expectations: Array<{ expectation: string; passed: boolean; reasons: string[] }>;
+  invocation_id?: string;
+  evaluation_model?: string;
+  credits?: number;
+  graded_at: string;
+};
+
+export type PersonaCheck = {
+  persona_id: string;
+  engine: PersonaEngine;
+  agent_id: string;
+  invocation_id: string;
+  evaluation_model: string;
+  passed: number;
+  runs: Array<{ status: string; passed: boolean; reasons: string[]; credits: number | null }>;
+  credits: number;
 };
 
 export const inbox = {
@@ -262,7 +306,13 @@ export const inbox = {
   customerSessions: (limit = 20, signal?: AbortSignal) => get<CustomerSession[]>(`/api/customer/sessions?limit=${limit}`, signal),
   customerRefresh: (callId: string) => post<CustomerSession>(`/api/customer/sessions/${q(callId)}/refresh`),
   customerSyncAgent: () =>
-    post<{ agent_id: string; applied: Record<string, unknown> }>("/api/customer/agent/sync"),
+    post<Partial<Record<PersonaEngine, { agent_id: string; applied: Json }>>>("/api/customer/agent/sync"),
+  personas: (signal?: AbortSignal) => get<Persona[]>("/api/customer/personas", signal),
+  queue: (signal?: AbortSignal) => get<QueuedPersona[]>("/api/customer/queue", signal),
+  enqueue: (body: { number: string; persona_id: string; label?: string }) => post<QueuedPersona>("/api/customer/queue", body),
+  unqueue: (queueId: string) => request<{ cancelled: string }>(`/api/customer/queue/${q(queueId)}`, { method: "DELETE" }),
+  grade: (callId: string) => post<Operation>(`/api/customer/sessions/${q(callId)}/grade`),
+  checkPersona: (personaId: string) => post<Operation>("/api/customer/personas/check", { persona_id: personaId }),
 };
 
 export type SilenceShare = { count: number; share_percent: number };

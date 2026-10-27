@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Added
+
+- **Customer personas.** Personas are YAML files: a synthetic profile, an engine
+  (`chained` or `realtime`), optional first message, language and voice, the
+  expectations the agent under test must meet, deterministic checks, and a fidelity
+  scenario. Three ship in the package; `PSTN_CUSTOMER_PERSONAS_DIR` adds private ones.
+  `PSTN_CUSTOMER_PROFILES` now maps each line to a default persona id.
+- **Persona queue.** `customer queue NUMBER --persona ID` (or `--file`, `--inline`)
+  sets the persona for that line's next call, so a coding agent can change the
+  customer per test. The call keeps a copy of the persona it ran with.
+- **Grading against the persona.** `customer grade CALL_ID [--wait]` runs the
+  persona's checks and one ElevenLabs judge test per expectation on the transcript,
+  stores the verdicts and reasons on the call, and exits 2 when the call fails.
+  The `/elevenlabs/post-call` webhook stores transcripts and grades automatically.
+- **Persona checks.** `customer check-persona --persona ID [--repeat N]` runs an
+  ElevenLabs simulation in which a simulated dealership calls the persona agent,
+  and judges whether the customer stayed in character (exit 2 on any failed run).
+- API routes for all of the above, and a persona catalog, queue and grade view on
+  the console Inbox.
+
 ### Changed
 
 - **The synthetic customer runs on ElevenLabs Agents.** The webhook registers each
@@ -10,9 +30,10 @@
   interruptions. It replaces the Twilio speech-gather, OpenAI and text-to-speech
   turn loop, and the `/twilio/customer/turn` and `/twilio/customer/audio` routes.
   Set `ELEVENLABS_CUSTOMER_AGENT_ID`; `CUSTOMER_AGENT_MODEL` is no longer read.
-- `customer sync-agent` pushes the persona prompt, mu-law audio and call limit to
-  that agent, and `customer refresh` copies a call's transcript from ElevenLabs.
-  The console Inbox does both.
+- `customer sync-agent` pushes the persona prompt, mu-law audio, call limit, model
+  and per-call override permissions to each persona agent (an optional second agent
+  runs ElevenLabs Realtime), and `customer refresh` copies a call's transcript from
+  ElevenLabs without the Realtime model's expression tags. The console Inbox does both.
 
 ## 0.2.0
 

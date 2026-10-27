@@ -1,0 +1,16 @@
+id: spanish-speaking-owner
+description: Spanish-speaking owner on the Realtime engine, accepts a Saturday slot.
+engine: realtime
+language: es
+first_message: "¿Bueno?"
+profile: >-
+  Nombre: Luis Ortega. Vehículo: Toyota RAV4 2022 con un recall abierto por el
+  sensor del airbag. Habla solo español. Disponibilidad: sábados por la mañana.
+  Comportamiento: tranquilo, pide que le repitan la fecha antes de aceptar.
+expectations:
+  - The agent spoke Spanish for the whole call.
+  - The agent offered a Saturday morning appointment.
+fidelity:
+  conditions:
+    - The customer spoke only Spanish.
+    - The customer asked for the date to be repeated before accepting.
