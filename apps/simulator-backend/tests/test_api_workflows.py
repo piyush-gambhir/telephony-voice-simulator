@@ -121,20 +121,76 @@ async def test_benchmark_run_validates_before_queueing(api, monkeypatch) -> None
     assert service.list_operations() == []
 
 
-async def test_benchmark_reports_are_addressed_by_id(api, monkeypatch) -> None:
+async def test_benchmark_reports_resolve_by_id_inside_the_results_directory(
+    api, monkeypatch, tmp_path: Path
+) -> None:
+    from telephony_voice_simulator.evaluation.benchmark import reports as report_files
+
     client, _ = api
-    monkeypatch.setattr(benchmarks, "rescore", lambda *, report: {"source": report})
+    results = tmp_path / "benchmark"
+    (results / "run_1").mkdir(parents=True)
+    (results / "run_1" / "report.json").write_text('{"suite": "amd-core"}')
+    monkeypatch.setattr(report_files, "BENCHMARK_RESULTS_DIR", results)
+    (tmp_path / "secret.json").write_text('{"token": "x"}')
+    monkeypatch.chdir(tmp_path)
+
+    assert (await (await client.get("/api/benchmarks/reports/run_1")).json()) == {"suite": "amd-core"}
+    for probe in ("secret.json", "..%2Fsecret.json", "%2Fetc%2Fhosts", "run_2"):
+        response = await client.get(f"/api/benchmarks/reports/{probe}")
+        assert response.status in {400, 404}, probe
+    response = await client.post("/api/benchmarks/compare", json={"reports": ["base=secret.json", "run_1"]})
+    assert response.status == 404
+
+    seen = {}
+    monkeypatch.setattr(benchmarks, "rescore", lambda *, report: seen.setdefault("r", report))
     assert (await client.post("/api/benchmarks/reports/run_1/rescore")).status == 200
-    response = await client.post(
-        "/api/benchmarks/compare", json={"reports": ["base=../../etc", "run_2"]}
-    )
-    assert response.status == 400
+    assert seen["r"] == str((results / "run_1" / "report.json").resolve())
 
 
-async def test_agent_rooms_take_catalog_names_only(api) -> None:
+async def test_scenario_selection_takes_catalog_names_only(api, tmp_path: Path, monkeypatch) -> None:
     client, _ = api
-    response = await client.post("/api/agents/rooms", json={"scenario": "/tmp/x.yaml"})
-    assert response.status == 400
+    (tmp_path / "notes.yaml").write_text("secret: value\n")
+    monkeypatch.chdir(tmp_path)
+    for path in ("/tmp/x.yaml", "notes.yaml"):
+        assert (await client.post("/api/agents/rooms", json={"scenario": path})).status == 404
+        response = await client.post("/api/scenarios/validate", json={"scenario": path})
+        assert response.status == 404
+        assert "secret" not in await response.text()
+
+
+async def test_corpus_builds_and_imports_never_overlap(api, monkeypatch) -> None:
+    import threading
+
+    client, _ = api
+    release = threading.Event()
+    monkeypatch.setattr(corpus, "build_corpus", lambda **_kw: release.wait(5))
+    started = await client.post("/api/corpus/build", json={})
+    response = await client.post(
+        "/api/corpus/import",
+        json={"asset": "a.wav", "source": "x", "source_type": corpus.SOURCE_TYPES[0], "license_note": "n"},
+    )
+    release.set()
+    assert started.status == 202
+    assert response.status == 409
+    await _settled(client, await started.json())
+
+
+async def test_agent_transport_failures_are_409_not_500(api, monkeypatch) -> None:
+    import httpx
+
+    from telephony_voice_simulator.integrations import agent_api
+
+    client, _ = api
+    monkeypatch.setattr(agent_api, "load_config", lambda **_kw: agent_api.AgentApiConfig(trigger_url="https://agent.example.test/calls", body_template={}))
+    monkeypatch.setattr(agent_api, "sim_number", lambda: "+15550100001")
+
+    def unreachable(*_args, **_kwargs):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(agent_api, "trigger_call", unreachable)
+    response = await client.post("/api/agents/trigger", json={})
+    assert response.status == 409
+    assert "Agent API request failed" in (await response.json())["error"]
 
 
 async def test_agent_record_maps_missing_records_to_404(api, monkeypatch) -> None:
@@ -178,3 +234,10 @@ async def test_inbox_reads_and_silence_analysis(api, monkeypatch) -> None:
     assert response.status == 200
     assert summary["total"] == 2
     assert (await client.post("/api/analysis/silence", json={"rows": "x"})).status == 400
+
+
+async def test_large_analysis_uploads_fit_the_request_limit(api) -> None:
+    client, _ = api
+    rows = [{"call_uid": str(index), "user_text": "x" * 240} for index in range(5000)]
+    response = await client.post("/api/analysis/silence", json={"rows": rows})
+    assert response.status == 200

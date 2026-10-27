@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from aiohttp import web
 
-from ..service import ValidationError, agents
+from ..service import NotFoundError, ValidationError, agents
 from .common import (
     bool_field,
     json_object,
     json_response,
     optional_string_field,
+    service_of,
     start,
     string_field,
 )
@@ -18,7 +21,8 @@ from .common import (
 async def trigger(request: web.Request) -> web.Response:
     body = await json_object(request)
     return json_response(
-        agents.trigger_call(
+        await asyncio.to_thread(
+            agents.trigger_call,
             scenario=string_field(body, "scenario", agents.DEFAULT_SCENARIO),
             number=string_field(body, "number"),
         )
@@ -44,14 +48,17 @@ async def call(request: web.Request) -> web.Response:
 
 
 async def record(request: web.Request) -> web.Response:
-    return json_response(agents.call_record(call_id=request.match_info["call_id"]))
+    return json_response(
+        await asyncio.to_thread(agents.call_record, call_id=request.match_info["call_id"])
+    )
 
 
 async def room(request: web.Request) -> web.Response:
     body = await json_object(request)
     scenario = optional_string_field(body, "scenario")
-    if scenario and ("/" in scenario or "\\" in scenario):
-        raise ValidationError("scenario must be a catalog name")
+    # The room runner also resolves files by path for the CLI; the browser names scenarios.
+    if scenario is not None and scenario not in service_of(request).catalog.names():
+        raise NotFoundError(f"Unknown scenario: {scenario}")
     every = bool_field(body, "all")
     name_filter = string_field(body, "filter")
     return start(

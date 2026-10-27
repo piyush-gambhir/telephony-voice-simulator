@@ -5,8 +5,8 @@ Release source from the default branch with an unused `vX.Y.Z` tag. The `Publish
 For this release:
 
 ```sh
-docker pull ghcr.io/piyush-gambhir/telephony-voice-simulator-backend:0.1.1
-docker pull ghcr.io/piyush-gambhir/telephony-voice-simulator-web:0.1.1
+docker pull ghcr.io/piyush-gambhir/telephony-voice-simulator-backend:0.2.0
+docker pull ghcr.io/piyush-gambhir/telephony-voice-simulator-web:0.2.0
 ```
 
 Use a version tag or the published image digest to choose when to upgrade. Configure service credentials, API origins, and persistent storage according to the repository README and compose examples. Browser public environment values are compiled into Next.js assets; installations needing different browser origins must rebuild with the Dockerfile build arguments. Development containers and legacy deployment scripts are separate from these production image artifacts.

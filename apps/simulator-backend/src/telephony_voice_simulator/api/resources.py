@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from aiohttp import web
 
-from ..service import ValidationError
+from ..service import NotFoundError, ValidationError
 from .common import json_object, optional_string_field, service_of, string_field
 
 
@@ -178,9 +178,12 @@ async def get_scenario(request: web.Request) -> web.Response:
 async def validate_scenarios(request: web.Request) -> web.Response:
     """Validate one AMD scenario by name, or every scenario file when none is given."""
     body = await json_object(request)
-    return web.json_response(
-        service_of(request).catalog.validate(optional_string_field(body, "scenario"))
-    )
+    scenario = optional_string_field(body, "scenario")
+    catalog = service_of(request).catalog
+    # The catalog validator also reads files by path for the CLI; the browser names scenarios.
+    if scenario is not None and scenario not in catalog.declared_names():
+        raise NotFoundError(f"Unknown scenario: {scenario}")
+    return web.json_response(catalog.validate(scenario))
 
 
 def register(app: web.Application) -> None:

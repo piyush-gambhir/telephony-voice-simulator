@@ -314,9 +314,14 @@ export function useConfirm() {
     title: string;
     body: string;
     confirm: string;
-    onConfirm: () => Promise<boolean | void>;
+    /** "primary" for actions that cost money or change live systems but destroy nothing. */
+    tone?: "danger" | "primary";
+    /** Return false to stay open, or a message to show inside the dialog. */
+    onConfirm: () => Promise<boolean | string | void>;
   } | null>(null);
   const [pending, setPending] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const shownError = localError ?? error;
 
   const dialog = (
     <Dialog open={request !== null} onOpenChange={(open) => { if (!open && !pending) setRequest(null); }}>
@@ -324,20 +329,22 @@ export function useConfirm() {
         <DialogHeader>
           <DialogTitle>{request?.title}</DialogTitle>
           <DialogDescription>{request?.body}</DialogDescription>
-          {error && <p role="alert" className="mt-2 rounded-lg bg-danger-soft px-3 py-2 text-xs leading-5 text-danger">{error}</p>}
+          {shownError && <p role="alert" className="mt-2 rounded-lg bg-danger-soft px-3 py-2 text-xs leading-5 text-danger">{shownError}</p>}
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" size="sm" disabled={pending} onClick={() => setRequest(null)}>Cancel</Button>
           <Button
-            variant="danger"
+            variant={request?.tone === "primary" ? "default" : "danger"}
             size="sm"
             disabled={pending}
             onClick={async () => {
               if (!request) return;
               setPending(true);
+              setLocalError(null);
               const outcome = await request.onConfirm();
               setPending(false);
-              if (outcome !== false) setRequest(null);
+              if (typeof outcome === "string") setLocalError(outcome);
+              else if (outcome !== false) setRequest(null);
             }}
           >
             {pending && <RefreshCw className="animate-spin" />}
@@ -349,7 +356,7 @@ export function useConfirm() {
   );
 
   return {
-    ask: (next: NonNullable<typeof request>) => { clearError(); setRequest(next); },
+    ask: (next: NonNullable<typeof request>) => { clearError(); setLocalError(null); setRequest(next); },
     dialog,
   };
 }

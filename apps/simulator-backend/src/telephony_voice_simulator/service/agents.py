@@ -6,12 +6,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import httpx
 import yaml
 
 from ..integrations import agent_api
 from ..integrations.livekit import runner
 from ..paths import SCENARIOS_DIR
-from .errors import NotFoundError, ValidationError
+from .errors import ConflictError, NotFoundError, ValidationError
 
 DEFAULT_SCENARIO = "stock_voicemail_beep_1000"
 
@@ -27,6 +28,8 @@ def trigger_call(*, scenario: str = DEFAULT_SCENARIO, number: str = "") -> dict[
     number = number or agent_api.sim_number()
     try:
         call_id, response = agent_api.trigger_call(config, scenario=scenario, number=number)
+    except httpx.HTTPError as exc:
+        raise ConflictError(f"Agent API request failed: {exc}") from exc
     except (ValueError, RuntimeError) as exc:
         raise ValidationError(str(exc)) from exc
     return {"call_id": call_id, "scenario": scenario, "number": number, "response": response}
@@ -51,6 +54,8 @@ def call_and_wait(
         if log:
             log(f"triggered call_id={call_id} scenario={scenario} -> dials {number}")
         record = agent_api.wait_for_terminal(config, call_id, timeout=timeout, log=log)
+    except httpx.HTTPError as exc:
+        raise ConflictError(f"Agent API request failed: {exc}") from exc
     except (ValueError, RuntimeError) as exc:
         raise ValidationError(str(exc)) from exc
     return {
@@ -68,6 +73,8 @@ def call_record(*, call_id: str) -> dict[str, Any]:
     _require_record_url(config)
     try:
         record = agent_api.fetch_record(config, call_id)
+    except httpx.HTTPError as exc:
+        raise ConflictError(f"Agent API request failed: {exc}") from exc
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
     if record is None:

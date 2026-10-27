@@ -197,7 +197,7 @@ export class SimulatorApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const abort = () => controller.abort();
   const timeout = setTimeout(abort, 15_000);

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from aiohttp import web
@@ -45,8 +46,10 @@ async def deploy(request: web.Request) -> web.Response:
 async def queue(request: web.Request) -> web.Response:
     body = await json_object(request)
     return json_response(
-        hosted.queue_scenario(
-            number=string_field(body, "number"), scenario=string_field(body, "scenario")
+        await asyncio.to_thread(
+            hosted.queue_scenario,
+            number=string_field(body, "number"),
+            scenario=string_field(body, "scenario"),
         )
     )
 

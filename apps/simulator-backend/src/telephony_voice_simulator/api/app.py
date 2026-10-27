@@ -23,6 +23,8 @@ from . import (
 from .common import CALL_EVICTOR_KEY, SERVICE_KEY
 from .middleware import cors, errors
 
+MAX_REQUEST_BYTES = 32 * 1024 * 1024
+
 ROUTE_MODULES = (
     resources,
     numbers,
@@ -52,7 +54,8 @@ def build_app(
 ) -> web.Application:
     # CORS is outermost so validation/error responses remain readable by the
     # browser console as well as successful responses.
-    app = web.Application(middlewares=[cors, errors])
+    # Transcript analysis posts up to 50,000 rows; aiohttp otherwise caps bodies at 1 MiB.
+    app = web.Application(middlewares=[cors, errors], client_max_size=MAX_REQUEST_BYTES)
     app[SERVICE_KEY] = service or SimulatorService()
     for module in ROUTE_MODULES:
         module.register(app)
