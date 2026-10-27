@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from ..identifiers import is_canonical_e164
 from ..models import (
     Endpoint,
     ProviderConnection,
@@ -96,6 +97,10 @@ class ProviderAdapter(ABC):
 
         if kind not in self.descriptor.endpoint_kinds:
             raise ProviderError(f"{self.descriptor.name} does not support {kind}")
+        if kind == "phone_number" and not is_canonical_e164(address):
+            raise ProviderError("Phone lines must use canonical E.164 (for example +15550101000)")
+        if kind == "sip_uri" and not address.lower().startswith(("sip:", "sips:")):
+            raise ProviderError("SIP lines must start with sip: or sips:")
 
     def register_endpoint(
         self,

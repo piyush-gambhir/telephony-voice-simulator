@@ -509,6 +509,17 @@ def test_endpoint_kind_is_validated_by_provider(service: SimulatorService) -> No
         )
 
 
+@pytest.mark.parametrize("kind, address", [("phone_number", "not-a-number"),
+                                            ("phone_number", "5550100001"),
+                                            ("sip_uri", "agent@example.com")])
+def test_local_lines_need_real_addresses(service: SimulatorService, kind, address) -> None:
+    connection = service.create_connection("mock", "Local")
+    with pytest.raises(ValidationError, match="E.164|sip:"):
+        service.create_endpoint(
+            connection_id=connection["id"], name="Bad", kind=kind, address=address
+        )
+
+
 async def test_twilio_scenario_compatibility_is_enforced_by_service(
     service: SimulatorService,
 ) -> None:
@@ -1231,6 +1242,11 @@ async def test_amd_number_inventory_is_persisted_configured_and_queued(
     assert renamed["endpoint"]["name"] == "Telephony Voice Simulator · AMD 01"
     assert renamed["endpoint"]["default_scenario"] == "google_voice_voicemail"
     assert renamed["configuration"]["record_full_calls"] is True
+    # A partial update (the console's Enable/Disable) keeps the scenario it did not send.
+    disabled = await service.update_amd_number(number["id"], enabled=False)
+    assert disabled["endpoint"]["enabled"] is False
+    assert disabled["endpoint"]["default_scenario"] == "google_voice_voicemail"
+    await service.update_amd_number(number["id"], enabled=True)
     from telephony_voice_simulator.telephony.twilio import recordings as twilio_recordings
     from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
@@ -1281,3 +1297,20 @@ async def test_cross_site_writes_are_refused_before_reaching_handlers(
             headers={"Origin": "http://localhost:3100", "Content-Type": "application/json"},
         )
         assert dev_proxy.status == 201
+
+
+async def test_number_sync_adopts_a_line_already_added_on_another_connection(
+    tmp_path: Path,
+) -> None:
+    manager = FakeTwilioNumberManager()
+    service = SimulatorService(
+        store=SimulatorStore(tmp_path / "adopt.db"), twilio_numbers=manager
+    )
+    other = service.store.create_connection("twilio", "Hand-made")
+    existing = service.store.create_endpoint(
+        connection_id=other.id, name="Mine", kind="phone_number", address="+14255550101"
+    )
+    imported = await service.sync_amd_numbers()
+
+    assert imported[0]["endpoint"]["id"] == existing.id
+    assert [e["address"] for e in service.list_endpoints()] == ["+14255550101"]

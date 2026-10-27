@@ -10,8 +10,8 @@ from ..telephony.twilio.management import (
     TwilioManagementError,
 )
 from .errors import NotFoundError, ValidationError
-
-_UNSET = object()
+# The same sentinel update_endpoint checks, so an omitted scenario stays omitted.
+from .resources import _UNSET
 
 
 class NumbersMixin:
@@ -114,20 +114,25 @@ class NumbersMixin:
                 "No Twilio numbers are currently attached to an AMD /machine?mode=voice URL."
             )
         connection = self._amd_connection()
-        endpoints = self.store.list_endpoints()
+        twilio_connections = {
+            item.id for item in self.store.list_connections() if item.provider == "twilio"
+        }
+        # A number already added as a line on any Twilio connection is adopted, not duplicated:
+        # inbound routing looks lines up by number, so two would route unpredictably.
+        endpoints = [
+            item for item in self.store.list_endpoints()
+            if item.connection_id in twilio_connections
+        ]
         for remote in selected:
             phone_number = str(remote.get("phone_number") or "").strip()
             resource_id = str(remote.get("sid") or "").strip()
             friendly_name = str(remote.get("friendly_name") or phone_number).strip()
             if not phone_number or not resource_id:
                 continue
+            matches = [item for item in endpoints if item.address == phone_number]
             endpoint = next(
-                (
-                    item
-                    for item in endpoints
-                    if item.connection_id == connection.id and item.address == phone_number
-                ),
-                None,
+                (item for item in matches if item.connection_id == connection.id),
+                matches[0] if matches else None,
             )
             if endpoint is None:
                 endpoint = self.store.create_endpoint(
@@ -142,7 +147,7 @@ class NumbersMixin:
                 endpoints.append(endpoint)
             self.store.upsert_provider_number(
                 provider="twilio",
-                connection_id=connection.id,
+                connection_id=endpoint.connection_id,
                 endpoint_id=endpoint.id,
                 provider_resource_id=resource_id,
                 phone_number=phone_number,

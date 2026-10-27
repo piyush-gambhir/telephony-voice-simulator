@@ -1641,8 +1641,29 @@ class SQLiteSimulatorStore:
                 """,
                 (call_id, _now()),
             )
+            self._redact_runs_for_call(db, call_id)
             cursor = db.execute("DELETE FROM incoming_calls WHERE id = ?", (call_id,))
         return cursor.rowcount > 0
+
+    # Run fields that describe the outcome without carrying the call's content.
+    _RUN_FIELDS_KEPT = ("mode", "call_id", "passed", "graded", "summary", "carrier_status",
+                        "duration_seconds")
+
+    def _redact_runs_for_call(self, db: Any, call_id: str) -> None:
+        """Strip a deleted call's analysis (transcripts, numbers) from the runs it finished."""
+        rows = db.execute(
+            "SELECT id, result_json FROM simulation_runs WHERE result_json LIKE ?",
+            (f"%{call_id}%",),
+        ).fetchall()
+        for row in rows:
+            result = json.loads(row["result_json"] or "{}")
+            if result.get("call_id") != call_id:
+                continue
+            kept = {k: result[k] for k in self._RUN_FIELDS_KEPT if k in result}
+            db.execute(
+                "UPDATE simulation_runs SET result_json = ? WHERE id = ?",
+                (json.dumps({**kept, "call_deleted": True}), row["id"]),
+            )
 
     def get_recording(self, recording_id: str) -> CallRecording | None:
         with self._connect() as db:

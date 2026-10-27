@@ -99,3 +99,34 @@ def test_sanitized_output_can_be_explicitly_retained() -> None:
     assert passed
     assert reports[0]["result"]["output_redacted"] is False
     assert reports[0]["result"]["stdout"] == '{"score":1}'
+
+
+def test_a_missing_executable_fails_the_step_and_still_runs_cleanup(tmp_path) -> None:
+    missing = uat.CommandAdapter({"argv": ["definitely-not-a-real-command-tvs"]}, tmp_path)
+    cleanup = SequenceAdapter([result(True, "completed")])
+    passed, reports = uat._run_workflow(
+        [uat.WorkflowStep(name="trigger", adapter=missing),
+         uat.WorkflowStep(name="cleanup", adapter=cleanup, run_if="always")],
+        {"scenario": "example", "run_id": "local-123"},
+    )
+    assert not passed
+    assert reports[0]["result"]["status"] == "start_failed"
+    assert cleanup.calls == 1
+
+
+def test_capture_reads_json_longer_than_the_report_limit() -> None:
+    body = '{"id":"remote-9","transcript":"' + "x" * 20_000 + '"}'
+    adapter = SequenceAdapter([result(True, "completed", body)])
+    step = uat.WorkflowStep(name="poll", adapter=adapter, capture_json={"remote": "id"},
+                            report_output=True)
+    context = {"scenario": "example", "run_id": "local-123"}
+    passed, reports = uat._run_workflow([step], context)
+    assert passed and context["remote"] == "remote-9"
+    assert len(reports[0]["result"]["stdout"]) < 13_000
+
+
+def test_report_detail_is_bounded_too() -> None:
+    long = uat.StepResult("offline", True, "completed", 0.01, detail="u" * 20_000)
+    reported = uat._report_result(
+        uat.WorkflowStep(name="x", adapter=SequenceAdapter([]), report_output=True), long)
+    assert len(reported["detail"]) < 13_000

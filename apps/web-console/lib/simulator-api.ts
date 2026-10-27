@@ -123,6 +123,12 @@ export type CallAnalysis = {
   graded?: boolean;
   checks?: CheckResult[];
   skipped_webhook_side?: string[];
+  /** A synthetic-customer call's grade against its persona (see the Inbox). */
+  grade?: {
+    passed: boolean;
+    checks: Array<{ check: string; passed: boolean }>;
+    expectations: Array<{ expectation: string; passed: boolean; reasons: string[] }>;
+  };
 };
 
 export type SimulationRun = {
@@ -152,6 +158,8 @@ export type SimulationRun = {
     duration_seconds?: number;
     department?: string;
     call_id?: string;
+    /** The call was deleted: its analysis is gone, its verdict and summary remain. */
+    call_deleted?: boolean;
     analysis?: CallAnalysis;
   };
   created_at: string;

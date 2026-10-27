@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Fixed
+
+- Enabling or disabling a managed number without sending a scenario no longer fails
+  with "Unknown scenario".
+- Deleting a call also strips its analysis (transcripts, numbers) from the run it
+  finished; the run keeps only its verdict and summary.
+- `numbers sync` adopts a number already added as a line on another Twilio connection
+  instead of creating a second line for it.
+- `numbers point` keeps a separate backup for every change, so pointing a number again
+  no longer overwrites the configuration from before the first change.
+- A benchmark attempt whose trigger the agent rejects (a refused destination or a 4xx)
+  cancels its queued scenario, so the line's next call does not inherit it.
+- UAT: a missing command or working directory fails the step and still runs cleanup
+  steps and the report; captured values parse the whole response, not the first 12,000
+  characters.
+- The PBX API honors a patience of zero seconds instead of replacing it with 600.
+- Results shows synthetic-customer grades: each persona expectation and check counts as
+  a check, so Results and the Inbox agree.
+- Phone and SIP lines on the local mock provider must use E.164 numbers and sip: URIs,
+  like the Twilio and Telnyx providers.
+- Removed the unused `PSTN_BIND_HOST` and `PSTN_BIND_PORT` settings and the outdated
+  customer runtime description from the configuration docs.
+
 ### Added
 
 - **Customer personas.** Personas are YAML files: a synthetic profile, an engine

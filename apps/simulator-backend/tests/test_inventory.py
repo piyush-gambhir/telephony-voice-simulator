@@ -117,3 +117,18 @@ def test_cli_point_dry_run(monkeypatch, capsys) -> None:
     out = json.loads(capsys.readouterr().out)
     assert out["change"]["VoiceUrl"] == "https://sim.example/twilio/ivr"
     assert out["applied"] is False
+
+
+async def test_pointing_twice_keeps_the_first_backup(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(inventory, "RESULTS_DIR", tmp_path)
+    manager = FakeManager()
+    first = await inventory.point_number(
+        number="+14255550100", base_url="https://sim.example/", manager=manager)
+    second = await inventory.point_number(
+        number="+14255550100", base_url="https://new.example/", manager=manager)
+    assert first["backup_path"] != second["backup_path"]
+    assert json.loads(Path(first["backup_path"]).read_text())["voice_url"] == (
+        "https://old.example/voice")
+    with pytest.raises(ValidationError, match="already exists"):
+        await inventory.point_number(number="+14255550100", base_url="https://sim.example/",
+                                     backup=Path(first["backup_path"]), manager=manager)

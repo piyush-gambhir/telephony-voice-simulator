@@ -27,6 +27,8 @@ async def route_call(request: web.Request) -> web.Response:
         for key, value in occupied.items()
     ):
         raise ValidationError("occupied_channels must map trunk ids to whole numbers")
+    # Zero patience is valid (the caller hangs up as soon as they would wait).
+    patience = optional_int_field(body, "patience_seconds")
     return web.json_response(
         pbx.route_call(
             to_number=string_field(body, "to_number"),
@@ -36,7 +38,7 @@ async def route_call(request: web.Request) -> web.Response:
             date=optional_string_field(body, "date"),
             digits=string_list_field(body, "digits"),
             intent=string_field(body, "intent"),
-            patience_seconds=optional_int_field(body, "patience_seconds") or 600,
+            patience_seconds=600 if patience is None else patience,
             presence=string_map_field(body, "presence"),
             occupied_channels=occupied,
             glare_trunks=string_list_field(body, "glare_trunks"),

@@ -222,6 +222,14 @@ def sim_number() -> str:
     return number
 
 
+class TriggerRejected(RuntimeError):
+    """The agent definitely did not place the call: refused here, or a 4xx response."""
+
+
+class DestinationRefused(TriggerRejected, ValueError):
+    """The rendered call would leave the configured test allowlist; nothing was sent."""
+
+
 def trigger_call(
     config: AgentApiConfig,
     *,
@@ -237,9 +245,11 @@ def trigger_call(
     )
     if config.allowed_destinations:
         if number not in config.allowed_destinations:
-            raise ValueError("call destination is outside the configured test allowlist")
+            raise DestinationRefused("call destination is outside the configured test allowlist")
         if dotted(body, config.destination_path) != number:
-            raise ValueError("rendered call destination does not match the requested test number")
+            raise DestinationRefused(
+                "rendered call destination does not match the requested test number"
+            )
     response = httpx.request(
         config.trigger_method,
         config.trigger_url,
@@ -250,7 +260,8 @@ def trigger_call(
     if not response.is_success:
         # The body frequently carries the actionable reason (bad mapping id,
         # expired token, unroutable number); a bare status code does not.
-        raise RuntimeError(f"trigger failed {response.status_code}: {response.text[:400]}")
+        failure = TriggerRejected if 400 <= response.status_code < 500 else RuntimeError
+        raise failure(f"trigger failed {response.status_code}: {response.text[:400]}")
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("agent trigger response must be a JSON object")

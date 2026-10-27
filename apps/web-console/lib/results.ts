@@ -1,6 +1,7 @@
 import { content } from "@/lib/scenarios";
 import { identifierLabel } from "@/lib/display-text";
 import type {
+  CallAnalysis,
   CheckResult,
   Endpoint,
   IncomingCall,
@@ -147,15 +148,37 @@ function reasonFor(verdict: Verdict, checks: CheckResult[], run: SimulationRun |
   };
 }
 
+/**
+ * The checks that decide a call: AMD checks on the call, or a synthetic-customer grade
+ * (each persona expectation and transcript check becomes one check), or the run's copy.
+ */
+function evidenceFor(run: SimulationRun | null, call: IncomingCall | null): CallAnalysis | undefined {
+  if (call?.analysis?.checks) return call.analysis;
+  const grade = call?.analysis?.grade;
+  if (grade) {
+    return {
+      passed: grade.passed,
+      checks: [
+        ...grade.expectations.map((item) => ({
+          check: item.expectation, passed: item.passed, detail: item.reasons.join(" "),
+        })),
+        ...grade.checks.map((item) => ({ check: item.check, passed: item.passed })),
+      ],
+    };
+  }
+  return run?.result.analysis;
+}
+
 function verdictFor(run: SimulationRun | null, call: IncomingCall | null): Verdict {
   if (run?.status === "queued") return "queued";
   if (run?.status === "cancelled") return "cancelled";
   if (run?.result.error) return "error";
   if (call && ACTIVE_CALL.has(call.status)) return "running";
   if (run && !call && !run.completed_at && !["completed", "failed"].includes(run.status)) return "running";
-  const analysis = call?.analysis?.checks ? call.analysis : run?.result.analysis;
+  const analysis = evidenceFor(run, call);
   // Checks decide whenever they exist, whether or not the call is still in the loaded window.
-  if (analysis?.checks?.length || run?.result.graded) {
+  const keptVerdict = run?.result.call_deleted && run.result.passed != null;
+  if (analysis?.checks?.length || run?.result.graded || keptVerdict) {
     const passed = analysis?.passed ?? run?.result.passed ?? null;
     return passed === true ? "passed" : passed === false ? "failed" : "no_verdict";
   }
@@ -190,7 +213,7 @@ export function buildResults(
 
   const make = (run: SimulationRun | null, call: IncomingCall | null): Result => {
     const scenario = run?.scenario ?? call?.scenario ?? "unknown";
-    const analysis = call?.analysis?.checks ? call.analysis : run?.result.analysis;
+    const analysis = evidenceFor(run, call);
     const checks = analysis?.checks ?? [];
     const verdict = verdictFor(run, call);
     const { line, lineName } = lineFor(run?.endpoint_id ?? null, call?.to_address ?? null);

@@ -79,7 +79,13 @@ def _secret(value: Any) -> str:
     return resolved
 
 
-def _bounded(text: str | bytes, limit: int = 12_000) -> str:
+# Adapters keep output up to RAW_LIMIT so captures can parse whole JSON documents; reports
+# show at most REPORT_LIMIT of it.
+RAW_LIMIT = 2_000_000
+REPORT_LIMIT = 12_000
+
+
+def _bounded(text: str | bytes, limit: int = RAW_LIMIT) -> str:
     if isinstance(text, bytes):
         text = text.decode(errors="replace")
     if len(text) <= limit:
@@ -151,6 +157,16 @@ class CommandAdapter:
                 text=True,
                 timeout=self.timeout_s,
                 check=False,
+            )
+        except OSError as exc:
+            # A missing executable or working directory is a failed step, so retries,
+            # "always" cleanup steps and the report still run.
+            return StepResult(
+                "command",
+                False,
+                "start_failed",
+                time.monotonic() - started,
+                f"{self.preview(context)}: {exc}",
             )
         except subprocess.TimeoutExpired as exc:
             return StepResult(
@@ -398,6 +414,11 @@ def _report_result(step: WorkflowStep, result: StepResult) -> dict[str, Any]:
         reported["detail"] = ""
         reported["stdout"] = ""
         reported["stderr"] = ""
+    else:
+        # Rendered arguments and URLs can carry large captured values too.
+        reported["detail"] = _bounded(result.detail, REPORT_LIMIT)
+        reported["stdout"] = _bounded(result.stdout, REPORT_LIMIT)
+        reported["stderr"] = _bounded(result.stderr, REPORT_LIMIT)
     return reported
 
 

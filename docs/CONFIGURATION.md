@@ -80,8 +80,6 @@ Do not commit those values.
 | `PSTN_RECORD_ALL_CALLS` | `false` | Start a dual-channel full-call recording |
 | `PSTN_ALLOW_UNSIGNED_WEBHOOKS` | `false` | Local-only override; never use on a public endpoint |
 | `PSTN_ACKNOWLEDGE_PUBLIC_AUDIO` | `false` | Required acknowledgement before non-loopback AMD media serving |
-| `PSTN_BIND_HOST` | `127.0.0.1` | Bind host for the historical standalone PSTN module |
-| `PSTN_BIND_PORT` | `8978` | Port for the standalone PSTN module |
 
 Twilio credentials and `PUBLIC_BASE_URL` are required for real PSTN calls.
 
@@ -200,11 +198,11 @@ senders, whether the inbox exists), `sms list [--limit N]` (newest first),
 `customer profiles` (personas, and which required keys are set as booleans, never
 their values) and `customer sessions [--limit N]` (recorded dialogues).
 
-The customer runtime permits up to 20 retained sessions, 16 turns per call,
-and a 240-second turn-generation window. Generated audio is served with
-`Cache-Control: no-store` and expires after ten minutes. Deletion removes the
-in-memory session and its audio, and rejects late turns using the shared call
-tombstone. Restarting the backend ends in-memory conversations.
+The customer webhook allows at most 20 calls at once and registers each CallSid
+once; ElevenLabs ends each conversation after four minutes. The conversation and
+its audio live in ElevenLabs; the simulator keeps the call record, a copy of the
+persona and the transcript once fetched. Deleting a call removes the simulator's
+copy only.
 
 ElevenLabs can render both the optional IVR prompts and the clean-room AMD
 scenario corpus. Keep `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in the

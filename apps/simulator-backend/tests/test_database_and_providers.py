@@ -189,3 +189,26 @@ async def test_twilio_adapter_owns_queue_dispatch(tmp_path: Path) -> None:
     assert store.list_provider_queue("twilio", endpoint.address) == [
         {"scenario": "machine", "run_id": "run_provider"}
     ]
+
+
+def test_deleting_a_call_strips_its_analysis_from_the_run_it_finished(tmp_path: Path) -> None:
+    store = SQLiteSimulatorStore(tmp_path / "redact.db")
+    connection = store.create_connection("mock", "Local")
+    endpoint = store.create_endpoint(
+        connection_id=connection.id, name="Line", kind="extension", address="1001"
+    )
+    run = store.create_run(endpoint.id, "twilio", "stock_voicemail_beep_1000")
+    other = store.create_run(endpoint.id, "twilio", "stock_voicemail_beep_1000")
+    call_id = "CA" + "1" * 32
+    analysis = {"passed": True, "mailbox_transcript": "Hi, this is Alex at +15550001111"}
+    store.update_run(run, status="completed", completed=True, result={
+        "mode": "pstn", "call_id": call_id, "passed": True, "summary": "ok", "analysis": analysis})
+    store.update_run(other, status="completed", completed=True, result={
+        "call_id": "CA" + "2" * 32, "analysis": analysis})
+    store.upsert_incoming_call(call_id=call_id, analysis=analysis)
+
+    assert store.delete_incoming_call(call_id)
+    kept = store.get_run(run.id).result
+    assert kept == {"mode": "pstn", "call_id": call_id, "passed": True, "summary": "ok",
+                    "call_deleted": True}
+    assert store.get_run(other.id).result["analysis"] == analysis

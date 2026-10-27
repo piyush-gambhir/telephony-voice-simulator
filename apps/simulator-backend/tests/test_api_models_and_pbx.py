@@ -98,3 +98,13 @@ async def test_one_scenario_validates_even_when_another_file_is_broken(tmp_path:
         bad = await client.post("/api/scenarios/validate", json={"scenario": "bad"})
         report = await bad.json()
     assert bad.status == 200 and report["valid"] is False and report["scenarios"][0]["error"]
+
+
+async def test_zero_patience_reaches_the_router(client) -> None:
+    from telephony_voice_simulator.service import pbx
+
+    body = {"to_number": "+14155550102", "patience_seconds": 0}
+    api = await (await client.post("/api/pbx/calls", json=body)).json()
+    direct = pbx.route_call(to_number="+14155550102", patience_seconds=0)
+    assert api["call"] == direct["call"]
+    assert api["call"] != pbx.route_call(to_number="+14155550102")["call"]

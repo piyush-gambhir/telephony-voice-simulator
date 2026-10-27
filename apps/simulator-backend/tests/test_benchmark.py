@@ -743,3 +743,24 @@ def test_shell_wrapper_never_calls_on_dry_run_or_after_broken_preflight(tmp_path
         assert len(calls) == 3
         assert calls[-1].startswith("benchmark preflight")
         assert len(list((tmp_path / "results" / "benchmark").glob("preflight.*"))) == 1
+
+
+@pytest.mark.parametrize("failure, cancelled", [
+    (execution.agent_api.TriggerRejected("trigger failed 400: bad"), ["run_q"]),
+    (RuntimeError("trigger failed 503: busy"), []),
+])
+def test_a_rejected_trigger_cancels_its_queued_scenario(monkeypatch, failure, cancelled):
+    calls = []
+    monkeypatch.setattr(execution, "queue_scenario", lambda *_: "run_q")
+    monkeypatch.setattr(execution, "cancel_queued", calls.append)
+
+    def refuse(*_args, **_kwargs):
+        raise failure
+
+    monkeypatch.setattr(execution.agent_api, "trigger_call", refuse)
+    row = execution.run_once(
+        AgentApiConfig("https://agent.test/calls", {}), scenario_name="human", scenario={},
+        number="+15550100000", attempt=1, call_timeout=5, grade_audio=False, numbers={},
+    )
+    assert row["passed"] is False
+    assert calls == cancelled

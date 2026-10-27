@@ -48,8 +48,8 @@ def number_index() -> dict[str, str]:
     return {row["phone_number"]: row["id"] for row in resp.json()}
 
 
-def queue_scenario(scenario: str, number: str, index: dict[str, str]) -> None:
-    """Queue exactly this scenario on the line's managed endpoint."""
+def queue_scenario(scenario: str, number: str, index: dict[str, str]) -> str | None:
+    """Queue exactly this scenario on the line's managed endpoint; returns the run ID."""
     number_id = index.get(number)
     if not number_id:
         raise RuntimeError(
@@ -63,6 +63,12 @@ def queue_scenario(scenario: str, number: str, index: dict[str, str]) -> None:
     )
     if resp.status_code >= 400:
         raise RuntimeError(f"queue failed {resp.status_code}: {resp.text[:300]}")
+    return ((resp.json() or {}).get("run") or {}).get("id")
+
+
+def cancel_queued(run_id: str) -> None:
+    """Drop an assignment no call will claim, so the line's next call does not inherit it."""
+    httpx.post(f"{simulator_api()}/api/runs/{run_id}/cancel", timeout=30)
 
 
 def find_sim_call(
@@ -144,10 +150,18 @@ def run_once(
         "agent_terminal": False,
     }
 
+    queued_run = None
     try:
-        queue_scenario(scenario_name, number, numbers)
+        queued_run = queue_scenario(scenario_name, number, numbers)
         call_id, _ = agent_api.trigger_call(config, scenario=scenario_name, number=number)
     except Exception as exc:  # trigger/queue failures are results, not crashes
+        # Only when the agent surely placed no call; after a timeout or 5xx a call may
+        # still arrive and must find its scenario.
+        if queued_run and isinstance(exc, agent_api.TriggerRejected):
+            try:
+                cancel_queued(queued_run)
+            except httpx.HTTPError:
+                pass
         row["error"] = f"{type(exc).__name__}: {exc}"
         # A type and a message alone cannot say WHERE a run died, and a failed
         # suite is expensive to reproduce, so keep the frames too.
