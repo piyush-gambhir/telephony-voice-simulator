@@ -35,8 +35,9 @@ class FakeAgents:
 
 
 @pytest.fixture
-def fake_agents(monkeypatch):
+def fake_agents(monkeypatch, tmp_path):
     agents = FakeAgents()
+    monkeypatch.setattr(customer_service, 'DATA_DIR', tmp_path / 'data')
     for name in ('update_agent', 'find_branch', 'create_branch', 'find_agent',
                  'duplicate_agent', 'get_agent'):
         monkeypatch.setattr(elevenlabs, name, getattr(agents, name))

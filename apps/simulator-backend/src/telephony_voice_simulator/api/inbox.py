@@ -76,8 +76,10 @@ async def customer_enqueue(request: web.Request) -> web.Response:
     number, label = body.get("number"), body.get("label")
     if not isinstance(number, str) or (label is not None and not isinstance(label, str)):
         raise ValidationError("number must be a string, and label a string when given")
-    queued = customer.queue_persona(
-        service_of(request).store, number, persona_id=persona_id, inline=inline, label=label
+    # Queueing a new variant persona provisions an ElevenLabs agent: blocking HTTP.
+    queued = await asyncio.to_thread(
+        customer.queue_persona, service_of(request).store, number,
+        persona_id=persona_id, inline=inline, label=label,
     )
     return json_response(queued, status=201)
 

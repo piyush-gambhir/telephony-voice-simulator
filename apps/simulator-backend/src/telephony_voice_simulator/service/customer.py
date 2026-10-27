@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import os
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from .. import personas
+from ..paths import DATA_DIR
 from ..grading import personas as judge
 from ..integrations import elevenlabs
 from ..storage.sqlite import SimulatorStore
@@ -115,37 +118,73 @@ def _check_engine(persona: dict[str, Any]) -> None:
     _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
 
 
-# Agent and branch IDs never change once created, so each process looks them up once.
-_VARIANT_AGENTS: dict[str, str] = {}
-_PINNED_BRANCHES: dict[str, str] = {}
+# Agent and branch IDs, cached briefly: a dashboard can delete or recreate them, and a
+# failed registration clears the cache (see ``forget_routing``).
+ROUTING_TTL_SECONDS = 300.0
+_VARIANT_AGENTS: dict[str, tuple[float, str]] = {}
+_PINNED_BRANCHES: dict[str, tuple[float, str]] = {}
+# Provisioning creates agents and branches; one process at a time per host, so two syncs
+# never duplicate the same variant. The thread lock covers threads, the file lock processes.
+_PROVISION_LOCK = threading.Lock()
+
+
+def _cached(cache: dict[str, tuple[float, str]], key: str, lookup: Callable[[], str | None]
+            ) -> str | None:
+    hit = cache.get(key)
+    if hit and hit[0] > time.monotonic():
+        return hit[1]
+    value = lookup()
+    if value is None:
+        cache.pop(key, None)
+    else:
+        cache[key] = (time.monotonic() + ROUTING_TTL_SECONDS, value)
+    return value
+
+
+def forget_routing() -> None:
+    """Drop cached agent and branch IDs, e.g. after ElevenLabs refused a registration."""
+    _VARIANT_AGENTS.clear()
+    _PINNED_BRANCHES.clear()
+
+
+@contextmanager
+def _provisioning() -> Iterator[None]:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with _PROVISION_LOCK, open(DATA_DIR / "elevenlabs-provisioning.lock", "w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _pinned_branch(agent_id: str) -> str | None:
-    if agent_id not in _PINNED_BRANCHES:
-        branch = _translated(lambda: elevenlabs.find_branch(agent_id, customer.PINNED_BRANCH))
-        if branch is None:
-            return None
-        _PINNED_BRANCHES[agent_id] = branch
-    return _PINNED_BRANCHES[agent_id]
+    return _cached(_PINNED_BRANCHES, agent_id, lambda: _translated(
+        lambda: elevenlabs.find_branch(agent_id, customer.PINNED_BRANCH)
+    ))
+
+
+def _variant_agent(name: str) -> str | None:
+    return _cached(_VARIANT_AGENTS, name, lambda: _translated(lambda: elevenlabs.find_agent(name)))
 
 
 def resolve_agent(persona: dict[str, Any]) -> tuple[str, str | None]:
     """The persona's agent (its engine's base agent, or its variant) and pinned branch.
 
-    The branch is None until ``customer sync-agent`` has created it; calls then run on
-    the agent's live configuration.
+    A base agent's branch is None until ``customer sync-agent`` has created it; its calls
+    then run on the live configuration. A variant must be fully provisioned, branch
+    included, because an unsynced copy would silently lack its noise and turn settings.
     """
     base = _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
     settings = personas.variant(persona)
     if settings is None:
         return base, _pinned_branch(base)
     name = personas.variant_name(settings)
-    if name not in _VARIANT_AGENTS:
-        agent_id = _translated(lambda: elevenlabs.find_agent(name))
-        if agent_id is None:
-            raise ConflictError(f"No ElevenLabs agent '{name}'; run customer sync-agent")
-        _VARIANT_AGENTS[name] = agent_id
-    return _VARIANT_AGENTS[name], _pinned_branch(_VARIANT_AGENTS[name])
+    agent_id = _variant_agent(name)
+    branch = _pinned_branch(agent_id) if agent_id else None
+    if agent_id is None or branch is None:
+        raise ConflictError(f"ElevenLabs agent '{name}' is not provisioned; run customer sync-agent")
+    return agent_id, branch
 
 
 def queue_persona(
@@ -162,8 +201,13 @@ def queue_persona(
     persona = resolve_persona(persona_id, inline)
     _check_engine(persona)
     if settings := personas.variant(persona):
-        # A queued inline persona may need a variant nobody has synced yet.
-        _sync_variant(settings)
+        # A queued inline persona may need a variant nobody has created yet. An existing
+        # variant is left as it is: only sync-agent moves a pinned branch.
+        with _provisioning():
+            name = personas.variant_name(settings)
+            agent_id = _variant_agent(name)
+            if agent_id is None or _pinned_branch(agent_id) is None:
+                _sync_variant(settings)
     return store.enqueue_customer_persona(number, persona, label)
 
 
@@ -201,7 +245,7 @@ def _sync_one(agent_id: str, settings: dict[str, Any]) -> dict[str, Any]:
     else:
         _translated(lambda: elevenlabs.rebase_branch(agent_id, branch))
     version = _translated(lambda: elevenlabs.branch_version(agent_id, branch))
-    _PINNED_BRANCHES[agent_id] = branch
+    _PINNED_BRANCHES[agent_id] = (time.monotonic() + ROUTING_TTL_SECONDS, branch)
     return {"agent_id": agent_id, "branch_id": branch, "version_id": version}
 
 
@@ -216,13 +260,15 @@ def _sync_variant(variant: dict[str, Any]) -> dict[str, Any]:
     agent_id = _translated(lambda: elevenlabs.find_agent(name))
     if agent_id is None:
         agent_id = _translated(lambda: elevenlabs.duplicate_agent(base, name))
-    _VARIANT_AGENTS[name] = agent_id
     settings = customer.agent_settings(variant["engine"], variant)
     voice = (_translated(lambda: elevenlabs.get_agent(base))["conversation_config"]
              .get("tts", {}).get("voice_id"))
     if voice:
         settings["conversation_config"]["tts"]["voice_id"] = voice
-    return {"name": name, **_sync_one(agent_id, settings)}
+    synced = _sync_one(agent_id, settings)
+    # Cached only once configured and pinned, so calls never reach a half-made copy.
+    _VARIANT_AGENTS[name] = (time.monotonic() + ROUTING_TTL_SECONDS, agent_id)
+    return {"name": name, **synced}
 
 
 def sync_agent() -> dict[str, Any]:
@@ -232,6 +278,11 @@ def sync_agent() -> dict[str, Any]:
     each variant needed by a catalog persona on a configured engine is created if missing
     and gets the same plus its background sound and turn-taking.
     """
+    with _provisioning():
+        return _sync_all()
+
+
+def _sync_all() -> dict[str, Any]:
     engines = _configured_engines()
     if "chained" not in engines:
         _translated(elevenlabs.customer_agent_id)

@@ -205,6 +205,8 @@ async def handle_customer(request: web.Request) -> web.Response:
         )
     except (elevenlabs.ElevenLabsError, ValueError) as exc:
         ACTIVE.pop(sid, None)
+        # The agent or branch may have been deleted or recreated; look them up again.
+        service.forget_routing()
         if not state.call_is_deleted(sid):
             state.call_store().upsert_incoming_call(
                 call_id=sid, status="failed",

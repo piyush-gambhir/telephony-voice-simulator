@@ -124,6 +124,12 @@ Unpinned.
 Each session records the agent, branch and exact version that held the call, and a
 grade records the same, so a change in results can be traced to a persona change.
 
+Queueing a persona whose variant already exists never touches its agent; only
+`sync-agent` moves pinned branches. A variant that has no pinned branch yet is refused
+rather than run unconfigured. Provisioning takes a lock on this host, so run
+`sync-agent` from one machine at a time. Agent and branch IDs are cached for five
+minutes and dropped when ElevenLabs refuses a registration.
+
 The route rejects unconfigured callers, destinations, accounts and invalid Twilio
 signatures, allows at most 20 calls at once, and registers each CallSid once
 (Twilio retries reuse the first registration). A registration or persona failure

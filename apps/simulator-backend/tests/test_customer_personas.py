@@ -408,3 +408,29 @@ def test_a_late_transcript_write_keeps_a_saved_grade(store, tests_api):
     service.store_conversation(store, {'conversation_id': 'conv_1', 'user_id': SID,
                                        'status': 'done', 'transcript': []})
     assert store.get_incoming_call(SID).analysis['graded'] is True
+
+
+def test_queueing_leaves_an_existing_variant_unsynced(store, fake_agents):
+    service.sync_agent()
+    synced = len(fake_agents.updates)
+    service.queue_persona(store, LINE, persona_id='busy-recall-owner')
+    assert len(fake_agents.updates) == synced
+
+
+def test_an_unpinned_variant_is_refused_not_run_on_its_raw_copy(store, fake_agents):
+    persona = personas.get('busy-recall-owner')
+    fake_agents.names[personas.variant_name(personas.variant(persona))] = 'agent_half_made'
+    with pytest.raises(ConflictError, match='not provisioned'):
+        service.resolve_agent(persona)
+
+
+def test_routing_cache_expires_and_can_be_forgotten(store, fake_agents, monkeypatch):
+    service.sync_agent()
+    persona = personas.get('busy-recall-owner')
+    first = service.resolve_agent(persona)
+    name = personas.variant_name(personas.variant(persona))
+    fake_agents.names[name] = 'agent_recreated'
+    fake_agents.branches['agent_recreated'] = 'branch_recreated'
+    assert service.resolve_agent(persona) == first
+    service.forget_routing()
+    assert service.resolve_agent(persona) == ('agent_recreated', 'branch_recreated')
