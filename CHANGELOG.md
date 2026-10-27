@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **The synthetic customer runs on ElevenLabs Agents.** The webhook registers each
+  allowlisted call with one persona agent through ElevenLabs' register-call API,
+  and the agent holds the conversation over the call's media stream, including
+  interruptions. It replaces the Twilio speech-gather, OpenAI and text-to-speech
+  turn loop, and the `/twilio/customer/turn` and `/twilio/customer/audio` routes.
+  Set `ELEVENLABS_CUSTOMER_AGENT_ID`; `CUSTOMER_AGENT_MODEL` is no longer read.
+- `customer sync-agent` pushes the persona prompt, mu-law audio and call limit to
+  that agent, and `customer refresh` copies a call's transcript from ElevenLabs.
+  The console Inbox does both.
+
 ## 0.2.0
 
 Every simulator capability is now reachable three ways: the `telephony-voice-sim`

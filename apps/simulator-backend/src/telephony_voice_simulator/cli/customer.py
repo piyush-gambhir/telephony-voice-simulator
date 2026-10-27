@@ -1,4 +1,4 @@
-"""Customer: the synthetic customer's personas and recorded sessions."""
+"""Customer: the synthetic customer's personas, its ElevenLabs agent, and its sessions."""
 
 from __future__ import annotations
 
@@ -23,3 +23,16 @@ def register(commands: argparse._SubParsersAction) -> None:
         lambda a: emit(customer.list_sessions(service().store, limit=a.limit)),
     )
     sessions.add_argument("--limit", type=int, default=20)
+    action(
+        actions,
+        "sync-agent",
+        "push the persona prompt, mu-law audio and call limit to the ElevenLabs agent",
+        lambda _a: emit(customer.sync_agent()),
+    )
+    refresh = action(
+        actions,
+        "refresh",
+        "fetch a session's transcript from ElevenLabs",
+        lambda a: emit(customer.refresh_session(service().store, a.call_id)),
+    )
+    refresh.add_argument("call_id")

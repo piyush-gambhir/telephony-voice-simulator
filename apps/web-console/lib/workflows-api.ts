@@ -247,6 +247,8 @@ export type CustomerSession = {
   duration_s: number | null;
   stopped: unknown;
   error_type: string | null;
+  /** ElevenLabs conversation state: "registered" until it is logged, then "processing" or "done". */
+  transcript_status: string | null;
   /** "user" is the agent being tested; "assistant" is the synthetic customer. */
   dialogue: Array<{ role: "user" | "assistant"; content: string }>;
 };
@@ -258,6 +260,9 @@ export const inbox = {
   customerProfiles: (signal?: AbortSignal) =>
     get<{ profiles: Record<string, string>; allowed_callers: string[]; configured: Record<string, boolean> }>("/api/customer/profiles", signal),
   customerSessions: (limit = 20, signal?: AbortSignal) => get<CustomerSession[]>(`/api/customer/sessions?limit=${limit}`, signal),
+  customerRefresh: (callId: string) => post<CustomerSession>(`/api/customer/sessions/${q(callId)}/refresh`),
+  customerSyncAgent: () =>
+    post<{ agent_id: string; applied: Record<string, unknown> }>("/api/customer/agent/sync"),
 };
 
 export type SilenceShare = { count: number; share_percent: number };

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from aiohttp import web
 
 from ..service import ValidationError, analysis, customer, sms
@@ -34,6 +36,18 @@ async def customer_sessions(request: web.Request) -> web.Response:
     )
 
 
+async def customer_refresh(request: web.Request) -> web.Response:
+    return json_response(
+        await asyncio.to_thread(
+            customer.refresh_session, service_of(request).store, request.match_info["call_id"]
+        )
+    )
+
+
+async def customer_sync_agent(_request: web.Request) -> web.Response:
+    return json_response(await asyncio.to_thread(customer.sync_agent))
+
+
 async def classify_silence(request: web.Request) -> web.Response:
     """Rows are parsed in the browser from an exported JSONL file."""
     body = await json_object(request)
@@ -50,4 +64,6 @@ def register(app: web.Application) -> None:
     app.router.add_get("/api/sms/status", sms_status)
     app.router.add_get("/api/customer/profiles", customer_profiles)
     app.router.add_get("/api/customer/sessions", customer_sessions)
+    app.router.add_post("/api/customer/sessions/{call_id}/refresh", customer_refresh)
+    app.router.add_post("/api/customer/agent/sync", customer_sync_agent)
     app.router.add_post("/api/analysis/silence", classify_silence)

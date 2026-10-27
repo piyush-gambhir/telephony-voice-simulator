@@ -184,9 +184,8 @@ These optional routes use the existing signed Twilio ingress. See
 |---|---|
 | `PSTN_CUSTOMER_PROFILES` | Private JSON file mapping persona E.164 numbers to synthetic profile text |
 | `PSTN_CUSTOMER_ALLOWED_CALLERS` | Comma-separated allowed counterpart numbers, also checked for outbound calls |
-| `CUSTOMER_AGENT_MODEL` | Customer reply model; default `gpt-4.1-mini` |
-| `OPENAI_API_KEY` | Required for synthetic replies |
-| `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | Required for synthetic voice playback |
+| `ELEVENLABS_API_KEY` | Required to register customer calls and read their transcripts |
+| `ELEVENLABS_CUSTOMER_AGENT_ID` | The ElevenLabs Agents persona agent that holds customer calls |
 | `PSTN_SMS_NUMBERS` | Comma-separated inbox recipient numbers |
 | `PSTN_SMS_ALLOWED_SENDERS` | Comma-separated permitted test senders |
 | `PSTN_SMS_DB` | Private SQLite inbox path; unset disables storage |

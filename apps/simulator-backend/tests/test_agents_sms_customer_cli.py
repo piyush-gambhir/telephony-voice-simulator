@@ -133,12 +133,12 @@ def test_customer_profiles_and_sessions(monkeypatch, tmp_path, capsys):
     profiles = tmp_path / "profiles.json"
     profiles.write_text(json.dumps({"+15555550100": "Alex"}))
     monkeypatch.setenv("PSTN_CUSTOMER_PROFILES", str(profiles))
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret")
-    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "sk-secret")
+    monkeypatch.delenv("ELEVENLABS_CUSTOMER_AGENT_ID", raising=False)
     result = customer.profiles()
     assert result["profiles"] == {"+15555550100": "Alex"}
-    assert result["configured"]["OPENAI_API_KEY"] is True
-    assert result["configured"]["ELEVENLABS_API_KEY"] is False
+    assert result["configured"]["ELEVENLABS_API_KEY"] is True
+    assert result["configured"]["ELEVENLABS_CUSTOMER_AGENT_ID"] is False
     assert "sk-secret" not in json.dumps(result)
 
     store = SimulatorStore(tmp_path / "calls.sqlite3")

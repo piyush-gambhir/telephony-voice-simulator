@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 
@@ -19,9 +19,10 @@ import {
   Td,
   Th,
   TonePill,
+  useConfirm,
 } from "@/components/console/kit";
 import { Button } from "@/components/ui/button";
-import { useApi } from "@/hooks/use-api";
+import { useAction, useApi } from "@/hooks/use-api";
 import { inbox, type CustomerSession } from "@/lib/workflows-api";
 import { cn } from "@/lib/utils";
 
@@ -158,9 +159,45 @@ function CustomerArea() {
   const selected = list.find((session) => session.call_id === selectedId) ?? null;
   const personas = Object.entries(profiles.data?.profiles ?? {});
   const configured = Object.entries(profiles.data?.configured ?? {});
+  const transcript = useAction();
+  const { ask, dialog } = useConfirm();
+  const [synced, setSynced] = useState<string | null>(null);
+  // Only the most recently opened session may receive its fetched transcript.
+  const latest = useRef<string | null>(null);
+
+  async function fetchTranscript(callId: string) {
+    latest.current = callId;
+    const session = await transcript.run(() => inbox.customerRefresh(callId));
+    if (!session || latest.current !== callId) return;
+    sessions.setData((current) => current?.map((item) => (item.call_id === callId ? session : item)) ?? current);
+  }
+
+  function open(session: CustomerSession) {
+    const next = session.call_id === selectedId ? null : session.call_id;
+    setSelectedId(next);
+    transcript.setError(null);
+    if (next && session.transcript_status && session.transcript_status !== "done") void fetchTranscript(next);
+  }
+
+  function pushAgentSettings() {
+    ask({
+      title: "Update the ElevenLabs persona agent?",
+      body: "Overwrites the prompt, the mu-law 8 kHz audio formats and the 4-minute call limit on the agent named by ELEVENLABS_CUSTOMER_AGENT_ID. Its voice and voice mode stay as set in ElevenLabs.",
+      confirm: "Update agent",
+      tone: "primary",
+      onConfirm: async () => {
+        try {
+          setSynced((await inbox.customerSyncAgent()).agent_id);
+        } catch (cause) {
+          return cause instanceof Error ? cause.message : "Could not update the agent";
+        }
+      },
+    });
+  }
 
   return (
     <div className="grid gap-4">
+      {dialog}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">Configuration</h2>
         <RefreshButton loading={loading} label="Refresh" onClick={() => { profiles.reload(); sessions.reload(); }} />
@@ -199,6 +236,12 @@ function CustomerArea() {
                 </li>
               ))}
             </ul>
+            <div className="mt-4 grid gap-2" aria-live="polite">
+              <Button size="sm" variant="secondary" className="justify-self-start" onClick={pushAgentSettings}>
+                Push agent settings
+              </Button>
+              {synced && <p className="text-xs text-muted-foreground">Updated <span className="font-mono">{synced}</span>.</p>}
+            </div>
           </Panel>
         </div>
       )}
@@ -226,7 +269,7 @@ function CustomerArea() {
                       <button
                         type="button"
                         aria-pressed={active}
-                        onClick={() => setSelectedId(active ? null : session.call_id)}
+                        onClick={() => open(session)}
                         className="font-medium outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-lg focus-visible:after:ring-2 focus-visible:after:ring-ring/40"
                       >
                         {formatWhen(session.started_at)}
@@ -244,7 +287,12 @@ function CustomerArea() {
             </tbody>
           </DataTable>
           {selected ? (
-            <Dialogue session={selected} />
+            <Dialogue
+              session={selected}
+              fetching={transcript.pending}
+              error={transcript.error}
+              onFetch={() => void fetchTranscript(selected.call_id)}
+            />
           ) : (
             <EmptyStrip title="No session selected" body="Select a session to read its dialogue." />
           )}
@@ -261,7 +309,18 @@ function turnText(turn: CustomerSession["dialogue"][number]): string {
 }
 
 /** The dealership's speech is stored as role "user", the customer's replies as "assistant". */
-function Dialogue({ session }: { session: CustomerSession }) {
+function Dialogue({
+  session,
+  fetching,
+  error,
+  onFetch,
+}: {
+  session: CustomerSession;
+  fetching: boolean;
+  error: string | null;
+  onFetch: () => void;
+}) {
+  const pending = session.transcript_status != null && session.transcript_status !== "done";
   return (
     <Panel>
       <PanelTitle aside={
@@ -288,7 +347,18 @@ function Dialogue({ session }: { session: CustomerSession }) {
           })}
         </ol>
       ) : (
-        <p className="text-[13px] text-muted-foreground">No turns were recorded for this call.</p>
+        <p className="text-[13px] text-muted-foreground">
+          {pending ? "ElevenLabs has not finished this transcript yet." : "No turns were recorded for this call."}
+        </p>
+      )}
+      {(pending || error) && (
+        <div className="mt-3 flex flex-wrap items-center gap-3" aria-live="polite">
+          <Button size="xs" variant="secondary" disabled={fetching} onClick={onFetch}>
+            <RefreshCw className={cn(fetching && "animate-spin")} />
+            Fetch transcript
+          </Button>
+          {error && <span role="alert" className="text-xs text-danger">{error}</span>}
+        </div>
       )}
     </Panel>
   );

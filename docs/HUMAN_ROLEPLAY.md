@@ -41,21 +41,35 @@ transcript, observed records, and pass/fail evidence for each matrix case.
 
 ## Automated customer
 
-The optional `/twilio/customer` webhook uses OpenAI to write a synthetic customer's
-next reply and ElevenLabs to speak it. Twilio speech gathering supplies the other
-speaker's words. Configure `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`,
-`ELEVENLABS_VOICE_ID`, a private `PSTN_CUSTOMER_PROFILES` JSON file mapping E.164
-callee numbers to synthetic personas, and `PSTN_CUSTOMER_ALLOWED_CALLERS`.
-The routes reject unconfigured callers, destinations, accounts and invalid
-Twilio signatures. Keep these routes on the restricted PSTN ingress.
+The optional `/twilio/customer` webhook hands an allowlisted call to an ElevenLabs
+Agents persona agent. The simulator keeps the Twilio number and the call record:
+it checks the call, registers it with ElevenLabs
+([register call](https://elevenlabs.io/docs/eleven-agents/phone-numbers/twilio-integration/register-call)),
+and returns the TwiML ElevenLabs answers with. ElevenLabs then holds the whole
+conversation over the call's media stream, with full-duplex turn-taking.
+
+Setup:
+
+1. Create one agent in ElevenLabs Agents for every persona. Pick its voice there, and
+   set Voice mode to Realtime (Eleven Realtime v1 Mini) if your workspace has it;
+   Custom mode works the same way.
+2. Set `ELEVENLABS_API_KEY`, `ELEVENLABS_CUSTOMER_AGENT_ID`, a private
+   `PSTN_CUSTOMER_PROFILES` JSON file mapping E.164 persona numbers to synthetic
+   profile text, and `PSTN_CUSTOMER_ALLOWED_CALLERS`.
+3. Run `telephony-voice-sim customer sync-agent` (or Push agent settings on the
+   console Inbox page). It writes the persona prompt kept in this repository, the
+   mu-law 8 kHz audio Twilio needs, and the four-minute call limit to the agent.
+   Each call fills the prompt's `{{customer_profile}}` with that number's persona.
+
+The route rejects unconfigured callers, destinations, accounts and invalid Twilio
+signatures, allows at most 20 calls at once, and registers each CallSid once
+(Twilio retries reuse the first registration). A registration failure rejects the
+call and records the error type. Keep these routes on the restricted PSTN ingress.
 
 Point only a dedicated test number's voice URL at `/twilio/customer`, with its
 status callback at `/twilio/status`. The ordinary AMD attachment action restores
 `/twilio/voice`, so do not reattach that line while using the customer agent.
-The customer has no dialing or booking tools. It is limited to 16 turns and
-four minutes, and saves dialogue in the simulator's call analysis. Replayed
-turn webhooks reuse the response and audio. Failures end the call and retain
-an error type rather than inventing a customer reply.
+The customer has no dialing or booking tools.
 
 For a controlled customer callback, originate the call separately with the persona
 number as `From`, the allowed dealership number as `To`, and the call's TwiML URL
@@ -64,10 +78,13 @@ outbound directions and preserves the actual direction and number pair in call
 history. This webhook does not originate a call itself. Twilio documents these
 directions in its [webhook request parameters](https://www.twilio.com/docs/voice/twiml#request-parameters).
 
+Transcripts live in ElevenLabs. Each call is registered with its CallSid as the
+conversation's user ID, and `telephony-voice-sim customer refresh CALL_ID` (or
+opening the session on the Inbox page) copies the transcript into the call's
+dialogue once ElevenLabs has processed it.
+
 List the configured personas with `telephony-voice-sim customer profiles` and read
 the saved dialogues with `telephony-voice-sim customer sessions [--limit N]`.
-
-The final customer audio is followed by an eight-second pause before hangup.
 Goodbye, errors, call limits, provider completion, and deletion prevent further
 generation. A retry of a generated turn reuses its response while the provider
 call is active. Deleting the call also removes generated audio access; cached
