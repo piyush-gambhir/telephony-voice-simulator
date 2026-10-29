@@ -356,6 +356,7 @@ def wait_for_terminal(
     deadline = time.monotonic() + timeout
     record: dict[str, Any] | None = None
     previous: str | None = None
+    last_error = ""
     while time.monotonic() < deadline:
         try:
             record = fetch_record(config, call_id)
@@ -364,9 +365,12 @@ def wait_for_terminal(
                 raise
         except httpx.TransportError:
             pass
-        except RecordCommandFailed:
-            # A record command usually wraps a remote query; one failed read is retried.
-            pass
+        except RecordCommandFailed as exc:
+            # A record command usually wraps a remote query; one failed read is retried,
+            # but a command that keeps failing must say why rather than time out silently.
+            if str(exc) != last_error:
+                last_error = str(exc)
+                (log or print)(f"{label or '   '} {last_error}")
         status = str(dotted(record, config.status_path) or "").strip().lower()
         # Only on CHANGE: a repeated status carries no information, and with
         # several lanes polling at once the repeats interleave into a wall of

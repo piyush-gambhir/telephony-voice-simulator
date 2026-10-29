@@ -54,6 +54,7 @@ latency must stay within ``tolerance`` of the baseline's.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import shlex
 import subprocess
@@ -149,23 +150,31 @@ def _check(name: str, passed: bool | None, detail: str) -> dict[str, Any]:
     return {"check": name, "passed": passed, "detail": detail}
 
 
+def _number(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
 def _record_checks(expect: dict[str, Any], record: dict[str, Any] | None,
-                   paths: dict[str, str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+                   paths: dict[str, str], config: agent_api.AgentApiConfig | None = None,
+                   ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     def get(key: str) -> Any:
         return agent_api.dotted(record or {}, paths[key])
 
-    status = str(agent_api.dotted(record or {}, "status") or "")
+    status_path = config.status_path if config else "status"
     observed = {
-        "status": status,
-        "ended_reason": str(agent_api.dotted(record or {}, "endedReason") or ""),
+        "status": str(agent_api.dotted(record or {}, status_path) or ""),
+        # The record's coarse reason; AGENT_API_ENDED_REASON_PATH often points at the fine
+        # one, which ``fine_reason`` reads instead.
+        "ended_reason": str(agent_api.dotted(record or {}, "endedReason")
+                            or agent_api.dotted(record or {}, "ended_reason") or ""),
         "fine_reason": str(get("fine_reason_path") or ""),
         "transfer_status": str(get("transfer_status_path") or ""),
         "tools": list(get("tools_path") or []),
-        "latency_p50_ms": get("latency_p50_path"),
-        "latency_p95_ms": get("latency_p95_path"),
-        "llm_p95_ms": get("llm_p95_path"),
-        "tts_p95_ms": get("tts_p95_path"),
-        "duration_s": round((get("duration_ms_path") or 0) / 1000, 1),
+        "latency_p50_ms": _number(get("latency_p50_path")),
+        "latency_p95_ms": _number(get("latency_p95_path")),
+        "llm_p95_ms": _number(get("llm_p95_path")),
+        "tts_p95_ms": _number(get("tts_p95_path")),
+        "duration_s": round((_number(get("duration_ms_path")) or 0) / 1000, 1),
     }
     transcript = str(get("transcript_path") or "").lower()
     checks = []
@@ -198,17 +207,27 @@ def _find_inbound(suite: dict[str, Any], agent_number: str, since: float, timeou
             for a in shlex.split(suite["find_command"])]
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        out = subprocess.run(argv, capture_output=True, text=True, timeout=90)
+        try:
+            out = subprocess.run(argv, capture_output=True, text=True, timeout=90)
+        except subprocess.TimeoutExpired:
+            continue
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout.strip().splitlines()[0]
         time.sleep(10)
     return ""
 
 
-def _persona_call(store: Any, line: str, since: float, timeout: float) -> Any:
-    """The persona leg on ``line`` that started after ``since`` (the newest one)."""
+def _persona_call(store: Any, line: str, since: float, timeout: float,
+                  call_id: str | None = None) -> Any:
+    """The persona leg: by its call id when the simulator placed it, else the newest leg on
+    ``line`` that started after ``since``."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if call_id:
+            if (call := store.get_incoming_call(call_id)) is not None:
+                return call
+            time.sleep(5)
+            continue
         for call in store.list_incoming_calls(limit=20):
             started = execution._parse_iso(call.started_at)
             if started and started >= since - 2 and "customer_dialogue" in (call.analysis or {}) \
@@ -218,10 +237,11 @@ def _persona_call(store: Any, line: str, since: float, timeout: float) -> Any:
     return None
 
 
-def _grade_persona(store: Any, line: str, since: float, log: Log) -> tuple[dict[str, Any], str]:
+def _grade_persona(store: Any, line: str, since: float, log: Log,
+                   call_id: str | None = None) -> tuple[dict[str, Any], str]:
     from ..service import customer
 
-    call = _persona_call(store, line, since, timeout=60)
+    call = _persona_call(store, line, since, timeout=60, call_id=call_id)
     if call is None:
         return _check("persona_leg_present", False, f"no persona call on {line}"), ""
     try:
@@ -243,14 +263,21 @@ def _target_checks(target: dict[str, Any], since: float) -> tuple[list[dict[str,
     checks = [_check("target_reached", True, f"leg {leg.get('id')}"),
               _check("target_scenario", leg.get("scenario") == target["scenario"],
                      f"want {target['scenario']} got {leg.get('scenario')}")]
-    checks += [{**c, "check": f"target {c['check']}"} for c in analysis.get("checks") or []]
+    if analysis.get("checks") is None:
+        checks.append(_check("target_graded", False,
+                             f"leg {leg.get('id')} was never graded by the simulator"))
+    checks += [{**c, "check": f"target {c.get('check')}", "passed": c.get("passed")}
+               for c in analysis.get("checks") or []]
     return checks, str(leg.get("id") or "")
 
 
 def _hook(case: dict[str, Any], key: str) -> str | None:
     if not case.get(key):
         return None
-    out = subprocess.run(shlex.split(case[key]), capture_output=True, text=True, timeout=120)
+    try:
+        out = subprocess.run(shlex.split(case[key]), capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"{key} command failed: {type(exc).__name__}: {exc}"
     return None if out.returncode == 0 else f"{key} command failed: {out.stderr.strip()[-300:]}"
 
 
@@ -291,7 +318,7 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
         )
         record = agent_api.fetch_record(config, result["agent_call_id"]) \
             if result.get("agent_call_id") else None
-        checks, observed = _record_checks(expect, record, paths)
+        checks, observed = _record_checks(expect, record, paths, config)
         row.update(call_id=result.get("agent_call_id"), sim_call_id=result.get("sim_call_sid"),
                    observed={**observed, "amd": result.get("amd")},
                    checks=result.get("checks", []) + checks, error=result.get("error"))
@@ -302,7 +329,7 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
     line = suite["persona_line"]
     target = case.get("target")
     checks: list[dict[str, Any]] = []
-    queued_target = None
+    queued_target = queued_persona = None
     try:
         if waiting := store.list_customer_persona_queue(line):
             for item in waiting:  # left over from an aborted run; it would take this call
@@ -311,7 +338,8 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
             queued_target = execution.queue_scenario(
                 target["scenario"], target["line"], execution.number_index())
         if case["kind"] == "outbound":
-            customer.queue_persona(store, line, persona_id=case["persona"], label=case["name"])
+            queued_persona = customer.queue_persona(store, line, persona_id=case["persona"],
+                                                    label=case["name"])["id"]
             call_id, _ = agent_api.trigger_call(config, scenario=case["name"], number=line)
         else:
             dialed = customer.dial(store, line, case["agent_number"], persona_id=case["persona"],
@@ -322,8 +350,12 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
                 raise RuntimeError("the agent never logged the inbound call")
     except Exception as exc:  # setup and trigger failures are results
         row["error"] = f"{type(exc).__name__}: {exc}"
-        if queued_target:
-            execution.cancel_queued(queued_target)
+        # Only when the agent surely placed no call; a call after a timeout or 5xx may still
+        # arrive and must find its persona and target (as in the benchmark's run_once).
+        if isinstance(exc, agent_api.TriggerRejected) or case["kind"] == "inbound":
+            if queued_persona:
+                store.cancel_customer_persona(queued_persona)
+            _cancel(queued_target)
         row["checks"] = []
         return _verdict(row)
 
@@ -332,20 +364,28 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
     record = agent_api.wait_for_terminal(config, call_id, timeout=timeout, label=case["name"],
                                          log=log)
     checks.append(_check("agent_call_terminal", agent_api.is_terminal(config, record),
-                         f"status={agent_api.dotted(record or {}, 'status')}"))
-    record_checks, row["observed"] = _record_checks(expect, record, paths)
+                         f"status={agent_api.dotted(record or {}, config.status_path)}"))
+    record_checks, row["observed"] = _record_checks(expect, record, paths, config)
     checks += record_checks
     if expect.get("persona", "pass") == "pass":
-        check, row["persona_call_id"] = _grade_persona(store, line, started, log)
+        check, row["persona_call_id"] = _grade_persona(
+            store, line, started, log, call_id=row.get("persona_call_id"))
         checks.append(check)
     if target:
         target_checks, row["target_call_id"] = _target_checks(target, started)
         if expect.get("target", "pass") == "pass":
             checks += target_checks
-        elif queued_target and not row["target_call_id"]:
-            execution.cancel_queued(queued_target)
+        if not row["target_call_id"]:
+            _cancel(queued_target)  # unclaimed, it would answer the next case's transfer
     row["checks"] = checks
     return _verdict(row)
+
+
+def _cancel(run_id: str | None) -> None:
+    if run_id:
+        # The simulator API being down must not hide the case's result.
+        with contextlib.suppress(Exception):
+            execution.cancel_queued(run_id)
 
 
 def _verdict(row: dict[str, Any]) -> dict[str, Any]:
@@ -357,7 +397,7 @@ def _verdict(row: dict[str, Any]) -> dict[str, Any]:
     else:
         row["passed"] = True
     row["failed_checks"] = [c["check"] for c in checks if c["passed"] is False]
-    row["duration_s"] = round(time.time() - row["started_at"], 1)
+    row.setdefault("duration_s", round(time.time() - row["started_at"], 1))
     return row
 
 
@@ -388,7 +428,7 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
         out_dir: str | Path = "results/regression", log: Log = print) -> dict[str, Any]:
     suite = load_suite(suite_path)
     selected = select(suite, cases)
-    base = agent_api.load_config()
+    base = agent_api.load_config(require_trigger=any(c["kind"] != "inbound" for c in selected))
     if not base.can_read_records:
         raise ValidationError("set AGENT_API_RECORD_URL or AGENT_API_RECORD_COMMAND")
     report_id = f"regress-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:6]}"
@@ -398,26 +438,42 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
         if index:
             time.sleep(pace)
         log(f"[{index + 1}/{len(selected)}] {case['name']} ({case['kind']})")
-        row = run_case(case, suite, base, store, log)
+        try:
+            row = run_case(case, suite, base, store, log)
+        except Exception as exc:  # one broken case must not lose the calls already placed
+            row = _verdict({"case": case["name"], "kind": case["kind"], "started_at": time.time(),
+                            "error": f"{type(exc).__name__}: {exc}", "checks": []})
         verdict = {True: "PASS", False: "FAIL", None: "INDET"}[row["passed"]]
         log(f"  {verdict} {case['name']} call_id={row.get('call_id')} "
             f"failed={row['failed_checks']}" + (f" error={row['error']}" if row.get("error") else ""))
         rows.append(row)
+        _write(out_dir, report_id, _report(report_id, suite, suite_path, baseline, rows))
     if baseline:
         compare_baseline(rows, json.loads(Path(baseline).read_text()), tolerance)
-    report = {
+    report = _report(report_id, suite, suite_path, baseline, rows)
+    report["path"] = _write(out_dir, report_id, report)
+    return report
+
+
+def _report(report_id: str, suite: dict[str, Any], suite_path: str | Path,
+            baseline: str | Path | None, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
         "report_id": report_id, "suite": suite.get("name") or str(suite_path),
         "baseline": str(baseline) if baseline else None,
         "passed": sum(r["passed"] is True for r in rows),
         "failed": sum(r["passed"] is False for r in rows),
         "indeterminate": sum(r["passed"] is None for r in rows),
-        "ok": all(r["passed"] is True for r in rows), "cases": rows,
+        "ok": bool(rows) and all(r["passed"] is True for r in rows), "cases": rows,
     }
+
+
+def _write(out_dir: str | Path, report_id: str, report: dict[str, Any]) -> str:
+    """Written after every case, so a crash or a kill keeps the calls already placed."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"{report_id}.json").write_text(json.dumps(report, indent=2, default=str))
-    report["path"] = str(out / f"{report_id}.json")
-    return report
+    path = out / f"{report_id}.json"
+    path.write_text(json.dumps(report, indent=2, default=str))
+    return str(path)
 
 
 def summary_table(report: dict[str, Any]) -> str:
