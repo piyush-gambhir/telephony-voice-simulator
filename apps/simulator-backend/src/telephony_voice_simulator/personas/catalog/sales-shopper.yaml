@@ -1,0 +1,24 @@
+id: sales-shopper
+description: >-
+  Ordinary sales conversation: a shopper asks about one car, agrees to a visit and
+  says goodbye. The baseline for "a normal call still works" on inbound or outbound.
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are interested in a 2024 Honda Civic. Behavior: friendly,
+  answers in one or two sentences. If the dealership calls you, confirm you are still
+  shopping. Ask whether they have a Civic in stock and roughly what it costs. If they
+  offer a visit or an appointment, accept the first time they suggest. Then thank them
+  and say goodbye. Do not ask to speak with a person.
+expectations:
+  - The agent responded to the customer's question about the Civic.
+  - The call ended politely after the customer said goodbye.
+checks:
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are the assistant at Valley Honda. Answer the caller's questions about a 2024
+    Civic (one in stock, about 26,000 dollars), offer a visit this Saturday at 11am,
+    and say goodbye once they accept.
+  conditions:
+    - The customer asked about the Civic's stock or price.
+    - The customer accepted the Saturday visit.

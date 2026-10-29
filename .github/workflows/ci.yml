@@ -48,6 +48,7 @@ jobs:
       - run: uv run telephony-voice-sim scenarios validate --all
       - run: uv run python ../../scripts/check_python_licenses.py
       - run: uv run telephony-voice-sim uat check --config config/uat.example.yaml
+      - run: uv run telephony-voice-sim regression plan --suite config/regression.example.yaml
       - run: uv run telephony-voice-sim corpus prompts --check
       - run: uv build
       - run: uv run python ../../scripts/check_public_release.py --archives-in dist

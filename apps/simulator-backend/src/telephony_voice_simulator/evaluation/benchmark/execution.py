@@ -281,8 +281,10 @@ def run_suite(
         raise ValidationError("a benchmark requires unique simulator numbers")
     if not jobs or lanes < 1 or lanes > len(numbers):
         raise ValidationError("a benchmark requires jobs and one lane per selected number")
-    if not config.record_url:
-        raise ValidationError("AGENT_API_RECORD_URL is required before placing benchmark calls")
+    if not config.can_read_records:
+        raise ValidationError(
+            "AGENT_API_RECORD_URL or AGENT_API_RECORD_COMMAND is required before placing benchmark calls"
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     number_ids = number_index()
     missing = [n for n in numbers[:lanes] if n not in number_ids]

@@ -124,12 +124,19 @@ class TwilioNumberManager:
         return response.json()
 
     async def place_call(
-        self, *, from_number: str, to_number: str, url: str, status_callback: str
+        self, *, from_number: str, to_number: str, url: str, status_callback: str,
+        send_digits: str = "",
     ) -> dict[str, Any]:
-        """Start an outbound call from an account number; Twilio fetches ``url`` on answer."""
+        """Start an outbound call from an account number; Twilio fetches ``url`` on answer.
+
+        ``send_digits`` (Twilio syntax: digits, ``*``, ``#``, ``w`` for half a second) is
+        keyed on answer before ``url`` runs, e.g. to pick an IVR menu option.
+        """
         account_sid, auth_token = self._credentials()
         data = {"From": from_number, "To": to_number, "Url": url, "Method": "POST",
                 "StatusCallback": status_callback, "StatusCallbackMethod": "POST"}
+        if send_digits:
+            data["SendDigits"] = send_digits
         try:
             async with httpx.AsyncClient(auth=(account_sid, auth_token), timeout=60) as client:
                 response = await client.post(

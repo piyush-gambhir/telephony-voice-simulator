@@ -7,6 +7,7 @@ import fcntl
 import json
 import logging
 import os
+import re
 import threading
 import time
 from collections import defaultdict
@@ -221,8 +222,12 @@ def dial(
     persona_id: str | None = None,
     inline: Any = None,
     label: str | None = None,
+    send_digits: str = "",
 ) -> dict[str, Any]:
     """Have a persona line call ``to`` (a dealership's inbound line), optionally queuing a persona.
+
+    ``send_digits`` is keyed after the dealership answers and before the persona speaks,
+    for an inbound line that opens with a DTMF menu.
 
     The call reaches the agent under test as an ordinary inbound call, so no agent-side
     trigger or credential is needed. ``to`` must be an allowed caller, because the customer
@@ -234,6 +239,8 @@ def dial(
         raise ValidationError(f"{to} is not in PSTN_CUSTOMER_ALLOWED_CALLERS")
     if not os.environ.get("PUBLIC_BASE_URL"):
         raise ValidationError("Set PUBLIC_BASE_URL so Twilio can reach the customer webhook")
+    if not re.fullmatch(r"[0-9*#wW]{0,32}", send_digits):
+        raise ValidationError("send_digits takes up to 32 of 0-9, *, # and w (half-second pause)")
     queued = None
     if persona_id or inline is not None:
         # The call claims the oldest queued persona, so an earlier one would take its place.
@@ -244,7 +251,7 @@ def dial(
     try:
         call = asyncio.run(TwilioNumberManager().place_call(
             from_number=number, to_number=to, url=twiml.public_url("/twilio/customer"),
-            status_callback=twiml.public_url(status_path),
+            status_callback=twiml.public_url(status_path), send_digits=send_digits,
         ))
     except TwilioManagementError as exc:
         if queued:

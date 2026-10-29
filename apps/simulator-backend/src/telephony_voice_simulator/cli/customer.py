@@ -48,7 +48,7 @@ def _dial(args: argparse.Namespace) -> int:
     inline = _inline(args) if (args.file or args.inline) else None
     return emit(customer.dial(
         service().store, args.number, args.to, persona_id=persona_id, inline=inline,
-        label=args.label,
+        label=args.label, send_digits=args.send_digits,
     ))
 
 
@@ -94,6 +94,9 @@ def register(commands: argparse._SubParsersAction) -> None:
     source.add_argument("--file", help="persona YAML or JSON file")
     source.add_argument("--inline", help="persona as YAML or JSON text")
     dial.add_argument("--label", help="free text kept with the call, e.g. a branch or run id")
+    dial.add_argument("--send-digits", default="",
+                      help="keys pressed on answer, before the persona speaks (Twilio syntax, "
+                           "w = half-second pause), e.g. wwwwwwww1wwwwwwwwww4 for an IVR")
     queued = action(
         actions,
         "queued",

@@ -21,6 +21,9 @@ Environment:
   AGENT_API_CALL_ID_PATH         dotted path to the call id      (default callId)
   AGENT_API_RECORD_URL           GET template containing {call_id}
   AGENT_API_RECORD_AUTHORIZATION defaults to AGENT_API_AUTHORIZATION
+  AGENT_API_RECORD_COMMAND       instead of a URL: a command (shell words, no shell)
+                                 containing {call_id} that prints the record as JSON,
+                                 or nothing while the record does not exist yet
   AGENT_API_STATUS_PATH          dotted path to call status      (default status)
   AGENT_API_TERMINAL_STATUSES    comma list (default completed,ended,failed,
                                  no-answer,busy,canceled)
@@ -44,6 +47,8 @@ import json
 import math
 import os
 import re
+import shlex
+import subprocess
 import time
 import uuid
 from collections.abc import Callable
@@ -115,6 +120,7 @@ class AgentApiConfig:
     trigger_url: str
     body_template: dict[str, Any]
     record_url: str = ""
+    record_command: list[str] = field(default_factory=list)
     trigger_method: str = "POST"
     authorization: str = ""
     record_authorization: str = ""
@@ -143,6 +149,12 @@ class AgentApiConfig:
             raise ValueError("at least one nonempty terminal status is required")
         if self.record_url and "{call_id}" not in self.record_url:
             raise ValueError("agent API record URL must contain {call_id}")
+        if self.record_command and not any("{call_id}" in a for a in self.record_command):
+            raise ValueError("agent API record command must contain {call_id}")
+
+    @property
+    def can_read_records(self) -> bool:
+        return bool(self.record_url or self.record_command)
 
     @property
     def record_headers(self) -> dict[str, str]:
@@ -189,6 +201,7 @@ def load_config(*, require_trigger: bool = True) -> AgentApiConfig:
         trigger_url=trigger_url,
         body_template=body,
         record_url=os.environ.get("AGENT_API_RECORD_URL", "").strip(),
+        record_command=shlex.split(os.environ.get("AGENT_API_RECORD_COMMAND", "")),
         trigger_method=os.environ.get("AGENT_API_TRIGGER_METHOD", "POST").upper(),
         authorization=os.environ.get("AGENT_API_AUTHORIZATION", "").strip(),
         record_authorization=os.environ.get("AGENT_API_RECORD_AUTHORIZATION", "").strip(),
@@ -274,7 +287,29 @@ def trigger_call(
     return str(call_id), payload
 
 
+class RecordCommandFailed(ValueError):
+    pass
+
+
+def _command_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | None:
+    argv = [a.replace("{call_id}", call_id) for a in config.record_command]
+    try:
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=config.timeout * 3)
+    except subprocess.TimeoutExpired:
+        return None  # a slow read is retried by the poll loop like a 5xx
+    if out.returncode != 0:
+        raise RecordCommandFailed(f"record command failed ({out.returncode}): {out.stderr.strip()[-300:]}")
+    if not out.stdout.strip():
+        return None
+    payload = json.loads(out.stdout)
+    if not isinstance(payload, dict):
+        raise ValueError("agent call record must be a JSON object")
+    return payload
+
+
 def fetch_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | None:
+    if config.record_command:
+        return _command_record(config, call_id)
     if not config.record_url:
         return None
     url = config.record_url.replace("{call_id}", quote(call_id, safe=""))
@@ -312,7 +347,7 @@ def wait_for_terminal(
     log: Callable[[str], None] | None = None,
 ) -> dict[str, Any] | None:
     """Poll the call record until its status is terminal. None on timeout."""
-    if not config.record_url:
+    if not config.can_read_records:
         return None
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("poll timeout must be positive and finite")
@@ -328,6 +363,9 @@ def wait_for_terminal(
             if exc.response.status_code not in {408, 429} and exc.response.status_code < 500:
                 raise
         except httpx.TransportError:
+            pass
+        except RecordCommandFailed:
+            # A record command usually wraps a remote query; one failed read is retried.
             pass
         status = str(dotted(record, config.status_path) or "").strip().lower()
         # Only on CHANGE: a repeated status carries no information, and with

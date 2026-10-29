@@ -1,0 +1,36 @@
+# Portable regression suite. Copy to <name>.local.yaml (gitignored), replace the
+# numbers, bodies and commands, and run:
+#   uv run telephony-voice-sim regression run --suite config/<name>.local.yaml --markdown
+# The agent API comes from AGENT_API_* (see docs/REGRESSION.md); set either
+# AGENT_API_RECORD_URL or AGENT_API_RECORD_COMMAND so cases can read the call record.
+version: 1
+name: example
+persona_line: "+15550100001"
+# Inbound cases only: prints the agent's call id for a call from {customer} to {agent}
+# placed after {since} (epoch seconds), or nothing yet.
+find_command: "./integration/find-call {customer} {agent} {since}"
+defaults: {timeout_seconds: 420, pace_seconds: 10}
+
+cases:
+  - {name: vm_stock_beep, kind: amd, scenario: stock_voicemail_beep_1000, line: "+15550100010"}
+  - {name: screener_ios_to_human, kind: amd, scenario: ios26_screening_to_human, line: "+15550100010"}
+
+  - name: sales_outbound
+    kind: outbound
+    body: config/agent-api.body.example.json
+    persona: sales-shopper
+    expect:
+      status: [completed]
+      llm_p95_ms_max: 2000
+      min_duration_s: 20
+
+  - name: transfer_warm_accept
+    kind: inbound
+    agent_number: "+15550100002"
+    send_digits: wwww4              # an IVR in front of the agent, if any
+    persona: transfer-to-service
+    target: {line: "+15550100003", scenario: transfer_target_warm_accept}
+    before: ./integration/set-transfer warm summary
+    expect:
+      status: [completed]
+      transfer_status: [bridged]
