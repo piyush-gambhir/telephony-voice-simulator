@@ -316,3 +316,13 @@ def test_record_command_reads_the_record_and_treats_empty_output_as_pending(tmp_
     assert agent_api.fetch_record(config, "c2") is None
     with pytest.raises(ValueError, match="call_id"):
         agent_api.AgentApiConfig(trigger_url="", body_template={}, record_command=["true"])
+
+
+def test_a_terminal_record_waits_for_its_settle_paths(monkeypatch) -> None:
+    records = iter([{"status": "completed"}, {"status": "completed", "outcome": {"reason": "done"}}])
+    config = agent_api.AgentApiConfig(trigger_url="", body_template={}, record_url="https://a/{call_id}",
+                                      settle_paths=["outcome.reason"])
+    monkeypatch.setattr(agent_api, "fetch_record", lambda *_a: next(records))
+    monkeypatch.setattr(agent_api.time, "sleep", lambda _s: None)
+    record = agent_api.wait_for_terminal(config, "c1", timeout=60, interval=1, progress=False)
+    assert record["outcome"]["reason"] == "done"

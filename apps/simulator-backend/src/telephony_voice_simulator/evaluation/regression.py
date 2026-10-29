@@ -319,9 +319,12 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
         record = agent_api.fetch_record(config, result["agent_call_id"]) \
             if result.get("agent_call_id") else None
         checks, observed = _record_checks(expect, record, paths, config)
+        # A dropped expectation also drops the simulator's own audio check of that name.
+        dropped = {k for k, v in (case.get("scenario_expect") or {}).items() if v is None}
+        kept = [c for c in result.get("checks", []) if c.get("check") not in dropped]
         row.update(call_id=result.get("agent_call_id"), sim_call_id=result.get("sim_call_sid"),
                    observed={**observed, "amd": result.get("amd")},
-                   checks=result.get("checks", []) + checks, error=result.get("error"))
+                   checks=kept + checks, error=result.get("error"))
         return _verdict(row)
 
     from ..service import customer
