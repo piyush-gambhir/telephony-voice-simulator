@@ -202,6 +202,8 @@ def step_repr(step: dict) -> dict:
         return {"kind": "hangup", "label": "hang up", "detail": "machine ends the call"}
     if "dial" in step:
         return {"kind": "dial", "label": "bridge to a real phone", "detail": str(step["dial"])}
+    if "reject" in step:
+        return {"kind": "reject", "label": f"reject as {step['reject']}", "detail": "line never answers"}
     return {"kind": "unknown", "label": json.dumps(step), "detail": ""}
 
 
