@@ -9,7 +9,9 @@ into SEGMENTS:
     survive, and the beep-end offset inside the file is exact ground truth;
   * a ``hold`` step becomes a ``<Record>`` (this is how we capture what the
     agent says — the voicemail message it leaves, its post-connect speech);
-  * a ``hangup`` step becomes ``<Hangup/>``.
+  * a ``hangup`` step becomes ``<Hangup/>``;
+  * a ``reject`` step (first main step only) becomes ``<Reject reason=.../>``,
+    so the caller gets busy or a decline without the line ever answering.
 
 ``on_dtmf`` wraps the main sequence's first audio in a ``<Gather>`` so the
 agent's keypress is captured through the REAL carrier DTMF relay — the one
@@ -43,7 +45,7 @@ class Segment:
 
     audio_file: str | None  # compiled wav name (served via /assets)
     audio_duration: float
-    terminal: str  # "record" | "hangup" | "pause" | "end" | "dial"
+    terminal: str  # "record" | "hangup" | "pause" | "end" | "dial" | "reject"
     record_max_s: int = 0
     # For terminal="dial": E.164 target, or the literal "bridge" resolved at
     # runtime from the BRIDGE_NUMBER env (so personal numbers stay out of git).
@@ -51,6 +53,8 @@ class Segment:
     # Offsets of interesting marks INSIDE audio_file (ground truth for
     # analysis): e.g. tone_end -> seconds from file start.
     marks: dict[str, float] = field(default_factory=dict)
+    # For terminal="reject": "busy" or "rejected".
+    reject_reason: str = ""
 
 
 @dataclass
@@ -117,7 +121,8 @@ def compile_scenario(
         marks: dict[str, float] = {}
         elapsed = 0.0
 
-        def _flush(terminal: str, record_max_s: int = 0, dial_target: str = "") -> None:
+        def _flush(terminal: str, record_max_s: int = 0, dial_target: str = "",
+                   reject_reason: str = "") -> None:
             nonlocal chunks, marks, elapsed
             audio_file = None
             duration = 0.0
@@ -136,6 +141,7 @@ def compile_scenario(
                     record_max_s=record_max_s,
                     dial_target=dial_target,
                     marks=dict(marks),
+                    reject_reason=reject_reason,
                 )
             )
             chunks, marks, elapsed = [], {}, 0.0
@@ -171,6 +177,9 @@ def compile_scenario(
                 break
             elif "hangup" in step:
                 _flush("hangup")
+                break
+            elif "reject" in step:
+                _flush("reject", reject_reason=str(step["reject"]))
                 break
             elif "repeat_from" in step:
                 # PSTN re-prompting is handled by the Gather timeout loop in

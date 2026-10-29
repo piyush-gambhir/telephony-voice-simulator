@@ -1,0 +1,20 @@
+# TRANSFER TARGET, cold: the caller is bridged the moment this line answers,
+# so no briefing may reach it. Only the customer should speak here.
+name: transfer_target_cold_accept
+pstn_only: true
+transfer_target: true
+machine:
+  main:
+    - wait: 1.0
+    - play: transfer_target_greeting.wav
+    - hold: 6
+    - play: transfer_target_bridge_code.wav
+    - hold: 25
+    - play: transfer_target_bridge_code.wav
+    - hold: 15
+    - hangup: true
+expect:
+  transcript_contains:
+    phrases: ["lighthouse"]
+  transcript_excludes:
+    phrases: ["I have a customer on the line", "available to take the transfer"]

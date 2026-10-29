@@ -65,3 +65,44 @@ def test_ambiguous_content_does_not_transcribe_arbitrary_message(tmp_path, monke
         'expect': {'message_content': {'expected': 'Hello from the simulator'}},
     }, None)
     assert analysis['passed'] is None
+
+
+def _spoken(tmp_path, *names):
+    paths = []
+    for name in names:
+        path = tmp_path / name
+        sf.write(path, synth_tone(300, 1), SAMPLE_RATE)
+        paths.append(str(path))
+    return paths
+
+
+def test_transcript_checks_read_every_recording_in_order(tmp_path, monkeypatch):
+    heard = {'a.wav': 'Hi, I have Taylor on the line.', 'b.wav': 'My word is lighthouse.'}
+    monkeypatch.setattr('telephony_voice_simulator.grading.analyze.transcribe_recording',
+                        lambda path: heard[path.name])
+    call = {'analysis_recording_files': _spoken(tmp_path, 'a.wav', 'b.wav'),
+            'message_recording_order_known': True}
+    analysis = analyze_call(call, {'expect': {
+        'transcript_contains': {'phrases': ['on the line', 'lighthouse', 'pineapple'], 'min_hits': 2},
+        'transcript_excludes': {'phrases': ['available to take the transfer']},
+    }}, None)
+    assert analysis['passed'] is True
+    assert call['recordings_transcript'] == 'Hi, I have Taylor on the line. My word is lighthouse.'
+
+
+def test_transcript_excludes_fails_on_a_forbidden_phrase(tmp_path, monkeypatch):
+    monkeypatch.setattr('telephony_voice_simulator.grading.analyze.transcribe_recording',
+                        lambda _path: 'Hi, I have a customer on the line.')
+    analysis = analyze_call({'analysis_recording_files': _spoken(tmp_path, 'a.wav')}, {
+        'expect': {'transcript_excludes': {'phrases': ['I have a customer on the line']}},
+    }, None)
+    assert analysis['passed'] is False
+
+
+def test_untranscribed_speech_leaves_transcript_checks_indeterminate(tmp_path, monkeypatch):
+    monkeypatch.setattr('telephony_voice_simulator.grading.analyze.transcribe_recording',
+                        lambda _path: None)
+    analysis = analyze_call({'analysis_recording_files': _spoken(tmp_path, 'a.wav')}, {
+        'expect': {'transcript_excludes': {'phrases': ['anything']}},
+    }, None)
+    assert analysis['passed'] is None

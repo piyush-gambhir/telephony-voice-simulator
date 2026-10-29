@@ -1,0 +1,10 @@
+# TRANSFER TARGET, busy: the line returns busy without answering. The agent
+# must report the transfer as busy and stay with the caller (graded on the
+# customer line and the agent's call record).
+name: transfer_target_busy
+pstn_only: true
+transfer_target: true
+machine:
+  main:
+    - reject: busy
+expect: {}

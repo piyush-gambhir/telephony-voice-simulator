@@ -701,5 +701,81 @@
     "generated_at": "2026-07-26",
     "sha256": "f096e9440cea6468bc53fe216fd796352c2694e0bcf627a65ee92ef4243edd8d",
     "commit_allowed": false
+  },
+  "transfer_target_accept.wav": {
+    "source_type": "generated",
+    "source_url": "telephony_voice_simulator.corpus.build.CORPUS",
+    "license_note": "Clean-room simulator-authored prompt generated locally by TTS. Review the selected TTS provider's output terms before public release.",
+    "transcript_source": "corpus",
+    "voice_hint": "male",
+    "generator_engine": "ElevenLabs",
+    "generator_model": "eleven_v3",
+    "generator_voice": "configured-voice-588e12dd2f83",
+    "generator_voice_settings": {
+      "speed": 1.0,
+      "style": 0.0,
+      "stability": 1.0
+    },
+    "generator_seed": 42,
+    "generated_at": "2026-10-29",
+    "sha256": "262df2a61aebc47f7d14655a98520e55e5c4f6fb861c537c1448242c944525eb",
+    "commit_allowed": false
+  },
+  "transfer_target_bridge_code.wav": {
+    "source_type": "generated",
+    "source_url": "telephony_voice_simulator.corpus.build.CORPUS",
+    "license_note": "Clean-room simulator-authored prompt generated locally by TTS. Review the selected TTS provider's output terms before public release.",
+    "transcript_source": "corpus",
+    "voice_hint": "male",
+    "generator_engine": "ElevenLabs",
+    "generator_model": "eleven_v3",
+    "generator_voice": "configured-voice-588e12dd2f83",
+    "generator_voice_settings": {
+      "speed": 1.0,
+      "style": 0.0,
+      "stability": 1.0
+    },
+    "generator_seed": 42,
+    "generated_at": "2026-10-29",
+    "sha256": "460463ef90a20c792fcd4590bbbb531c9ff7e5f3f3781d3c1bf6f80febb81634",
+    "commit_allowed": false
+  },
+  "transfer_target_decline.wav": {
+    "source_type": "generated",
+    "source_url": "telephony_voice_simulator.corpus.build.CORPUS",
+    "license_note": "Clean-room simulator-authored prompt generated locally by TTS. Review the selected TTS provider's output terms before public release.",
+    "transcript_source": "corpus",
+    "voice_hint": "male",
+    "generator_engine": "ElevenLabs",
+    "generator_model": "eleven_v3",
+    "generator_voice": "configured-voice-588e12dd2f83",
+    "generator_voice_settings": {
+      "speed": 1.0,
+      "style": 0.0,
+      "stability": 1.0
+    },
+    "generator_seed": 42,
+    "generated_at": "2026-10-29",
+    "sha256": "5dd1d24df20d3e94d995bd59a0fd9552576875569b6161981b1427a545964807",
+    "commit_allowed": false
+  },
+  "transfer_target_greeting.wav": {
+    "source_type": "generated",
+    "source_url": "telephony_voice_simulator.corpus.build.CORPUS",
+    "license_note": "Clean-room simulator-authored prompt generated locally by TTS. Review the selected TTS provider's output terms before public release.",
+    "transcript_source": "corpus",
+    "voice_hint": "male",
+    "generator_engine": "ElevenLabs",
+    "generator_model": "eleven_v3",
+    "generator_voice": "configured-voice-588e12dd2f83",
+    "generator_voice_settings": {
+      "speed": 1.0,
+      "style": 0.0,
+      "stability": 1.0
+    },
+    "generator_seed": 42,
+    "generated_at": "2026-10-29",
+    "sha256": "554182893c9310272d724cbd49616743519272119b892eb0b86cec371b76c68f",
+    "commit_allowed": false
   }
 }

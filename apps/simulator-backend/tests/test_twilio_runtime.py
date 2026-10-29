@@ -229,6 +229,33 @@ def _action_path(xml: str, verb: str) -> str:
     return url.path + '?' + url.query
 
 
+def test_compile_reject_scenario(assets: Path, tmp_path: Path) -> None:
+    scenario = {"name": "busy", "machine": {"main": [{"reject": "busy"}]}, "expect": {}}
+    compiled = compile_scenario(scenario, assets_dir=assets, out_dir=tmp_path / "c")
+    segment = compiled.sequences["main"][0]
+    assert (segment.terminal, segment.reject_reason, segment.audio_file) == ("reject", "busy", None)
+
+
+async def test_reject_scenario_turns_call_away_without_recording(pstn_client, assets, tmp_path, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio import amd
+
+    client, state = pstn_client
+    scenario = {"name": "busy", "machine": {"main": [{"reject": "busy"}]}, "expect": {}}
+    state.scenarios["busy"] = compile_scenario(scenario, assets_dir=assets, out_dir=tmp_path / "compiled")
+    state.raw_scenarios["busy"] = scenario
+
+    async def unexpected(*_args):
+        pytest.fail("a rejected call is never answered, so it must not be recorded")
+
+    monkeypatch.setattr(amd, "start_audit_recording", unexpected)
+    _queue_on_line("+15550009998", "busy")
+    body = await _post_form(
+        client, "/twilio/voice", {"CallSid": "CA2", "To": "+15550009998", "From": "+12223334444"}
+    )
+    assert '<Reject reason="busy"/>' in body
+    assert "<Play>" not in body
+
+
 async def test_voice_retry_reuses_exact_response_without_replaying_runtime(pstn_client):
     client, state = pstn_client
     state.default_scenario = 'gate'

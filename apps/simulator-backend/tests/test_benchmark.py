@@ -22,9 +22,16 @@ def test_expected_class_covers_every_catalog_scenario() -> None:
     catalog = planning.load_scenarios()
     assert len(catalog) >= 30
     unknown = {
-        name for name, scenario in catalog.items() if scoring.expected_class(scenario) == "unknown"
+        name for name, scenario in catalog.items()
+        if not scenario.get("transfer_target") and scoring.expected_class(scenario) == "unknown"
     }
     assert not unknown, f"scenarios need an explicit expect.callee_class: {sorted(unknown)}"
+
+
+def test_all_scenarios_leave_out_transfer_targets() -> None:
+    catalog = {"vm": {"expect": {}}, "target": {"transfer_target": True, "expect": {}}}
+    plan = planning.resolve_plan(catalog=catalog)
+    assert plan["scenarios"] == ["vm"]
 
 
 def test_expected_class_derivations() -> None:

@@ -11,14 +11,17 @@ import re
 from pathlib import Path
 from typing import Any
 
-STEP_KEYS = {"wait", "hold", "play", "tone", "repeat_from", "hangup", "dial"}
+STEP_KEYS = {"wait", "hold", "play", "tone", "repeat_from", "hangup", "dial", "reject"}
+# Carrier responses a ``reject`` step can give instead of answering.
+REJECT_REASONS = ("busy", "rejected")
 MACHINE_OPTIONS = {"on_dtmf", "max_duration"}
 EXPECT_KEYS = {
     "callee_class", "webhook_received", "ended_reason", "ended_reason_any_of",
     "ended_reason_not", "detection_layer_prefix_any_of", "detection_layer_absent",
     "dtmf_received", "dtmf_press_count_max", "agent_spoke", "first_agent_speech_after",
     "agent_speech_after", "message_start_after", "max_overlap_with_playback",
-    "max_overlap_between_marks", "message_content",
+    "max_overlap_between_marks", "message_content", "transcript_contains",
+    "transcript_excludes",
 }
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
 _DIGIT = re.compile(r"[0-9A-Da-d*#]\Z")
@@ -93,6 +96,13 @@ def validate_machine(machine: Any, *, allow_dial: bool = True) -> None:
                 if not allow_dial:
                     raise ValueError(f"{location}.dial: bridging requires the PSTN transport")
                 _text(value, f"{location}.dial")
+            elif kind == "reject":
+                if not allow_dial:
+                    raise ValueError(f"{location}.reject: rejecting a call requires the PSTN transport")
+                if value not in REJECT_REASONS:
+                    raise ValueError(f"{location}.reject: expected {' or '.join(REJECT_REASONS)}")
+                if name != "main" or index != 0:
+                    raise ValueError(f"{location}.reject: a call can only be rejected before it is answered, as the first main step")
     dtmf = machine.get("on_dtmf")
     if dtmf is None or dtmf == "ignore":
         return
@@ -156,6 +166,19 @@ def validate_expectations(expect: Any) -> None:
                     if mark in value:
                         _text(value[mark], f"{location}.{mark}")
                 _number(value.get("max_s", 0.5), f"{location}.max_s")
+            elif key in {"transcript_contains", "transcript_excludes"}:
+                allowed = {"phrases", "min_hits"} if key == "transcript_contains" else {"phrases"}
+                if set(value) - allowed:
+                    raise ValueError(f"{location}: unknown transcript options")
+                phrases = value.get("phrases")
+                if not isinstance(phrases, list) or not phrases:
+                    raise ValueError(f"{location}.phrases: expected a nonempty list")
+                for phrase in phrases:
+                    _text(phrase, f"{location}.phrases")
+                if "min_hits" in value and (
+                    type(value["min_hits"]) is not int or not 1 <= value["min_hits"] <= len(phrases)
+                ):
+                    raise ValueError(f"{location}.min_hits: expected an integer from 1 to the phrase count")
             elif key == "message_content":
                 if set(value) - {"expected", "min_recall", "head_words", "max_preamble_words", "allowed_identity_name"}:
                     raise ValueError(f"{location}: unknown message content options")
@@ -179,8 +202,11 @@ def validate_scenario(scenario: Any, *, source: str = "scenario") -> dict[str, A
         for key in ("answer_delay", "call_timeout", "webhook_timeout"):
             if key in scenario:
                 _number(scenario[key], key, positive=key != "answer_delay")
-        if "pstn_only" in scenario and not isinstance(scenario["pstn_only"], bool):
-            raise ValueError("pstn_only: expected true or false")
+        for flag in ("pstn_only", "transfer_target"):
+            if flag in scenario and not isinstance(scenario[flag], bool):
+                raise ValueError(f"{flag}: expected true or false")
+        if scenario.get("transfer_target") and not scenario.get("pstn_only"):
+            raise ValueError("transfer_target: transfer legs exist only on the PSTN transport")
         if "config_overrides" in scenario and not isinstance(scenario["config_overrides"], dict):
             raise ValueError("config_overrides: expected an object")
     except ValueError as error:

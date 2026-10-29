@@ -434,3 +434,45 @@ def test_routing_cache_expires_and_can_be_forgotten(store, fake_agents, monkeypa
     assert service.resolve_agent(persona) == first
     service.forget_routing()
     assert service.resolve_agent(persona) == ('agent_recreated', 'branch_recreated')
+
+
+def test_dial_places_a_persona_call_to_an_allowed_number(store, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio.management import TwilioNumberManager
+
+    placed = []
+
+    async def fake_place_call(_self, **kwargs):
+        placed.append(kwargs)
+        return {'sid': 'CA' + '9' * 32}
+
+    monkeypatch.setattr(TwilioNumberManager, 'place_call', fake_place_call)
+    monkeypatch.setenv('PUBLIC_BASE_URL', 'https://sim.example')
+    monkeypatch.setenv('PSTN_CUSTOMER_ALLOWED_CALLERS', '+15555550101')
+    with pytest.raises(ValidationError, match='ALLOWED_CALLERS'):
+        service.dial(store, LINE, '+15555550199')
+    with pytest.raises(ValidationError, match='not a persona line'):
+        service.dial(store, '+15555550999', '+15555550101')
+
+    result = service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales', label='run-1')
+    assert placed == [{'from_number': LINE, 'to_number': '+15555550101',
+                       'url': 'https://sim.example/twilio/customer',
+                       'status_callback': 'https://sim.example/twilio/status'}]
+    assert result['call_id'] == 'CA' + '9' * 32
+    assert [q['persona']['id'] for q in service.list_queue(store, LINE)] == ['transfer-to-sales']
+
+
+def test_failed_dial_does_not_leave_the_persona_queued(store, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio.management import (
+        TwilioManagementError,
+        TwilioNumberManager,
+    )
+
+    async def refused(_self, **_kwargs):
+        raise TwilioManagementError('Twilio call request failed (400).')
+
+    monkeypatch.setattr(TwilioNumberManager, 'place_call', refused)
+    monkeypatch.setenv('PUBLIC_BASE_URL', 'https://sim.example')
+    monkeypatch.setenv('PSTN_CUSTOMER_ALLOWED_CALLERS', '+15555550101')
+    with pytest.raises(service.ConflictError, match='400'):
+        service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
+    assert service.list_queue(store, LINE) == []
