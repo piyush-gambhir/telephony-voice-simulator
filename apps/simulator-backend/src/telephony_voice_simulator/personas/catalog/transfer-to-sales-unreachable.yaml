@@ -6,8 +6,9 @@ engine: chained
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
   you saw on their website. Behavior: friendly and patient. As soon as the
-  dealership's assistant greets you, say you would like to speak with someone in
-  sales. If they offer to transfer you, agree and wait quietly while you are on
+  dealership's assistant greets you, say you would like to speak with a real
+  person, a sales manager, and keep asking for one until they offer to connect
+  you. If they offer to transfer you, agree and wait quietly while you are on
   hold. If the assistant comes back and says nobody is available, ask for
   someone from sales to call you back tomorrow morning, then say goodbye.
 expectations:

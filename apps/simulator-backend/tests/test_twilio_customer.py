@@ -276,3 +276,22 @@ async def test_a_finished_transcript_is_never_refetched_or_replaced(client, regi
 
     monkeypatch.setattr(elevenlabs, '_request', unexpected)
     assert customer_service.refresh_session(store, SID)['dialogue'] == done
+
+
+@pytest.mark.parametrize('body,content_type', [
+    ('<?xml version="1.0"?><Response><Connect/></Response>', 'text/xml'),
+    ('"<Response><Connect/></Response>"', 'application/json'),
+])
+async def test_register_call_accepts_raw_or_json_twiml(monkeypatch, body, content_type):
+    import httpx
+
+    def handler(_request):
+        return httpx.Response(200, content=body.encode(), headers={'content-type': content_type})
+
+    monkeypatch.setenv('ELEVENLABS_API_KEY', 'test')
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        twiml = await elevenlabs.register_call(
+            agent_id='agent', from_number='+15555550101', to_number='+15555550100',
+            direction='outbound', user_id='CA1', dynamic_variables={}, client=client,
+        )
+    assert '<Response>' in twiml
