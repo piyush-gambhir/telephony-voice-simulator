@@ -167,6 +167,34 @@ def transcribe_recording(path: Path) -> str | None:
     return None
 
 
+def _phrase_in(phrase: list[str], got: list[str]) -> bool:
+    """True when the phrase's words appear consecutively, allowing Whisper-style misspellings."""
+    if not phrase:
+        return False
+    for start in range(len(got) - len(phrase) + 1):
+        window = got[start:start + len(phrase)]
+        if all(w == p or _tokens_close(p, w) for p, w in zip(phrase, window)):
+            return True
+    return False
+
+
+def _recordings_transcript(
+    recordings: list[Path], segments_by_path: dict[Path, list[tuple[float, float]]]
+) -> str | None:
+    """Every recording transcribed in execution order; None when any speech went untranscribed."""
+    parts: list[str] = []
+    for rec in recordings:
+        if not segments_by_path.get(rec):
+            continue  # silence, or unreadable (already reported)
+        text = transcribe_recording(rec)
+        if text is None:
+            text = transcribe_recording(rec)  # transient failure: retry once
+        if text is None:
+            return None
+        parts.append(text.strip())
+    return " ".join(p for p in parts if p)
+
+
 def _speech_segments(path: Path) -> list[tuple[float, float]]:
     from .checks import speech_segments_from_wav
 
@@ -293,6 +321,39 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
                     f"(otherwise max {max_preamble_words}) "
                     f"transcript={transcript[:120]!r}",
                 )
+
+    main = compiled.sequences.get("main") if compiled is not None else None
+    if main and main[0].terminal == "reject":
+        # Success for a reject scenario is a call that never answered.
+        status = str(call.get("status") or "")
+        add("rejected_before_answer", status != "completed" if status else None,
+            f"carrier_status={status or 'unknown'} want={main[0].reject_reason or 'rejected'}")
+
+    transcript_keys = [k for k in ("transcript_contains", "transcript_excludes") if k in expect]
+    if transcript_keys:
+        # Phrases are looked for across all recordings, so execution order does not matter.
+        if not recordings:
+            heard, reason = None, "no recording captured"
+        else:
+            heard = _recordings_transcript(recordings, segments_by_path)
+            reason = "transcription unavailable; transcript is unverified"
+        if heard is not None:
+            call["recordings_transcript"] = heard
+        got = _norm_tokens(heard or "")
+        for key in transcript_keys:
+            phrases = [str(p) for p in expect[key]["phrases"]]
+            if heard is None:
+                add(key, None, reason)
+                continue
+            found = [p for p in phrases if _phrase_in(_norm_tokens(p), got)]
+            if key == "transcript_contains":
+                need = int(expect[key].get("min_hits", len(phrases)))
+                missing = [p for p in phrases if p not in found]
+                add(key, len(found) >= need,
+                    f"found {len(found)}/{len(phrases)} (need {need}) missing={missing} "
+                    f"transcript={heard[:160]!r}")
+            else:
+                add(key, not found, f"forbidden={found} transcript={heard[:160]!r}")
 
     if "dtmf_received" in expect:
         want = str((expect["dtmf_received"] or {}).get("digit", ""))

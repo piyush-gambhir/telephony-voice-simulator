@@ -28,6 +28,12 @@ def _call_scenario(call: dict) -> CompiledScenario:
     return state.STATE.scenarios[call["scenario"]]
 
 
+def compiled_rejects(call: dict) -> bool:
+    """True when the scenario turns the call away before answering."""
+    main = _call_scenario(call).sequences.get("main") or []
+    return bool(main) and main[0].terminal == "reject"
+
+
 def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
     """TwiML for one segment + routing to the next step."""
     compiled = _call_scenario(call)
@@ -67,6 +73,9 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
         # Gather always posts to action (actionOnEmptyResult) — no fallthrough.
         return verbs
 
+    if segment.terminal == "reject":
+        # Validation keeps this to the first main step, so the line never answers.
+        return [f'<Reject reason="{escape(segment.reject_reason or "rejected")}"/>']
     if segment.audio_file:
         verbs.append(play(segment.audio_file))
     if segment.terminal == "dial":
@@ -216,13 +225,15 @@ async def handle_voice(request: web.Request) -> web.Response:
     # Prepare the initial reply before awaiting the recording API so retries
     # cannot advance the scenario while that request is in flight.
     call["voice_response"] = twiml(*_segment_twiml(call, "main", 0)).text
+    # A rejected call is never answered, so there is nothing to record.
+    rejects = compiled_rejects(call)
     call_store().upsert_incoming_call(
         call_id=sid,
         from_address=call["from"],
         to_address=to_number,
         scenario=scenario,
         status="in-progress",
-        recording_status="starting",
+        recording_status="disabled" if rejects else "starting",
         started_at=iso(call["answered_at"]),
         analysis=_runtime_analysis(call),
     )
@@ -230,8 +241,14 @@ async def handle_voice(request: web.Request) -> web.Response:
         run_id,
         status="in-progress",
         call_id=sid,
-        result={"graded": False, "summary": "PSTN call answered; awaiting terminal callback."},
+        result={"graded": False, "summary": (
+            "PSTN call rejected without answering; awaiting terminal callback." if rejects
+            else "PSTN call answered; awaiting terminal callback."
+        )},
     )
+    if rejects:
+        print(f"[voice] {sid} to={to_number} from={call['from']} scenario={scenario} rejected")
+        return web.Response(text=call["voice_response"], content_type="application/xml")
     call["audit_recording_start"] = await start_audit_recording(sid, to_number)
     if call_is_deleted(sid) or call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
         return twiml("<Hangup/>")

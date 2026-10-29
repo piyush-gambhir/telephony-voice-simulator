@@ -300,3 +300,29 @@ def test_destination_guard_requires_an_explicit_payload_path():
     with pytest.raises(ValueError, match="destination_path"):
         agent_api.AgentApiConfig(trigger_url="https://agent.example.test/calls",
                                 body_template={}, allowed_destinations=("+15555550100",))
+
+
+def test_record_command_reads_the_record_and_treats_empty_output_as_pending(tmp_path) -> None:
+    script = tmp_path / "record.py"
+    script.write_text(
+        "import json, sys\n"
+        "print(json.dumps({'status': 'completed', 'id': sys.argv[1]}) if sys.argv[1] == 'c1' else '')\n"
+    )
+    config = agent_api.AgentApiConfig(
+        trigger_url="", body_template={}, record_command=["python3", str(script), "{call_id}"]
+    )
+    assert config.can_read_records
+    assert agent_api.fetch_record(config, "c1") == {"status": "completed", "id": "c1"}
+    assert agent_api.fetch_record(config, "c2") is None
+    with pytest.raises(ValueError, match="call_id"):
+        agent_api.AgentApiConfig(trigger_url="", body_template={}, record_command=["true"])
+
+
+def test_a_terminal_record_waits_for_its_settle_paths(monkeypatch) -> None:
+    records = iter([{"status": "completed"}, {"status": "completed", "outcome": {"reason": "done"}}])
+    config = agent_api.AgentApiConfig(trigger_url="", body_template={}, record_url="https://a/{call_id}",
+                                      settle_paths=["outcome.reason"])
+    monkeypatch.setattr(agent_api, "fetch_record", lambda *_a: next(records))
+    monkeypatch.setattr(agent_api.time, "sleep", lambda _s: None)
+    record = agent_api.wait_for_terminal(config, "c1", timeout=60, interval=1, progress=False)
+    assert record["outcome"]["reason"] == "done"

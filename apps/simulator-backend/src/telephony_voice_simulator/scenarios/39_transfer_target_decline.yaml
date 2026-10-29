@@ -1,0 +1,15 @@
+# TRANSFER TARGET, declined: a person answers, hears the briefing, then says
+# they cannot take the call and hangs up. The agent must not bridge, and must
+# return to the caller (graded on the customer line).
+name: transfer_target_decline
+pstn_only: true
+transfer_target: true
+machine:
+  main:
+    - wait: 1.0
+    - play: transfer_target_greeting.wav
+    - hold: 18
+    - play: transfer_target_decline.wav
+    - hangup: true
+expect:
+  agent_spoke: true

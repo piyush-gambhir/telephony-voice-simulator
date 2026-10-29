@@ -41,6 +41,8 @@ def _step(step: dict[str, Any], index: int) -> dict[str, Any]:
         return {"index": index, "kind": "hangup", "label": "Hang up"}
     if "dial" in step:
         return {"index": index, "kind": "bridge", "label": "Bridge call", "target": step["dial"]}
+    if "reject" in step:
+        return {"index": index, "kind": "reject", "label": "Reject call", "reason": step["reject"]}
     if "repeat_from" in step:
         return {
             "index": index,

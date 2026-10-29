@@ -227,6 +227,9 @@ def run_checks(
     # content check visible instead of silently treating it as successful.
     if "message_content" in expect:
         add("message_content", None, "Message content requires PSTN recording/transcription grading")
+    for key in ("transcript_contains", "transcript_excludes"):
+        if key in expect:
+            add(key, None, "Transcript checks require PSTN recording/transcription grading")
 
     if "dtmf_received" in expect:
         spec = expect["dtmf_received"] or {}

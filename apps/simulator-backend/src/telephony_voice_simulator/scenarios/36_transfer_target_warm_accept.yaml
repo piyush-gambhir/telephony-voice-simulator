@@ -1,0 +1,23 @@
+# TRANSFER TARGET: the line a voice agent warm-transfers a caller to. A person
+# answers, listens to the agent's briefing, then says a bridge code word.
+# Pair it with the transfer-to-sales persona on the customer line: the persona
+# must hear "pineapple" (the customer reached this line), and this line must
+# hear the persona's "lighthouse" (audio flows both ways after the bridge).
+# The recordings hold only what the caller side says, never this line's prompts.
+name: transfer_target_warm_accept
+pstn_only: true
+transfer_target: true
+machine:
+  main:
+    - wait: 1.0
+    - play: transfer_target_greeting.wav
+    - hold: 35
+    - play: transfer_target_bridge_code.wav
+    - hold: 25
+    - play: transfer_target_bridge_code.wav
+    - hold: 20
+    - hangup: true
+expect:
+  agent_spoke: true
+  transcript_contains:
+    phrases: ["on the line", "lighthouse"]

@@ -18,8 +18,8 @@ DEFAULT_SCENARIO = "stock_voicemail_beep_1000"
 
 
 def _require_record_url(config: agent_api.AgentApiConfig) -> None:
-    if not config.record_url:
-        raise ValidationError("AGENT_API_RECORD_URL is required to read call outcomes")
+    if not config.can_read_records:
+        raise ValidationError("AGENT_API_RECORD_URL or AGENT_API_RECORD_COMMAND is required to read call outcomes")
 
 
 def trigger_call(*, scenario: str = DEFAULT_SCENARIO, number: str = "") -> dict[str, Any]:

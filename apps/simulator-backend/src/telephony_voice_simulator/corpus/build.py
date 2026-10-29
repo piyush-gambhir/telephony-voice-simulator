@@ -235,6 +235,23 @@ CORPUS: dict[str, tuple[str, str]] = {
         "Sorry, I didn't catch that. Could you say who you are and why you're "
         "calling?",
     ),
+    # --- Transfer targets (the human a voice agent hands a caller to) --------
+    # Played on the line the agent transfers to. The bridge code is a word the
+    # agent never hears before the bridge, so finding it in the customer's
+    # transcript proves the customer reached this line.
+    "transfer_target_greeting.wav": ("male", "Hey, this is Sam in sales."),
+    "transfer_target_accept.wav": (
+        "male",
+        "Yeah, I can take it. Go ahead and put them through.",
+    ),
+    "transfer_target_bridge_code.wav": (
+        "male",
+        "Hi there, I'm on the line now. The code word on my end is pineapple.",
+    ),
+    "transfer_target_decline.wav": (
+        "male",
+        "Sorry, I'm with another customer and can't take this one right now. Bye.",
+    ),
 }
 
 

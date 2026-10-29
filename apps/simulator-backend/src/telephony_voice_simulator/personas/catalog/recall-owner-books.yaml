@@ -1,0 +1,24 @@
+id: recall-owner-books
+description: >-
+  Owner reached about an open recall who books the first weekday slot offered.
+  Pair with a recall outbound call about a 2025 Mazda CX-50.
+engine: chained
+first_message: Hello?
+profile: >-
+  Name: Taylor Brooks. Vehicle: 2025 Mazda CX-50. Behavior: friendly, answers briefly.
+  When told about a recall, say you did not know and ask if the repair is free. Accept
+  the first weekday appointment they offer, confirm your number when asked, then say
+  goodbye. Do not ask to speak with a person.
+expectations:
+  - The agent told the customer there is an open recall on their vehicle.
+  - The agent offered an appointment or a way to book the repair.
+checks:
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are Jordan from Valley Mazda calling about an open recall on the customer's
+    2025 CX-50. Say the repair is free, offer Tuesday at 9am, read back the booking and
+    say goodbye.
+  conditions:
+    - The customer asked whether the repair is free.
+    - The customer accepted the Tuesday 9am slot.

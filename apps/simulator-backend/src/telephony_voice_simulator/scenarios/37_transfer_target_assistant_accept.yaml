@@ -1,0 +1,22 @@
+# TRANSFER TARGET, assistant consult: the agent briefs this person and asks
+# whether they can take the call; the person agrees, then gives the bridge code.
+# Grade together with the customer line as in transfer_target_warm_accept.
+name: transfer_target_assistant_accept
+pstn_only: true
+transfer_target: true
+machine:
+  main:
+    - wait: 1.0
+    - play: transfer_target_greeting.wav
+    - hold: 18
+    - play: transfer_target_accept.wav
+    - hold: 20
+    - play: transfer_target_bridge_code.wav
+    - hold: 20
+    - play: transfer_target_bridge_code.wav
+    - hold: 15
+    - hangup: true
+expect:
+  agent_spoke: true
+  transcript_contains:
+    phrases: ["available", "lighthouse"]

@@ -101,7 +101,13 @@ async def register_call(
     finally:
         if owned:
             await client.aclose()
-    twiml = _checked(response)
+    if response.status_code >= 400:
+        _checked(response)
+    # The endpoint answers with the TwiML itself (text/xml), or with that TwiML as a JSON string.
+    try:
+        twiml = response.json()
+    except ValueError:
+        twiml = response.text
     if not isinstance(twiml, str) or "<Response" not in twiml:
         raise ElevenLabsError("ElevenLabs did not return TwiML for the call")
     return twiml

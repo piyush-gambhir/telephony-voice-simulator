@@ -46,7 +46,12 @@ def resolve_plan(
 
     selected = scenarios or suite_file.get("scenarios") or "all"
     if isinstance(selected, str):
-        selected = list(catalog) if selected == "all" else [selected]
+        # Transfer targets answer a transfer leg, not the agent's first call, so
+        # they have no AMD class and stay out of "all".
+        selected = (
+            [name for name, raw in catalog.items() if not raw.get("transfer_target")]
+            if selected == "all" else [selected]
+        )
     if not isinstance(selected, list) or any(not isinstance(n, str) for n in selected):
         raise ValidationError("scenarios must be a list of names or 'all'")
     exclusions = suite_file.get("exclude") or []

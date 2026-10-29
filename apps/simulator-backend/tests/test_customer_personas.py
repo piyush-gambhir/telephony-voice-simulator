@@ -15,7 +15,7 @@ from telephony_voice_simulator.integrations import elevenlabs
 from telephony_voice_simulator.service import ConflictError, ValidationError
 from telephony_voice_simulator.service import customer as service
 from telephony_voice_simulator.storage.sqlite import SimulatorStore
-from telephony_voice_simulator.telephony.twilio import customer
+from telephony_voice_simulator.telephony.twilio import callbacks, customer
 from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
 from test_twilio_customer import CONNECT, SID, signed_post
@@ -100,6 +100,8 @@ async def client(store, monkeypatch, registrations):
     monkeypatch.setattr(twilio_state, 'CALL_STORE', store)
     app = web.Application()
     customer.register_routes(app)
+    # Persona dials report their outcome to the shared status route.
+    app.router.add_post('/twilio/status', callbacks.handle_status)
     async with TestClient(TestServer(app)) as session:
         yield session
     customer.ACTIVE.clear()
@@ -434,3 +436,84 @@ def test_routing_cache_expires_and_can_be_forgotten(store, fake_agents, monkeypa
     assert service.resolve_agent(persona) == first
     service.forget_routing()
     assert service.resolve_agent(persona) == ('agent_recreated', 'branch_recreated')
+
+
+def test_dial_places_a_persona_call_to_an_allowed_number(store, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio.management import TwilioNumberManager
+
+    placed = []
+
+    async def fake_place_call(_self, **kwargs):
+        placed.append(kwargs)
+        return {'sid': 'CA' + '9' * 32}
+
+    monkeypatch.setattr(TwilioNumberManager, 'place_call', fake_place_call)
+    monkeypatch.setenv('PUBLIC_BASE_URL', 'https://sim.example')
+    monkeypatch.setenv('PSTN_CUSTOMER_ALLOWED_CALLERS', '+15555550101')
+    with pytest.raises(ValidationError, match='ALLOWED_CALLERS'):
+        service.dial(store, LINE, '+15555550199')
+    with pytest.raises(ValidationError, match='not a persona line'):
+        service.dial(store, '+15555550999', '+15555550101')
+
+    result = service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales', label='run-1')
+    queued_id = result['queued']['id']
+    assert placed == [{'from_number': LINE, 'to_number': '+15555550101',
+                       'url': 'https://sim.example/twilio/customer',
+                       'status_callback': f'https://sim.example/twilio/status?persona_queue={queued_id}',
+                       'send_digits': ''}]
+    assert result['call_id'] == 'CA' + '9' * 32
+    assert [q['persona']['id'] for q in service.list_queue(store, LINE)] == ['transfer-to-sales']
+    # A second dial would claim the first persona, so it is refused.
+    with pytest.raises(service.ConflictError, match='already queued'):
+        service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
+
+
+def test_dial_keys_menu_digits_on_answer(store, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio.management import TwilioNumberManager
+
+    placed = []
+
+    async def fake_place_call(_self, **kwargs):
+        placed.append(kwargs)
+        return {'sid': 'CA' + '9' * 32}
+
+    monkeypatch.setattr(TwilioNumberManager, 'place_call', fake_place_call)
+    monkeypatch.setenv('PUBLIC_BASE_URL', 'https://sim.example')
+    monkeypatch.setenv('PSTN_CUSTOMER_ALLOWED_CALLERS', '+15555550101')
+    with pytest.raises(ValidationError, match='send_digits'):
+        service.dial(store, LINE, '+15555550101', send_digits='1;4')
+    service.dial(store, LINE, '+15555550101', send_digits='ww1ww4')
+    assert placed[0]['send_digits'] == 'ww1ww4'
+
+
+def test_failed_dial_does_not_leave_the_persona_queued(store, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio.management import (
+        TwilioManagementError,
+        TwilioNumberManager,
+    )
+
+    async def refused(_self, **_kwargs):
+        raise TwilioManagementError('Twilio call request failed (400).')
+
+    monkeypatch.setattr(TwilioNumberManager, 'place_call', refused)
+    monkeypatch.setenv('PUBLIC_BASE_URL', 'https://sim.example')
+    monkeypatch.setenv('PSTN_CUSTOMER_ALLOWED_CALLERS', '+15555550101')
+    with pytest.raises(service.ConflictError, match='400'):
+        service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
+    assert service.list_queue(store, LINE) == []
+
+
+async def test_unanswered_dial_drops_its_queued_persona(client, store):
+    queued = service.queue_persona(store, LINE, persona_id='transfer-to-sales')
+    r = await signed_post(client, f"/twilio/status?persona_queue={queued['id']}",
+                          CallStatus='no-answer', Direction='outbound-api')
+    assert r.status == 200
+    assert service.list_queue(store, LINE) == []
+
+
+async def test_answered_dial_keeps_status_handling(client, store, registrations):
+    queued = service.queue_persona(store, LINE, persona_id='transfer-to-sales')
+    await signed_post(client, '/twilio/customer')  # the persona is claimed on answer
+    r = await signed_post(client, f"/twilio/status?persona_queue={queued['id']}", CallStatus='completed')
+    assert r.status == 200
+    assert store.get_incoming_call(SID).status == 'completed'

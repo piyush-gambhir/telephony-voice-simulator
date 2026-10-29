@@ -1,0 +1,29 @@
+id: transfer-to-sales-unreachable
+description: >-
+  Caller who asks for sales when nobody can take the transfer. Pair with a
+  transfer-target scenario that is busy, declines, or reaches voicemail.
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
+  you saw on their website. Behavior: friendly and patient. As soon as the
+  dealership's assistant greets you, say you would like to speak with a real
+  person, a sales manager, and keep asking for one until they offer to connect
+  you. If they offer to transfer you, agree and wait quietly while you are on
+  hold. If the assistant comes back and says nobody is available, ask for
+  someone from sales to call you back tomorrow morning, then say goodbye.
+expectations:
+  - The agent agreed to connect the customer with sales.
+  - The agent came back to the customer and said the transfer did not go through.
+  - The agent offered a callback or another way forward instead of leaving the customer on silence.
+checks:
+  must_not_say:
+    - pineapple
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are the assistant at Valley Honda. Greet the caller. When they ask for
+    sales, tell them you will transfer them and ask them to hold. Then come back
+    and say the sales team is busy right now, and offer a callback.
+  conditions:
+    - The customer asked to speak with sales.
+    - The customer asked for a callback after hearing nobody was available.

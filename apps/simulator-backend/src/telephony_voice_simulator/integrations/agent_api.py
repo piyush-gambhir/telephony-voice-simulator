@@ -21,12 +21,18 @@ Environment:
   AGENT_API_CALL_ID_PATH         dotted path to the call id      (default callId)
   AGENT_API_RECORD_URL           GET template containing {call_id}
   AGENT_API_RECORD_AUTHORIZATION defaults to AGENT_API_AUTHORIZATION
+  AGENT_API_RECORD_COMMAND       instead of a URL: a command (shell words, no shell)
+                                 containing {call_id} that prints the record as JSON,
+                                 or nothing while the record does not exist yet
   AGENT_API_STATUS_PATH          dotted path to call status      (default status)
   AGENT_API_TERMINAL_STATUSES    comma list (default completed,ended,failed,
                                  no-answer,busy,canceled)
   AGENT_API_ENDED_REASON_PATH    dotted path to the fine-grained end reason
   AGENT_API_DETECTION_LAYER_PATH dotted path to the machine-detection layer
   AGENT_API_AMD_PATH             dotted path to the AMD verdict object
+  AGENT_API_SETTLE_PATHS         comma list of dotted paths a terminal record must also
+                                 carry before it is read (up to 120 s more), for records
+                                 whose status lands before the rest of the call outcome
 
 The body template is JSON with ``{sim_number}``, ``{scenario}`` and
 ``{run_id}`` substituted into string values (recursively, including inside
@@ -44,6 +50,8 @@ import json
 import math
 import os
 import re
+import shlex
+import subprocess
 import time
 import uuid
 from collections.abc import Callable
@@ -115,6 +123,7 @@ class AgentApiConfig:
     trigger_url: str
     body_template: dict[str, Any]
     record_url: str = ""
+    record_command: list[str] = field(default_factory=list)
     trigger_method: str = "POST"
     authorization: str = ""
     record_authorization: str = ""
@@ -127,6 +136,7 @@ class AgentApiConfig:
     timeout: float = 30.0
     allowed_destinations: tuple[str, ...] = ()
     destination_path: str = ""
+    settle_paths: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.allowed_destinations:
@@ -143,6 +153,12 @@ class AgentApiConfig:
             raise ValueError("at least one nonempty terminal status is required")
         if self.record_url and "{call_id}" not in self.record_url:
             raise ValueError("agent API record URL must contain {call_id}")
+        if self.record_command and not any("{call_id}" in a for a in self.record_command):
+            raise ValueError("agent API record command must contain {call_id}")
+
+    @property
+    def can_read_records(self) -> bool:
+        return bool(self.record_url or self.record_command)
 
     @property
     def record_headers(self) -> dict[str, str]:
@@ -189,6 +205,7 @@ def load_config(*, require_trigger: bool = True) -> AgentApiConfig:
         trigger_url=trigger_url,
         body_template=body,
         record_url=os.environ.get("AGENT_API_RECORD_URL", "").strip(),
+        record_command=shlex.split(os.environ.get("AGENT_API_RECORD_COMMAND", "")),
         trigger_method=os.environ.get("AGENT_API_TRIGGER_METHOD", "POST").upper(),
         authorization=os.environ.get("AGENT_API_AUTHORIZATION", "").strip(),
         record_authorization=os.environ.get("AGENT_API_RECORD_AUTHORIZATION", "").strip(),
@@ -212,6 +229,7 @@ def load_config(*, require_trigger: bool = True) -> AgentApiConfig:
             if n.strip()
         ),
         destination_path=os.environ.get("AGENT_API_DESTINATION_PATH", "").strip(),
+        settle_paths=_split_paths("AGENT_API_SETTLE_PATHS", []),
     )
 
 
@@ -274,7 +292,29 @@ def trigger_call(
     return str(call_id), payload
 
 
+class RecordCommandFailed(ValueError):
+    pass
+
+
+def _command_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | None:
+    argv = [a.replace("{call_id}", call_id) for a in config.record_command]
+    try:
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=config.timeout * 3)
+    except subprocess.TimeoutExpired:
+        return None  # a slow read is retried by the poll loop like a 5xx
+    if out.returncode != 0:
+        raise RecordCommandFailed(f"record command failed ({out.returncode}): {out.stderr.strip()[-300:]}")
+    if not out.stdout.strip():
+        return None
+    payload = json.loads(out.stdout)
+    if not isinstance(payload, dict):
+        raise ValueError("agent call record must be a JSON object")
+    return payload
+
+
 def fetch_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | None:
+    if config.record_command:
+        return _command_record(config, call_id)
     if not config.record_url:
         return None
     url = config.record_url.replace("{call_id}", quote(call_id, safe=""))
@@ -297,6 +337,13 @@ def fetch_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | None:
     return payload
 
 
+SETTLE_SECONDS = 120.0
+
+
+def is_settled(config: AgentApiConfig, record: dict[str, Any] | None) -> bool:
+    return all(dotted(record, path) not in (None, "") for path in config.settle_paths)
+
+
 def is_terminal(config: AgentApiConfig, record: dict[str, Any] | None) -> bool:
     return str(dotted(record, config.status_path) or "").strip().lower() in config.terminal_statuses
 
@@ -312,7 +359,7 @@ def wait_for_terminal(
     log: Callable[[str], None] | None = None,
 ) -> dict[str, Any] | None:
     """Poll the call record until its status is terminal. None on timeout."""
-    if not config.record_url:
+    if not config.can_read_records:
         return None
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("poll timeout must be positive and finite")
@@ -321,6 +368,8 @@ def wait_for_terminal(
     deadline = time.monotonic() + timeout
     record: dict[str, Any] | None = None
     previous: str | None = None
+    last_error = ""
+    settle_deadline: float | None = None
     while time.monotonic() < deadline:
         try:
             record = fetch_record(config, call_id)
@@ -329,6 +378,12 @@ def wait_for_terminal(
                 raise
         except httpx.TransportError:
             pass
+        except RecordCommandFailed as exc:
+            # A record command usually wraps a remote query; one failed read is retried,
+            # but a command that keeps failing must say why rather than time out silently.
+            if str(exc) != last_error:
+                last_error = str(exc)
+                (log or print)(f"{label or '   '} {last_error}")
         status = str(dotted(record, config.status_path) or "").strip().lower()
         # Only on CHANGE: a repeated status carries no information, and with
         # several lanes polling at once the repeats interleave into a wall of
@@ -342,7 +397,10 @@ def wait_for_terminal(
                 print(line, flush=True)
             previous = status
         if is_terminal(config, record):
-            return record
+            if settle_deadline is None:
+                settle_deadline = time.monotonic() + SETTLE_SECONDS
+            if is_settled(config, record) or time.monotonic() >= settle_deadline:
+                return record
         remaining = deadline - time.monotonic()
         if remaining > 0:
             time.sleep(min(interval, remaining))

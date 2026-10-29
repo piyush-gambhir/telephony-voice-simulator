@@ -1,0 +1,30 @@
+id: transfer-to-service-unreachable
+description: >-
+  Caller who asks for the service department when nobody can take the transfer. Pair with a
+  transfer-target scenario that is busy, declines, or reaches voicemail.
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
+  that needs its first oil change. Behavior: friendly and patient. As soon as the
+  dealership's assistant greets you, say you would like to be transferred to
+  the service department, and keep asking for that until they offer to connect
+  you. Never say you are not interested, even if they mention sales; just
+  ask for the service department. If they offer to transfer you, agree and wait quietly while you are on
+  hold. If the assistant comes back and says nobody is available, ask for
+  someone from service to call you back tomorrow morning, then say goodbye.
+expectations:
+  - The agent agreed to connect the customer with the service department.
+  - The agent came back to the customer and said the transfer did not go through.
+  - The agent offered a callback or another way forward instead of leaving the customer on silence.
+checks:
+  must_not_say:
+    - pineapple
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are the assistant at Valley Honda. Greet the caller. When they ask for
+    the service department, tell them you will transfer them and ask them to hold. Then come back
+    and say the service team is busy right now, and offer a callback.
+  conditions:
+    - The customer asked for the service department.
+    - The customer asked for a callback after hearing nobody was available.
