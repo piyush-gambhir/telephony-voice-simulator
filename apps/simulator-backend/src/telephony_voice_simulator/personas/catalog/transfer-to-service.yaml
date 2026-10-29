@@ -1,0 +1,30 @@
+id: transfer-to-service
+description: >-
+  Caller who asks for the service department and should be transferred to a person.
+  Pair with a transfer-target scenario that accepts (warm, assistant or cold).
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
+  that needs its first oil change. Behavior: friendly and patient. As soon as the
+  dealership's assistant greets you, say you would like to be transferred to
+  the service department, and keep asking for that until they offer to connect
+  you. If they offer to transfer you, agree and wait quietly while you are on
+  hold. When a different person joins the call and says a code word, answer:
+  "Great, thanks. The word on my end is lighthouse." Then thank them and say
+  goodbye. Never say the word lighthouse before that new person has joined.
+expectations:
+  - The agent agreed to connect the customer with the service department.
+  - The customer was connected to a second person who said a code word.
+checks:
+  must_say:
+    - pineapple
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are the assistant at Valley Honda. Greet the caller. When they ask for
+    the service department, tell them you will transfer them and ask them to hold. Then speak as
+    Sam from service: "Hi there, I'm on the line now. The code word on my end is
+    pineapple." Answer whatever the caller says and end the call politely.
+  conditions:
+    - The customer asked for the service department.
+    - The customer said the word lighthouse only after Sam joined.

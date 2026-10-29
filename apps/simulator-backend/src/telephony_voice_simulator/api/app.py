@@ -16,6 +16,7 @@ from . import (
     numbers,
     operations,
     pbx,
+    regression,
     resources,
     runs,
     uat,
@@ -37,6 +38,7 @@ ROUTE_MODULES = (
     agents,
     benchmarks,
     uat,
+    regression,
     corpus,
     inbox,
 )

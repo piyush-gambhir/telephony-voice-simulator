@@ -459,12 +459,31 @@ def test_dial_places_a_persona_call_to_an_allowed_number(store, monkeypatch):
     queued_id = result['queued']['id']
     assert placed == [{'from_number': LINE, 'to_number': '+15555550101',
                        'url': 'https://sim.example/twilio/customer',
-                       'status_callback': f'https://sim.example/twilio/status?persona_queue={queued_id}'}]
+                       'status_callback': f'https://sim.example/twilio/status?persona_queue={queued_id}',
+                       'send_digits': ''}]
     assert result['call_id'] == 'CA' + '9' * 32
     assert [q['persona']['id'] for q in service.list_queue(store, LINE)] == ['transfer-to-sales']
     # A second dial would claim the first persona, so it is refused.
     with pytest.raises(service.ConflictError, match='already queued'):
         service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
+
+
+def test_dial_keys_menu_digits_on_answer(store, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio.management import TwilioNumberManager
+
+    placed = []
+
+    async def fake_place_call(_self, **kwargs):
+        placed.append(kwargs)
+        return {'sid': 'CA' + '9' * 32}
+
+    monkeypatch.setattr(TwilioNumberManager, 'place_call', fake_place_call)
+    monkeypatch.setenv('PUBLIC_BASE_URL', 'https://sim.example')
+    monkeypatch.setenv('PSTN_CUSTOMER_ALLOWED_CALLERS', '+15555550101')
+    with pytest.raises(ValidationError, match='send_digits'):
+        service.dial(store, LINE, '+15555550101', send_digits='1;4')
+    service.dial(store, LINE, '+15555550101', send_digits='ww1ww4')
+    assert placed[0]['send_digits'] == 'ww1ww4'
 
 
 def test_failed_dial_does_not_leave_the_persona_queued(store, monkeypatch):

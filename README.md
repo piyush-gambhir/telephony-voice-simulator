@@ -27,6 +27,7 @@ telephony-voice-simulator/
 │   ├── HLD.md
 │   ├── MIGRATION_AUDIT.md
 │   ├── OPEN_SOURCE_AUDIT.md
+│   ├── REGRESSION.md
 │   └── UAT.md
 ├── scripts/
 │   └── generate_content.py  Backend catalog → static scenario reference
@@ -143,8 +144,9 @@ end-to-end call flows. See [Deployment](docs/DEPLOYMENT.md) for containers and l
 [Human role-play](docs/HUMAN_ROLEPLAY.md) for handset-backed customer tests, and
 [UAT](docs/UAT.md) for portable end-to-end agent testing,
 [Benchmark](docs/BENCHMARK.md) for scoring an agent's answering-machine
-detection over repeats, and [Transfers](docs/TRANSFERS.md) for two-line
-warm, assistant, cold and failed-transfer tests.
+detection over repeats, [Transfers](docs/TRANSFERS.md) for two-line
+warm, assistant, cold and failed-transfer tests, and [Regression](docs/REGRESSION.md)
+for a one-command pass/fail suite (voicemail, normal calls, transfers) against a deployed agent.
 
 See [Extending the simulator](docs/EXTENDING.md) for adding private scenario
 packs, provider adapters, PBX models, and console features. The console opens on
