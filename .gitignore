@@ -75,3 +75,6 @@ apps/web-console/public/audio/
 apps/web-console/public/LICENSE
 apps/web-console/public/NOTICE
 apps/web-console/public/THIRD_PARTY_NOTICES.md
+
+# Local bundle graph exports
+/.bundle-analysis/

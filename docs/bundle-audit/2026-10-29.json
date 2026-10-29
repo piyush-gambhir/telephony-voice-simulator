@@ -1,0 +1,749 @@
+{
+  "date": "2026-10-29",
+  "repository": "piyush-gambhir/telephony-voice-simulator",
+  "base": "main",
+  "base_sha": "97f0bf0495b9baa178ecc5a87dff3142f002d2e3",
+  "mode": "audit",
+  "publication_blocker": null,
+  "apps": [
+    {
+      "path": "apps/web-console",
+      "declared_next": "16.4.3",
+      "installed_next": "16.4.3",
+      "snapshot": "audit-20261029-baseline",
+      "graph_sha256": "b33cb68949742329d24c7883009cc99b530118329e2a9ce7eeec0b679f065a31",
+      "error": null,
+      "analysis": {
+        "meta": {
+          "type": "meta",
+          "schema_version": 1,
+          "snapshot_name": "audit-20261029-baseline",
+          "module_index_hash": "1d8f933115b7c5b8",
+          "route_count": 22,
+          "selected_routes": 22
+        },
+        "record_counts": {
+          "meta": 1,
+          "module": 1606,
+          "route": 22,
+          "output": 994,
+          "part": 17114,
+          "group": 354
+        },
+        "metric": "Sum of attributed compressed bytes for JavaScript outputs with [client-fs] provenance; includes deferred outputs and is not measured transfer or initial-load size.",
+        "unique_client_js_compressed_attribution": 496815,
+        "route_stats": [
+          {
+            "route": "/console/benchmarks",
+            "client_js_compressed_attribution": 293970,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/pbx",
+            "client_js_compressed_attribution": 292887,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/agents",
+            "client_js_compressed_attribution": 291222,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/hosted",
+            "client_js_compressed_attribution": 290586,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/inbox",
+            "client_js_compressed_attribution": 290559,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/corpus",
+            "client_js_compressed_attribution": 289782,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/lines",
+            "client_js_compressed_attribution": 289707,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/operations",
+            "client_js_compressed_attribution": 289391,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/numbers",
+            "client_js_compressed_attribution": 288618,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/directory",
+            "client_js_compressed_attribution": 288410,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/providers",
+            "client_js_compressed_attribution": 288410,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/uat",
+            "client_js_compressed_attribution": 288100,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console",
+            "client_js_compressed_attribution": 286899,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/scenarios",
+            "client_js_compressed_attribution": 286355,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/models",
+            "client_js_compressed_attribution": 286306,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/ivr",
+            "client_js_compressed_attribution": 284023,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 11,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/result",
+            "client_js_compressed_attribution": 268640,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 10,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/console/analysis",
+            "client_js_compressed_attribution": 263219,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 10,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/docs/[slug]",
+            "client_js_compressed_attribution": 257578,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 10,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/",
+            "client_js_compressed_attribution": 253909,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 9,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/_not-found",
+            "client_js_compressed_attribution": 253909,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 9,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/docs",
+            "client_js_compressed_attribution": 253909,
+            "bootstrap_js_compressed_attribution": 164327,
+            "client_js_files": 9,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          }
+        ],
+        "top_sources": [
+          {
+            "source": "node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.production.js",
+            "compressed_attribution": 63929,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat",
+              "/docs",
+              "/docs/[slug]"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/console/kit.tsx",
+            "compressed_attribution": 50852,
+            "routes": [
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat"
+            ]
+          },
+          {
+            "source": "node_modules/next/dist/build/polyfills/polyfill-nomodule.js",
+            "compressed_attribution": 39434,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat",
+              "/docs",
+              "/docs/[slug]"
+            ]
+          },
+          {
+            "source": "apps/web-console/lib/workflows-api.ts",
+            "compressed_attribution": 13032,
+            "routes": [
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/uat"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/console/operation-panel.tsx",
+            "compressed_attribution": 8907,
+            "routes": [
+              "/console/agents",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/operations",
+              "/console/uat"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/ui/dialog.tsx",
+            "compressed_attribution": 8900,
+            "routes": [
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat"
+            ]
+          },
+          {
+            "source": "node_modules/tailwind-merge/dist/bundle-mjs.mjs",
+            "compressed_attribution": 8429,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat",
+              "/docs",
+              "/docs/[slug]"
+            ]
+          },
+          {
+            "source": "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.production.js",
+            "compressed_attribution": 7773,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat",
+              "/docs",
+              "/docs/[slug]"
+            ]
+          },
+          {
+            "source": "node_modules/@radix-ui/react-select/dist/index.mjs",
+            "compressed_attribution": 6549,
+            "routes": [
+              "/console",
+              "/console/agents",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/scenarios",
+              "/console/uat"
+            ]
+          },
+          {
+            "source": "node_modules/next/dist/client/components/segment-cache/cache.js",
+            "compressed_attribution": 6516,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat",
+              "/docs",
+              "/docs/[slug]"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/console/resource-editors.tsx",
+            "compressed_attribution": 4599,
+            "routes": [
+              "/console/directory",
+              "/console/lines",
+              "/console/providers"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/ui/input.tsx",
+            "compressed_attribution": 4359,
+            "routes": [
+              "/console",
+              "/console/agents",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/ivr",
+              "/console/lines",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/scenarios"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/audio-player.tsx",
+            "compressed_attribution": 4330,
+            "routes": ["/console/result", "/docs/[slug]"]
+          },
+          {
+            "source": "apps/web-console/hooks/use-api.ts",
+            "compressed_attribution": 4220,
+            "routes": [
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/uat"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/console/corpus-page.tsx",
+            "compressed_attribution": 4164,
+            "routes": ["/console/corpus"]
+          },
+          {
+            "source": "apps/web-console/components/console/hosted-page.tsx",
+            "compressed_attribution": 4055,
+            "routes": ["/console/hosted"]
+          },
+          {
+            "source": "node_modules/next/dist/client/components/render-tree.js",
+            "compressed_attribution": 3994,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat",
+              "/docs",
+              "/docs/[slug]"
+            ]
+          },
+          {
+            "source": "node_modules/next/dist/client/components/segment-cache/scheduler.js",
+            "compressed_attribution": 3969,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat",
+              "/docs",
+              "/docs/[slug]"
+            ]
+          },
+          {
+            "source": "apps/web-console/components/console/lines-page.tsx",
+            "compressed_attribution": 3894,
+            "routes": ["/console/lines"]
+          },
+          {
+            "source": "node_modules/@radix-ui/react-label/dist/index.mjs",
+            "compressed_attribution": 3875,
+            "routes": [
+              "/console",
+              "/console/agents",
+              "/console/analysis",
+              "/console/benchmarks",
+              "/console/corpus",
+              "/console/directory",
+              "/console/hosted",
+              "/console/inbox",
+              "/console/ivr",
+              "/console/lines",
+              "/console/models",
+              "/console/numbers",
+              "/console/operations",
+              "/console/pbx",
+              "/console/providers",
+              "/console/result",
+              "/console/scenarios",
+              "/console/uat"
+            ]
+          }
+        ],
+        "top_packages": [
+          ["next", 209217],
+          ["(application)", 198011],
+          ["lucide-react", 35643],
+          ["tailwind-merge", 8429],
+          ["@radix-ui/react-select", 6549],
+          ["@radix-ui/react-label", 3875],
+          ["@floating-ui/core", 3117],
+          ["@floating-ui/dom", 2905],
+          ["@radix-ui/react-collection", 2882],
+          ["react-remove-scroll", 2582],
+          ["@radix-ui/react-popper", 1882],
+          ["@radix-ui/react-focus-scope", 1850],
+          ["@radix-ui/react-dialog", 1812],
+          ["@radix-ui/react-dismissable-layer", 1811],
+          ["@floating-ui/utils", 1689]
+        ],
+        "duplicate_browser_versions": {},
+        "graph": {
+          "emitted_members": 220,
+          "sync_edges": 770,
+          "async_edges": 0,
+          "communities": 4,
+          "parameters": "NetworkX Louvain, resolution=1, weight=1 per distinct directed edge/kind before symmetrization, seed=0; seed=1 stability comparison.",
+          "stable_partition_across_seeds": false,
+          "ranked_communities": [
+            {
+              "community": 0,
+              "modules": 64,
+              "unambiguous_compressed_attribution": 187348,
+              "largest_packages": [
+                ["(application)", 156986],
+                ["lucide-react", 24645],
+                ["next", 2464],
+                ["@radix-ui/react-dialog", 1812]
+              ]
+            },
+            {
+              "community": 2,
+              "modules": 75,
+              "unambiguous_compressed_attribution": 105464,
+              "largest_packages": [
+                ["next", 105068],
+                ["@swc/helpers", 396]
+              ]
+            },
+            {
+              "community": 3,
+              "modules": 49,
+              "unambiguous_compressed_attribution": 47237,
+              "largest_packages": [["next", 47237]]
+            },
+            {
+              "community": 1,
+              "modules": 32,
+              "unambiguous_compressed_attribution": 15014,
+              "largest_packages": [["next", 15014]]
+            }
+          ],
+          "unmapped_or_ambiguous_compressed_attribution": 141752
+        },
+        "candidates": [
+          {
+            "package": "lucide-react",
+            "unique_compressed_attribution": 35643,
+            "route": "/console/benchmarks",
+            "roots": [
+              "[project]/apps/web-console/components/console/benchmarks-page.tsx [app-client] (ecmascript)",
+              "[project]/apps/web-console/components/console/console-provider.tsx [app-client] (ecmascript)",
+              "[project]/apps/web-console/components/shell/app-shell.tsx [app-client] (ecmascript)",
+              "[project]/apps/web-console/components/theme-provider.tsx [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/client/app-next-turbopack.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/client/components/builtin/global-error.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/client/components/client-page.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/client/components/client-segment.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/client/components/http-access-fallback/error-boundary.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/client/components/layout-router.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/client/components/render-from-template-context.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/lib/framework/boundary-components.js [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/next@16.4.3_@babel+core@7.29.7_@types+node@24.19.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/next/dist/lib/metadata/generate/icon-mark.js [app-client] (ecmascript)"
+            ],
+            "targets": [
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/Icon.mjs [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/createLucideIcon.mjs [app-client] (ecmascript)",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/book-open.mjs [app-client] (ecmascript) <export default as BookOpen>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/check.mjs [app-client] (ecmascript) <export default as Check>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/chevron-down.mjs [app-client] (ecmascript) <export default as ChevronDown>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/circle-alert.mjs [app-client] (ecmascript) <export default as CircleAlert>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/list-checks.mjs [app-client] (ecmascript) <export default as ListChecks>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/loader-circle.mjs [app-client] (ecmascript) <export default as Loader2>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/pause.mjs [app-client] (ecmascript) <export default as Pause>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/play.mjs [app-client] (ecmascript) <export default as Play>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/refresh-cw.mjs [app-client] (ecmascript) <export default as RefreshCw>",
+              "[project]/node_modules/.pnpm/lucide-react@1.61.0_@types+react@19.3.0_react@19.3.1/node_modules/lucide-react/dist/esm/icons/x.mjs [app-client] (ecmascript) <export default as X>"
+            ],
+            "missing_roots": 0,
+            "status": "provisional; render optionality and browser timing are unverified",
+            "cut": [],
+            "cut_capacity": 3158,
+            "cut_status": "No editable cut with bootstrap, client-reference roots, layouts and dependency internals protected."
+          }
+        ],
+        "client_dependency_scan": [],
+        "possible_server_only_leaks": [],
+        "suppressed_matches": [],
+        "coverage": {
+          "unsupported_client_js_outputs": [],
+          "unknown_route_entries": [],
+          "unknown_route_groups": [],
+          "groups_without_joined_trigger": 0,
+          "sync_dependencies_absent_from_emitted_subgraph": 93,
+          "attribution_conflicts": 0,
+          "action_like_identities_requiring_source_mapping": 2,
+          "limits": [
+            "All minimum cuts are provisional; optionality, module side effects and actual mount/preload timing have not been behavior-tested.",
+            "Source-to-output attribution is distinct from exact module identity; ambiguous community bytes are excluded from community ranking.",
+            "No production browser requests, cold-navigation timing, interaction timing, Web Vitals or emitted implementation contents were inspected.",
+            "Potential Server Action stubs and ownership matches remain unverified until source-to-reference mapping and emitted contents are inspected."
+          ]
+        }
+      }
+    }
+  ],
+  "verification": [
+    {
+      "app": "apps/web-console",
+      "command": "pnpm exec next typegen",
+      "exit_code": 0,
+      "seconds": 0.3
+    },
+    {
+      "app": "apps/web-console",
+      "command": "pnpm run typecheck",
+      "exit_code": 0,
+      "seconds": 0.8
+    },
+    {
+      "app": "apps/web-console",
+      "command": "pnpm run lint",
+      "exit_code": 0,
+      "seconds": 3.8
+    },
+    {
+      "app": "(repository)",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "seconds": 0.0
+    }
+  ]
+}

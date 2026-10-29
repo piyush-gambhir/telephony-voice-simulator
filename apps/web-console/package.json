@@ -19,7 +19,9 @@
     "ui:check": "python3 ../../scripts/check_web_theme.py",
     "license:check": "python3 ../../scripts/check_javascript_licenses.py --project web",
     "typecheck": "node node_modules/typescript7/bin/tsc --noEmit",
-    "pretypecheck": "pnpm content"
+    "pretypecheck": "pnpm content",
+    "bundle:analyze": "next analyze --output",
+    "bundle:export": "next analyze export"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.3.1",
