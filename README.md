@@ -141,9 +141,10 @@ Start with the [high-level design](docs/HLD.md) for the complete system and
 end-to-end call flows. See [Deployment](docs/DEPLOYMENT.md) for containers and live Twilio setup,
 [Configuration](docs/CONFIGURATION.md) for every environment variable,
 [Human role-play](docs/HUMAN_ROLEPLAY.md) for handset-backed customer tests, and
-[UAT](docs/UAT.md) for portable end-to-end agent testing, and
+[UAT](docs/UAT.md) for portable end-to-end agent testing,
 [Benchmark](docs/BENCHMARK.md) for scoring an agent's answering-machine
-detection over repeats.
+detection over repeats, and [Transfers](docs/TRANSFERS.md) for two-line
+warm, assistant, cold and failed-transfer tests.
 
 See [Extending the simulator](docs/EXTENDING.md) for adding private scenario
 packs, provider adapters, PBX models, and console features. The console opens on

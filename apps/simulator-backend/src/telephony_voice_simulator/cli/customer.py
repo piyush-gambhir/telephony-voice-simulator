@@ -43,6 +43,15 @@ def _queue(args: argparse.Namespace) -> int:
     ))
 
 
+def _dial(args: argparse.Namespace) -> int:
+    persona_id = args.persona
+    inline = _inline(args) if (args.file or args.inline) else None
+    return emit(customer.dial(
+        service().store, args.number, args.to, persona_id=persona_id, inline=inline,
+        label=args.label,
+    ))
+
+
 def _check(args: argparse.Namespace) -> int:
     persona = customer.resolve_persona(args.persona, _inline(args))
     result = customer.check_persona(persona, repeat=args.repeat, progress=_progress)
@@ -75,6 +84,16 @@ def register(commands: argparse._SubParsersAction) -> None:
     queue.add_argument("number", help="persona line, E.164")
     _persona_options(queue)
     queue.add_argument("--label", help="free text kept with the call, e.g. a branch or run id")
+    dial = action(
+        actions, "dial", "have a persona line call a dealership's inbound number", _dial
+    )
+    dial.add_argument("number", help="persona line placing the call, E.164")
+    dial.add_argument("--to", required=True, help="inbound number of the agent under test, E.164")
+    source = dial.add_mutually_exclusive_group()
+    source.add_argument("--persona", help="catalog persona id; omit to use the line default")
+    source.add_argument("--file", help="persona YAML or JSON file")
+    source.add_argument("--inline", help="persona as YAML or JSON text")
+    dial.add_argument("--label", help="free text kept with the call, e.g. a branch or run id")
     queued = action(
         actions,
         "queued",

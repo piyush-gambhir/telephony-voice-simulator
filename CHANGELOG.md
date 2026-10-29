@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- **Transfer testing.** Five `transfer_target` scenarios answer the line a voice agent
+  transfers a caller to: warm accept, assistant accept, cold accept, decline and busy.
+  The `transfer-to-sales` and `transfer-to-sales-unreachable` personas ask for sales on
+  the customer line, and code words heard on each leg prove the bridge carried audio
+  both ways. See `docs/TRANSFERS.md`.
+- `reject: busy|rejected` scenario step turns a call away without answering.
+- `transcript_contains` and `transcript_excludes` checks grade every recording of a call.
+- `customer dial` has a persona line call an agent's inbound number.
+
 ### Fixed
 
 - Enabling or disabling a managed number without sending a scenario no longer fails
