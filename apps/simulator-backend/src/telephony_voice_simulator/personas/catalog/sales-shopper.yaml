@@ -8,7 +8,8 @@ profile: >-
   answers in one or two sentences. If the dealership calls you, confirm you are still
   shopping. Ask whether they have a Civic in stock and roughly what it costs. If they
   offer a visit or an appointment, accept the first time they suggest. Then thank them
-  and say goodbye. Do not ask to speak with a person.
+  and say goodbye. Do not ask to speak with a person, and if they offer to
+  connect you with someone, say no thanks, you are happy to continue with them.
 expectations:
   - The agent responded to the customer's question about the Civic.
   - The call ended politely after the customer said goodbye.

@@ -30,6 +30,9 @@ Environment:
   AGENT_API_ENDED_REASON_PATH    dotted path to the fine-grained end reason
   AGENT_API_DETECTION_LAYER_PATH dotted path to the machine-detection layer
   AGENT_API_AMD_PATH             dotted path to the AMD verdict object
+  AGENT_API_SETTLE_PATHS         comma list of dotted paths a terminal record must also
+                                 carry before it is read (up to 120 s more), for records
+                                 whose status lands before the rest of the call outcome
 
 The body template is JSON with ``{sim_number}``, ``{scenario}`` and
 ``{run_id}`` substituted into string values (recursively, including inside
@@ -133,6 +136,7 @@ class AgentApiConfig:
     timeout: float = 30.0
     allowed_destinations: tuple[str, ...] = ()
     destination_path: str = ""
+    settle_paths: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.allowed_destinations:
@@ -225,6 +229,7 @@ def load_config(*, require_trigger: bool = True) -> AgentApiConfig:
             if n.strip()
         ),
         destination_path=os.environ.get("AGENT_API_DESTINATION_PATH", "").strip(),
+        settle_paths=_split_paths("AGENT_API_SETTLE_PATHS", []),
     )
 
 
@@ -332,6 +337,13 @@ def fetch_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | None:
     return payload
 
 
+SETTLE_SECONDS = 120.0
+
+
+def is_settled(config: AgentApiConfig, record: dict[str, Any] | None) -> bool:
+    return all(dotted(record, path) not in (None, "") for path in config.settle_paths)
+
+
 def is_terminal(config: AgentApiConfig, record: dict[str, Any] | None) -> bool:
     return str(dotted(record, config.status_path) or "").strip().lower() in config.terminal_statuses
 
@@ -357,6 +369,7 @@ def wait_for_terminal(
     record: dict[str, Any] | None = None
     previous: str | None = None
     last_error = ""
+    settle_deadline: float | None = None
     while time.monotonic() < deadline:
         try:
             record = fetch_record(config, call_id)
@@ -384,7 +397,10 @@ def wait_for_terminal(
                 print(line, flush=True)
             previous = status
         if is_terminal(config, record):
-            return record
+            if settle_deadline is None:
+                settle_deadline = time.monotonic() + SETTLE_SECONDS
+            if is_settled(config, record) or time.monotonic() >= settle_deadline:
+                return record
         remaining = deadline - time.monotonic()
         if remaining > 0:
             time.sleep(min(interval, remaining))
