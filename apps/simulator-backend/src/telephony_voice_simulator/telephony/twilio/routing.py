@@ -163,7 +163,12 @@ def finish_simulation_run(call: dict, analysis: dict | None = None) -> None:
         return
     update_simulation_run(
         run_id,
-        status="completed" if carrier_status == "completed" else "failed",
+        # A reject scenario passes on a call that never answered (busy, no-answer).
+        status=(
+            "completed"
+            if carrier_status == "completed" or (analysis or {}).get("passed") is True
+            else "failed"
+        ),
         call_id=str(call["call_sid"]),
         result=result,
         completed=True,

@@ -322,11 +322,17 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
                     f"transcript={transcript[:120]!r}",
                 )
 
+    main = compiled.sequences.get("main") if compiled is not None else None
+    if main and main[0].terminal == "reject":
+        # Success for a reject scenario is a call that never answered.
+        status = str(call.get("status") or "")
+        add("rejected_before_answer", status != "completed" if status else None,
+            f"carrier_status={status or 'unknown'} want={main[0].reject_reason or 'rejected'}")
+
     transcript_keys = [k for k in ("transcript_contains", "transcript_excludes") if k in expect]
     if transcript_keys:
-        if not ordered:
-            heard, reason = None, "recording execution order is unverified"
-        elif not recordings:
+        # Phrases are looked for across all recordings, so execution order does not matter.
+        if not recordings:
             heard, reason = None, "no recording captured"
         else:
             heard = _recordings_transcript(recordings, segments_by_path)

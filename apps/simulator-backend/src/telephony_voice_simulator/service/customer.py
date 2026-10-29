@@ -236,11 +236,15 @@ def dial(
         raise ValidationError("Set PUBLIC_BASE_URL so Twilio can reach the customer webhook")
     queued = None
     if persona_id or inline is not None:
+        # The call claims the oldest queued persona, so an earlier one would take its place.
+        if waiting := store.list_customer_persona_queue(number):
+            raise ConflictError(f"{len(waiting)} persona(s) already queued on {number}")
         queued = queue_persona(store, number, persona_id=persona_id, inline=inline, label=label)
+    status_path = "/twilio/status" + (f"?persona_queue={queued['id']}" if queued else "")
     try:
         call = asyncio.run(TwilioNumberManager().place_call(
             from_number=number, to_number=to, url=twiml.public_url("/twilio/customer"),
-            status_callback=twiml.public_url("/twilio/status"),
+            status_callback=twiml.public_url(status_path),
         ))
     except TwilioManagementError as exc:
         if queued:
