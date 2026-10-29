@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24.22.1'
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Validate Compose files
         env:
           SIMULATOR_OPERATOR_TOKEN: ci-only-placeholder
@@ -102,12 +102,12 @@ jobs:
       - name: Check Twilio Function syntax
         run: node --check deploy/twilio-ivr/functions/ivr.protected.js
       - name: Build backend image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: apps/simulator-backend
           push: false
       - name: Build web-console image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: apps/web-console/Dockerfile
