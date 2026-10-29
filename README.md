@@ -75,7 +75,7 @@ not represented as complete.
 
 ## Run locally
 
-Requirements are Node 24.22.1 or Node 26.12.1, pnpm 12.15.0, Python 3.14, `uv`, and `ffmpeg`. The `.nvmrc` and web-console Docker build use Node 26; CI also validates Node 24 for host compatibility.
+Requirements are Node 26.13.0, pnpm 12.15.0, Python 3.14, `uv`, and `ffmpeg`. The `.nvmrc` and web-console Docker build use Node 26; CI uses the same Node 26 pin.
 
 ```bash
 pnpm install
