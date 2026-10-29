@@ -348,7 +348,8 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
             dialed = customer.dial(store, line, case["agent_number"], persona_id=case["persona"],
                                    label=case["name"], send_digits=case.get("send_digits", ""))
             row["persona_call_id"] = dialed["call_id"]
-            call_id = _find_inbound(suite, case["agent_number"], started, timeout=120)
+            call_id = _find_inbound(suite, case["agent_number"], started,
+                                    timeout=float(defaults.get("find_timeout_seconds", 300)))
             if not call_id:
                 raise RuntimeError("the agent never logged the inbound call")
     except Exception as exc:  # setup and trigger failures are results
