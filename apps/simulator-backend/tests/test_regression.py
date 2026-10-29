@@ -88,3 +88,36 @@ def test_a_failing_before_hook_places_no_call(tmp_path, monkeypatch):
                                "after": "true"}, {}, None, None, print)
     assert row["passed"] is False and "before command failed" in row["error"]
     assert placed == []
+
+
+def test_an_unreached_target_is_cancelled_and_an_ungraded_leg_fails(monkeypatch):
+    from telephony_voice_simulator.evaluation.benchmark import execution
+
+    monkeypatch.setattr(execution, "find_sim_call", lambda *a, **k: {"id": "CA1", "scenario": "s"})
+    checks, leg = regression._target_checks({"line": "+15550100003", "scenario": "s"}, 0)
+    assert leg == "CA1"
+    assert {c["check"]: c["passed"] for c in checks}["target_graded"] is False
+
+
+def test_a_crashing_case_becomes_a_failed_row_and_the_report_is_kept(tmp_path, monkeypatch):
+    suite = _suite(tmp_path, [
+        {"name": "a", "kind": "outbound", "persona": "sales-shopper"},
+        {"name": "b", "kind": "outbound", "persona": "sales-shopper"}],
+        defaults={"pace_seconds": 0})
+    monkeypatch.setenv("AGENT_API_TRIGGER_URL", "https://agent.example/trigger")
+    body = tmp_path / "body.json"
+    body.write_text("{}")
+    monkeypatch.setenv("AGENT_API_BODY", str(body))
+    monkeypatch.setenv("AGENT_API_RECORD_COMMAND", "true {call_id}")
+
+    def boom(case, *_a):
+        if case["name"] == "a":
+            raise RuntimeError("simulator down")
+        return regression._verdict({"case": "b", "started_at": 0,
+                                    "checks": [{"check": "x", "passed": True}]})
+
+    monkeypatch.setattr(regression, "run_case", boom)
+    report = regression.run(suite_path=suite, store=None, out_dir=tmp_path / "out", log=lambda _l: None)
+    assert [r["passed"] for r in report["cases"]] == [False, True]
+    assert "simulator down" in report["cases"][0]["error"]
+    assert json.loads((tmp_path / "out" / f"{report['report_id']}.json").read_text())["failed"] == 1
