@@ -27,7 +27,10 @@ with an operation; `GET /api/regression/reports/{id}` returns the report and its
 A persona case with a `target` also queues a transfer-target scenario on the line the
 agent transfers to; the target line's checks and the persona's code words then prove the
 bridge (see [Transfers](TRANSFERS.md)). `before`/`after` commands set up one case, for
-example the agent's transfer type, and `after` always runs.
+example the agent's transfer type, and `after` always runs. An `amd` case's
+`scenario_expect` merges into the scenario's expectations, and a null drops one, for
+checks that depend on the agent, such as `message_content: null` when the agent's
+voicemail text differs from the scenario's.
 
 ## Assertions
 

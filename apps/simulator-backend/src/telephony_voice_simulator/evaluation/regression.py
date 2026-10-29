@@ -39,6 +39,9 @@ and a failing ``before`` fails the case without placing a call.
 
 ``expect`` keys: status, ended_reason, fine_reason (dotted path from
 ``fine_reason_path``), transfer_status, tools_include, tools_exclude,
+An ``amd`` case's ``scenario_expect`` merges into the scenario's expectations (null drops
+one), for expectations that depend on the agent, such as the exact voicemail text.
+
 transcript_contains, transcript_excludes, latency_p50_ms_max, latency_p95_ms_max (end of the
 user's turn to agent audio, tool time included), llm_p95_ms_max, tts_p95_ms_max,
 min_duration_s, persona (pass|skip), target (pass|skip).
@@ -275,8 +278,14 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
     started = row["started_at"]
 
     if case["kind"] == "amd":
+        scenario = load_scenarios()[case["scenario"]]
+        if overrides := case.get("scenario_expect"):
+            # Agent-specific expectations (e.g. the exact voicemail text) differ per agent;
+            # a null value drops the scenario's check.
+            merged = {**(scenario.get("expect") or {}), **overrides}
+            scenario = {**scenario, "expect": {k: v for k, v in merged.items() if v is not None}}
         result = execution.run_once(
-            config, scenario_name=case["scenario"], scenario=load_scenarios()[case["scenario"]],
+            config, scenario_name=case["scenario"], scenario=scenario,
             number=case["line"], attempt=1, call_timeout=timeout, grade_audio=True,
             numbers=execution.number_index(), label=case["name"], log=log,
         )
@@ -392,7 +401,7 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
         row = run_case(case, suite, base, store, log)
         verdict = {True: "PASS", False: "FAIL", None: "INDET"}[row["passed"]]
         log(f"  {verdict} {case['name']} call_id={row.get('call_id')} "
-            f"failed={row['failed_checks']}")
+            f"failed={row['failed_checks']}" + (f" error={row['error']}" if row.get("error") else ""))
         rows.append(row)
     if baseline:
         compare_baseline(rows, json.loads(Path(baseline).read_text()), tolerance)
