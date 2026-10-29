@@ -15,7 +15,7 @@ from telephony_voice_simulator.integrations import elevenlabs
 from telephony_voice_simulator.service import ConflictError, ValidationError
 from telephony_voice_simulator.service import customer as service
 from telephony_voice_simulator.storage.sqlite import SimulatorStore
-from telephony_voice_simulator.telephony.twilio import customer
+from telephony_voice_simulator.telephony.twilio import callbacks, customer
 from telephony_voice_simulator.telephony.twilio import state as twilio_state
 
 from test_twilio_customer import CONNECT, SID, signed_post
@@ -100,6 +100,8 @@ async def client(store, monkeypatch, registrations):
     monkeypatch.setattr(twilio_state, 'CALL_STORE', store)
     app = web.Application()
     customer.register_routes(app)
+    # Persona dials report their outcome to the shared status route.
+    app.router.add_post('/twilio/status', callbacks.handle_status)
     async with TestClient(TestServer(app)) as session:
         yield session
     customer.ACTIVE.clear()
@@ -454,11 +456,15 @@ def test_dial_places_a_persona_call_to_an_allowed_number(store, monkeypatch):
         service.dial(store, '+15555550999', '+15555550101')
 
     result = service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales', label='run-1')
+    queued_id = result['queued']['id']
     assert placed == [{'from_number': LINE, 'to_number': '+15555550101',
                        'url': 'https://sim.example/twilio/customer',
-                       'status_callback': 'https://sim.example/twilio/status'}]
+                       'status_callback': f'https://sim.example/twilio/status?persona_queue={queued_id}'}]
     assert result['call_id'] == 'CA' + '9' * 32
     assert [q['persona']['id'] for q in service.list_queue(store, LINE)] == ['transfer-to-sales']
+    # A second dial would claim the first persona, so it is refused.
+    with pytest.raises(service.ConflictError, match='already queued'):
+        service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
 
 
 def test_failed_dial_does_not_leave_the_persona_queued(store, monkeypatch):
@@ -476,3 +482,19 @@ def test_failed_dial_does_not_leave_the_persona_queued(store, monkeypatch):
     with pytest.raises(service.ConflictError, match='400'):
         service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
     assert service.list_queue(store, LINE) == []
+
+
+async def test_unanswered_dial_drops_its_queued_persona(client, store):
+    queued = service.queue_persona(store, LINE, persona_id='transfer-to-sales')
+    r = await signed_post(client, f"/twilio/status?persona_queue={queued['id']}",
+                          CallStatus='no-answer', Direction='outbound-api')
+    assert r.status == 200
+    assert service.list_queue(store, LINE) == []
+
+
+async def test_answered_dial_keeps_status_handling(client, store, registrations):
+    queued = service.queue_persona(store, LINE, persona_id='transfer-to-sales')
+    await signed_post(client, '/twilio/customer')  # the persona is claimed on answer
+    r = await signed_post(client, f"/twilio/status?persona_queue={queued['id']}", CallStatus='completed')
+    assert r.status == 200
+    assert store.get_incoming_call(SID).status == 'completed'

@@ -128,18 +128,15 @@ class TwilioNumberManager:
     ) -> dict[str, Any]:
         """Start an outbound call from an account number; Twilio fetches ``url`` on answer."""
         account_sid, auth_token = self._credentials()
-        async with httpx.AsyncClient(auth=(account_sid, auth_token), timeout=60) as client:
-            response = await client.post(
-                f"{self.api}/Accounts/{account_sid}/Calls.json",
-                data={
-                    "From": from_number,
-                    "To": to_number,
-                    "Url": url,
-                    "Method": "POST",
-                    "StatusCallback": status_callback,
-                    "StatusCallbackMethod": "POST",
-                },
-            )
+        data = {"From": from_number, "To": to_number, "Url": url, "Method": "POST",
+                "StatusCallback": status_callback, "StatusCallbackMethod": "POST"}
+        try:
+            async with httpx.AsyncClient(auth=(account_sid, auth_token), timeout=60) as client:
+                response = await client.post(
+                    f"{self.api}/Accounts/{account_sid}/Calls.json", data=data
+                )
+        except httpx.HTTPError as exc:
+            raise TwilioManagementError("Twilio call request failed (no response).") from exc
         try:
             response.raise_for_status()
         except httpx.HTTPError as exc:

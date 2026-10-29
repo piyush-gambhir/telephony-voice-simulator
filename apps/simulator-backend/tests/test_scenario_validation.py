@@ -19,8 +19,10 @@ from telephony_voice_simulator.domains.amd.validation import asset_path, validat
     ({"main": [], "on_dtmf": {"switch": "missing"}}, "target sequence"),
     ({"main": [], "on_dtmf": {"switch": "main", "digits": []}}, "DTMF keys"),
     ({"main": [{"reject": "maybe"}]}, "busy or rejected"),
-    ({"main": [{"wait": 1}, {"reject": "busy"}]}, "first main step"),
-    ({"main": [], "other": [{"reject": "busy"}]}, "first main step"),
+    ({"main": [{"wait": 1}, {"reject": "busy"}]}, "only step"),
+    ({"main": [{"reject": "busy"}, {"wait": 1}]}, "only step"),
+    ({"main": [], "other": [{"reject": "busy"}]}, "only step"),
+    ({"main": [{"reject": "busy"}], "on_dtmf": "ignore"}, "cannot gather DTMF"),
 ])
 def test_invalid_machine_rejected_before_execution(machine, error):
     with pytest.raises(ValueError, match=error):

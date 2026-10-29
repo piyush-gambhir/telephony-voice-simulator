@@ -102,6 +102,11 @@ function segmentTwiml(vr, context, program, call, seq, index) {
     return;
   }
 
+  if (segment.terminal === 'reject') {
+    // Validation keeps this to the first main step, so the line never answers.
+    vr.reject({ reason: segment.reject_reason || 'rejected' });
+    return;
+  }
   if (segment.audio_file) vr.play(`${base}/${segment.audio_file}`);
   if (segment.terminal === 'dial') {
     let target = segment.dial_target || '';

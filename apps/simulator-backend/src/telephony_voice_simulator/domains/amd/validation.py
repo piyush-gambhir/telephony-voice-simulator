@@ -101,8 +101,10 @@ def validate_machine(machine: Any, *, allow_dial: bool = True) -> None:
                     raise ValueError(f"{location}.reject: rejecting a call requires the PSTN transport")
                 if value not in REJECT_REASONS:
                     raise ValueError(f"{location}.reject: expected {' or '.join(REJECT_REASONS)}")
-                if name != "main" or index != 0:
-                    raise ValueError(f"{location}.reject: a call can only be rejected before it is answered, as the first main step")
+                if name != "main" or index != 0 or len(steps) != 1 or len(sequences) != 1:
+                    raise ValueError(f"{location}.reject: a rejected call is never answered, so reject must be the only step")
+                if machine.get("on_dtmf") is not None:
+                    raise ValueError(f"{location}.reject: a rejected call cannot gather DTMF")
     dtmf = machine.get("on_dtmf")
     if dtmf is None or dtmf == "ignore":
         return

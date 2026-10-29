@@ -11,7 +11,7 @@ machine:
   main:
     - wait: 1.0
     - play: transfer_target_greeting.wav
-    - hold: 30
+    - hold: 35
     - play: transfer_target_bridge_code.wav
     - hold: 25
     - play: transfer_target_bridge_code.wav

@@ -80,8 +80,8 @@ def test_transcript_checks_read_every_recording_in_order(tmp_path, monkeypatch):
     heard = {'a.wav': 'Hi, I have Taylor on the line.', 'b.wav': 'My word is lighthouse.'}
     monkeypatch.setattr('telephony_voice_simulator.grading.analyze.transcribe_recording',
                         lambda path: heard[path.name])
-    call = {'analysis_recording_files': _spoken(tmp_path, 'a.wav', 'b.wav'),
-            'message_recording_order_known': True}
+    # Order is unknown (as on the hosted runtime); phrase checks do not depend on it.
+    call = {'analysis_recording_files': _spoken(tmp_path, 'a.wav', 'b.wav')}
     analysis = analyze_call(call, {'expect': {
         'transcript_contains': {'phrases': ['on the line', 'lighthouse', 'pineapple'], 'min_hits': 2},
         'transcript_excludes': {'phrases': ['available to take the transfer']},
@@ -106,3 +106,13 @@ def test_untranscribed_speech_leaves_transcript_checks_indeterminate(tmp_path, m
         'expect': {'transcript_excludes': {'phrases': ['anything']}},
     }, None)
     assert analysis['passed'] is None
+
+
+@pytest.mark.parametrize('status,passed', [('busy', True), ('no-answer', True), ('completed', False)])
+def test_reject_scenario_passes_only_when_the_call_never_answered(tmp_path, status, passed):
+    from telephony_voice_simulator.telephony.twilio.compile import compile_scenario
+
+    compiled = compile_scenario({'name': 'busy', 'machine': {'main': [{'reject': 'busy'}]}, 'expect': {}},
+                                assets_dir=tmp_path, out_dir=tmp_path / 'c')
+    analysis = analyze_call({'status': status}, {'expect': {}}, compiled)
+    assert analysis['passed'] is passed
