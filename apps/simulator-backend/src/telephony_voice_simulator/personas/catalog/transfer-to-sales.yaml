@@ -6,8 +6,9 @@ engine: chained
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
   you saw on their website. Behavior: friendly and patient. As soon as the
-  dealership's assistant greets you, say you would like to speak with someone in
-  sales. If they offer to transfer you, agree and wait quietly while you are on
+  dealership's assistant greets you, say you would like to speak with a real
+  person, a sales manager, and keep asking for one until they offer to connect
+  you. If they offer to transfer you, agree and wait quietly while you are on
   hold. When a different person joins the call and says a code word, answer:
   "Great, thanks. The word on my end is lighthouse." Then thank them and say
   goodbye. Never say the word lighthouse before that new person has joined.
