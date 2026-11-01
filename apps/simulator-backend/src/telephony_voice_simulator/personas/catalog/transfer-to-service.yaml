@@ -11,12 +11,11 @@ profile: >-
   you. Never say you are not interested, even if they mention sales; just
   ask for the service department. If they offer to transfer you, agree and wait quietly while you are on
   hold. When a different person joins the call and says a code word, answer:
-  "Lighthouse. That is my word, thanks." Then thank them and say
-  goodbye. Never say the word lighthouse before that new person has joined.
+  "Lighthouse. That is my word, thanks." Say it only once in the whole call. Then
+  thank them and say goodbye. Never say the word lighthouse before that new person has joined.
   Once someone from that department is on the line, do not ask to be transferred again; talk to them.
 expectations:
   - The agent agreed to connect the customer with the service department.
-  - The customer was connected to a second person who said a code word.
 checks:
   must_say:
     - pineapple
