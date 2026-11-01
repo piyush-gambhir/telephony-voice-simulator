@@ -1,0 +1,20 @@
+id: staff-decline
+description: >-
+  Dealership employee who cannot take a transfer: hears the assistant out, then declines.
+  Pair with a transfer-to-*-unreachable customer persona in assistant mode.
+role: staff
+engine: chained
+first_message: "Hi, this is Sam."
+profile: >-
+  You are Sam, who works in the department the assistant asks for, but you are with
+  another customer and cannot take a call now. When the dealership's assistant calls,
+  listen to who the customer is, then say: "Sorry, I'm with someone right now and can't
+  take this one. Please have them call back later." Then say goodbye and end the call.
+  Never say pineapple, and do not talk to the customer if they are connected anyway.
+expectations:
+  - The agent told the employee who the caller was or what they needed.
+  - The employee declined the call and no customer conversation followed.
+checks:
+  must_not_say:
+    - lighthouse
+  max_turns: 20

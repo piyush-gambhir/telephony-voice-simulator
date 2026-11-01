@@ -191,7 +191,11 @@ def test_sync_agent_configures_bases_variants_and_pinned_branches(store, monkeyp
     assert result['agents']['chained']['branch_id'] == 'branch_agent_chained'
 
     variants = {v['personas'][0]: v for v in result['variants']}
-    assert set(variants) == {'busy-recall-owner', 'spanish-speaking-owner'}
+    assert set(variants) == {'busy-recall-owner', 'spanish-speaking-owner', 'staff-assistant-accept'}
+    # Every staff persona shares one staff variant, with the employee prompt.
+    staff = variants['staff-assistant-accept']
+    assert len(staff['personas']) == 4 and 'staff' in staff['name']
+    assert sent[staff['agent_id']]['agent']['prompt']['prompt'] == customer.STAFF_PROMPT
     office = sent[variants['busy-recall-owner']['agent_id']]
     assert office['conversation']['background_sound'] == {
         'source_type': 'preset', 'source_id': 'office1', 'volume': 0.2, 'crossfade_loop': True}
@@ -517,3 +521,19 @@ async def test_answered_dial_keeps_status_handling(client, store, registrations)
     r = await signed_post(client, f"/twilio/status?persona_queue={queued['id']}", CallStatus='completed')
     assert r.status == 200
     assert store.get_incoming_call(SID).status == 'completed'
+
+
+def test_staff_personas_run_on_a_staff_variant_with_their_own_prompt_and_judge_framing():
+    staff = personas.validate({'id': 's1', 'profile': 'Sam', 'role': 'staff'})
+    assert personas.validate({'id': 'c1', 'profile': 'x'})['role'] == 'customer'
+    with pytest.raises(personas.PersonaError):
+        personas.validate({'id': 's2', 'profile': 'x', 'role': 'manager'})
+    settings = personas.variant(staff)
+    assert settings['role'] == 'staff' and 'staff' in personas.variant_name(settings)
+    assert personas.variant(personas.validate({'id': 'c1', 'profile': 'x'})) is None
+    prompt = customer.agent_settings('chained', settings)['conversation_config']['agent']['prompt']
+    assert prompt['prompt'] == customer.STAFF_PROMPT
+    body = judge.judge_test('slot', staff, [{'role': 'user', 'content': 'hi'}], 'It went well.', 'm')
+    assert body['success_conditions'][0].startswith(judge.STAFF_REPLAY_PREFIX)
+    for persona_id in ('staff-warm-accept', 'staff-assistant-accept', 'staff-cold-accept', 'staff-decline'):
+        assert personas.catalog()[persona_id]['role'] == 'staff'

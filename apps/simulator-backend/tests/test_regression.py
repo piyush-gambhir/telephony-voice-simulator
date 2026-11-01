@@ -199,3 +199,29 @@ def test_a_list_of_amd_lines_needs_lanes(tmp_path):
         regression.load_suite(_suite(tmp_path, [{"name": "a", "kind": "amd",
                                                   "scenario": "stock_voicemail_beep_1000",
                                                   "line": ["+15550100007"]}]))
+
+
+def test_a_target_takes_either_a_scenario_or_a_staff_persona(tmp_path):
+    case = {"name": "a", "kind": "outbound", "persona": "sales-shopper"}
+    regression.load_suite(_suite(tmp_path, [{**case, "target": {"line": "+15550100003",
+                                                                "persona": "staff-warm-accept"}}]))
+    with pytest.raises(ValidationError, match="either a scenario or a persona"):
+        regression.load_suite(_suite(tmp_path, [{**case, "target": {
+            "line": "+15550100003", "persona": "staff-warm-accept",
+            "scenario": "transfer_target_busy"}}]))
+
+
+def test_staff_checks_grade_the_persona_leg_on_the_target_line(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(regression, "_grade_persona",
+                        lambda *a, **k: ({"check": "persona_grade", "passed": True, "detail": ""}, "CA9"))
+    store = SimpleNamespace(get_incoming_call=lambda _id: SimpleNamespace(
+        started_at="2026-11-01T12:00:00+00:00", from_address="+15550100001"))
+    checks, leg = regression._staff_checks(store, {"line": "+15550100003"}, 0, print)
+    assert [c["check"] for c in checks] == ["target_reached", "target persona_grade"]
+    assert leg["from_address"] == "+15550100001"
+    monkeypatch.setattr(regression, "_grade_persona",
+                        lambda *a, **k: ({"check": "persona_leg_present", "passed": False}, ""))
+    checks, leg = regression._staff_checks(store, {"line": "+15550100003"}, 0, print)
+    assert leg is None and checks[0]["passed"] is False

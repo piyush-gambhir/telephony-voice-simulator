@@ -40,6 +40,22 @@ def _rejects_without_answer(call: dict) -> bool:
     return bool(main) and main[0].terminal == "reject" and main[0].reject_reason == "no_answer"
 
 
+def _answers_with_persona(sid: str, to_number: str) -> bool:
+    """A persona queued for this line (a staff persona on a transfer target) takes the call.
+
+    The line keeps its /twilio/voice webhook, so the same line can play a scripted
+    scenario (busy, no answer, voicemail) or hand a call to an ElevenLabs persona. A
+    Twilio retry of a call the persona already took stays with the persona.
+    """
+    from .customer import ACTIVE
+
+    if sid in ACTIVE:
+        return True
+    if state.STATE.calls.get(sid) is not None:
+        return False
+    return bool(call_store().list_customer_persona_queue(to_number))
+
+
 def compiled_rejects(call: dict) -> bool:
     """True when the scenario turns the call away before answering."""
     main = _call_scenario(call).sequences.get("main") or []
@@ -147,6 +163,10 @@ async def handle_voice(request: web.Request) -> web.Response:
     if call_is_deleted(sid):
         return twiml("<Hangup/>")
     to_number = str(form.get("To", ""))
+    if _answers_with_persona(sid, to_number):
+        from .customer import handle_customer
+
+        return await handle_customer(request)
     if rejection := reject_unavailable_endpoint(
         call_sid=sid,
         from_address=str(form.get("From", "")),

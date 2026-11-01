@@ -1427,3 +1427,17 @@ async def test_twilio_app_refuses_cross_origin_writes(pstn_client) -> None:
         headers={"Origin": "https://attacker.example"},
     )
     assert response.status == 403
+
+
+def test_a_queued_persona_takes_the_call_on_a_scenario_line(monkeypatch):
+    from types import SimpleNamespace
+
+    from telephony_voice_simulator.telephony.twilio import amd, customer
+
+    queues = {"+15550009996": [{"id": "q1"}]}
+    monkeypatch.setattr(amd, "call_store",
+                        lambda: SimpleNamespace(list_customer_persona_queue=lambda n: queues.get(n, [])))
+    assert amd._answers_with_persona("CA-new", "+15550009996") is True
+    assert amd._answers_with_persona("CA-new", "+15550009995") is False
+    monkeypatch.setitem(customer.ACTIVE, "CA-retry", (0.0, "<Response/>"))
+    assert amd._answers_with_persona("CA-retry", "+15550009995") is True

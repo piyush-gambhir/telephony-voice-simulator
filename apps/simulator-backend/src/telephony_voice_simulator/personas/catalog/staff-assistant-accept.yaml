@@ -1,0 +1,22 @@
+id: staff-assistant-accept
+description: >-
+  Dealership employee who answers an assistant-mode warm transfer: the assistant must ask
+  whether they can take the call; they agree after hearing who it is.
+role: staff
+engine: chained
+first_message: "Hi, this is Sam."
+profile: >-
+  You are Sam, who works in the department the assistant asks for. When the dealership's
+  assistant calls you, ask who the customer is and what they need if the assistant has not
+  said so. When the assistant asks whether you can take the call, say "Yes, put them
+  through." When the customer is connected and speaks to you, say: "Hi there, I'm on the
+  line now. The code word on my end is pineapple." Then answer them briefly and say
+  goodbye. Never say pineapple before the customer is connected.
+expectations:
+  - The agent asked the employee whether they could take the call before connecting the customer.
+  - The agent told the employee who the caller was or what they needed.
+  - A customer was connected to the employee after the employee agreed.
+checks:
+  must_say:
+    - lighthouse
+  max_turns: 30

@@ -30,6 +30,25 @@ that run `all`.
 | `transfer_target_no_answer` | Rings without answering, then rejects (`reject: no_answer`) | `transfer-to-sales-unreachable` |
 | any voicemail scenario, e.g. `stock_voicemail_beep_1000` | The transfer reaches a mailbox; the agent must not bridge into it | `transfer-to-sales-unreachable` |
 
+## Staff personas
+
+A target line can also answer with an ElevenLabs agent playing the employee, for dynamic
+transfers a script cannot follow: it hears the assistant's briefing, answers an
+assistant-mode "can you take this call?", accepts or declines, and talks to the customer.
+Name it in the case's target instead of a scenario:
+
+```yaml
+target: {line: "+15550100003", persona: staff-warm-accept}
+```
+
+The line keeps its `/twilio/voice` webhook: a queued persona takes the next call, otherwise
+the line plays its queued or default scenario, so one line serves both. Staff personas set
+`role: staff` and run on their own variant agent (`customer sync-agent` creates it) with an
+employee prompt; their expectations are judged with the employee as the agent role. Bundled:
+`staff-warm-accept`, `staff-assistant-accept`, `staff-cold-accept` and `staff-decline`. The
+customer persona's "pineapple" and the employee's "lighthouse" checks still prove the bridge
+both ways. Keep scripted targets for busy, no answer and voicemail, where nobody talks.
+
 A no-answer target works around Twilio answering a call as soon as it runs any
 TwiML other than `<Reject>`: the simulator holds its reply to the voice webhook for
 `PSTN_NO_ANSWER_RING_S` (default 13 s, under Twilio's 15 s webhook timeout), so the
