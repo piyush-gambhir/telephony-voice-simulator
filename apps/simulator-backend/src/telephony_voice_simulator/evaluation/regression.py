@@ -16,7 +16,7 @@ only after a bridge) then prove the transfer, beside the agent's ``transfer_stat
 Suite shape::
 
     version: 1
-    name: spyne-uat
+    name: dealer-agent-uat
     persona_line: "+15550100001"
     find_command: "python3 find-call {customer} {agent} {since}"   # inbound cases only
     defaults: {timeout_seconds: 420}
