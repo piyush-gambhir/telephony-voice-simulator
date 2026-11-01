@@ -22,6 +22,9 @@ Fields:
                  preset, see BACKGROUNDS) and volume (0.01 to 1, default 0.15)
   turn           how the customer takes turns: eagerness ("patient", "normal", "eager")
                  and timeout_s (seconds of silence before the customer speaks up, 1 to 30)
+  role           "customer" (default) or "staff": a staff persona answers a transfer
+                 target line as a dealership employee (the agent under test briefs or
+                 connects a customer to it), so it runs on its own variant agent
 
 ElevenLabs sets environment and turn per agent, not per call, so a persona that uses them
 runs on a variant agent (see ``variant``) that ``customer sync-agent`` creates and keeps.
@@ -38,6 +41,7 @@ import yaml
 
 CATALOG_DIR = Path(__file__).parent / "catalog"
 ENGINES = ("chained", "realtime")
+ROLES = ("customer", "staff")
 BACKGROUNDS = ("office1", "office2", "restaurant", "city", "typing",
                "elevator1", "elevator2", "elevator3", "elevator4")
 EAGERNESS = ("patient", "normal", "eager")
@@ -45,7 +49,7 @@ DEFAULT_VOLUME = 0.15
 _ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 _TEXT_FIELDS = ("description", "first_message", "language", "voice_id")
 _FIELDS = {"id", "profile", "engine", "expectations", "checks", "fidelity", "environment",
-           "turn", *_TEXT_FIELDS}
+           "turn", "role", *_TEXT_FIELDS}
 MAX_EXPECTATIONS = 10
 
 
@@ -76,7 +80,11 @@ def validate(raw: Any) -> dict[str, Any]:
     engine = raw.get("engine") or "chained"
     if engine not in ENGINES:
         raise PersonaError(f"{persona_id}: engine must be one of {', '.join(ENGINES)}")
-    persona: dict[str, Any] = {"id": persona_id, "profile": profile.strip(), "engine": engine}
+    role = raw.get("role") or "customer"
+    if role not in ROLES:
+        raise PersonaError(f"{persona_id}: role must be one of {', '.join(ROLES)}")
+    persona: dict[str, Any] = {"id": persona_id, "profile": profile.strip(), "engine": engine,
+                               "role": role}
     for field in _TEXT_FIELDS:
         value = raw.get(field)
         if value is not None:
@@ -145,15 +153,21 @@ def _turn(persona_id: str, raw: Any) -> dict[str, Any] | None:
 
 def variant(persona: dict[str, Any]) -> dict[str, Any] | None:
     """The agent-level settings this persona needs beyond its engine's base agent, if any."""
-    if not persona.get("environment") and not persona.get("turn"):
+    staff = persona.get("role") == "staff"
+    if not persona.get("environment") and not persona.get("turn") and not staff:
         return None
-    return {"engine": persona["engine"], "environment": persona.get("environment"),
-            "turn": persona.get("turn")}
+    settings = {"engine": persona["engine"], "environment": persona.get("environment"),
+                "turn": persona.get("turn")}
+    if staff:
+        settings["role"] = "staff"
+    return settings
 
 
 def variant_name(settings: dict[str, Any]) -> str:
     """A stable, readable ElevenLabs agent name for a variant, e.g. "chained city 0.2 eager"."""
     parts = [settings["engine"]]
+    if settings.get("role") == "staff":
+        parts.append("staff")
     if environment := settings["environment"]:
         parts += [environment["background"], f"{environment['volume']:g}"]
     if turn := settings["turn"]:

@@ -1,0 +1,21 @@
+id: staff-warm-accept
+description: >-
+  Dealership employee who answers a warm transfer: hears the assistant's briefing, takes the
+  call, and greets the customer with a code word. Pair with a transfer-to-* customer persona.
+role: staff
+engine: chained
+first_message: "Hi, this is Sam."
+profile: >-
+  You are Sam, who works in the department the assistant asks for. When the dealership's
+  assistant calls you, listen to who the customer is and what they need. If the assistant
+  asks whether you can take the call, say yes. When the customer is connected and speaks
+  to you, say: "Hi there, I'm on the line now. The code word on my end is pineapple."
+  Then answer them briefly, thank them, and say goodbye. Never say pineapple before the
+  customer is connected.
+expectations:
+  - Before the customer joined, the agent told the employee who the caller was or what they needed.
+  - A customer was connected to the employee after the assistant's part of the call.
+checks:
+  must_say:
+    - lighthouse
+  max_turns: 30

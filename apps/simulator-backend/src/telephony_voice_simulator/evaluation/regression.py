@@ -10,8 +10,10 @@ tools, latency), plus the simulator's evidence when the case has it:
   inbound   a persona line calls the agent's inbound number (``send_digits`` for a menu)
 
 Either persona kind may name a ``target``: a transfer-target scenario queued on the line
-the agent transfers to. The target line's checks and the persona's grade (code words heard
-only after a bridge) then prove the transfer, beside the agent's ``transfer_status``.
+the agent transfers to, or a staff ``persona`` (an ElevenLabs employee who hears the
+briefing, decides, and talks to the customer) graded on its own transcript. The target
+line's checks and the persona's grade (code words heard only after a bridge) then prove the
+transfer, beside the agent's ``transfer_status``.
 
 Suite shape::
 
@@ -151,8 +153,8 @@ def load_suite(path: str | Path) -> dict[str, Any]:
             raise ValidationError(f"{name}: inbound cases need agent_number and find_command")
         target = case.get("target")
         if target is not None and not (isinstance(target, dict) and target.get("line")
-                                       and target.get("scenario")):
-            raise ValidationError(f"{name}: target needs line and scenario")
+                                       and bool(target.get("scenario")) != bool(target.get("persona"))):
+            raise ValidationError(f"{name}: target needs a line and either a scenario or a persona")
     return suite
 
 
@@ -370,6 +372,19 @@ def _target_checks(target: dict[str, Any], since: float
     return checks, leg
 
 
+def _staff_checks(store: Any, target: dict[str, Any], since: float, log: Log
+                  ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """A staff persona on the target line: the leg reached it, and its grade."""
+    check, call_id = _grade_persona(store, target["line"], since, log)
+    if not call_id:
+        return [_check("target_reached", False, f"the agent never called {target['line']}")], None
+    call = store.get_incoming_call(call_id)
+    leg = {"id": call_id, "started_at": call.started_at, "from_address": call.from_address} \
+        if call is not None else {"id": call_id}
+    return [_check("target_reached", True, f"leg {call_id}"),
+            {**check, "check": f"target {check['check']}"}], leg
+
+
 def _hook(case: dict[str, Any], key: str) -> str | None:
     if not case.get(key):
         return None
@@ -431,12 +446,16 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
     line = suite["persona_line"]
     target = case.get("target")
     checks: list[dict[str, Any]] = []
-    queued_target = queued_persona = None
+    queued_target = queued_persona = queued_staff = None
     try:
         if waiting := store.list_customer_persona_queue(line):
             for item in waiting:  # left over from an aborted run; it would take this call
                 store.cancel_customer_persona(item["id"])
-        if target:
+        if target and target.get("persona"):
+            # A staff persona (ElevenLabs) answers the transfer instead of a script.
+            queued_staff = customer.queue_persona(store, target["line"], persona_id=target["persona"],
+                                                  label=f"{case['name']} target")["id"]
+        elif target:
             queued_target = execution.queue_scenario(
                 target["scenario"], target["line"], execution.number_index())
         if case["kind"] == "outbound":
@@ -456,8 +475,9 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
         # Only when the agent surely placed no call; a call after a timeout or 5xx may still
         # arrive and must find its persona and target (as in the benchmark's run_once).
         if isinstance(exc, agent_api.TriggerRejected) or case["kind"] == "inbound":
-            if queued_persona:
-                store.cancel_customer_persona(queued_persona)
+            for queued in (queued_persona, queued_staff):
+                if queued:
+                    store.cancel_customer_persona(queued)
             _cancel(queued_target)
         row["checks"] = []
         return _verdict(row)
@@ -475,7 +495,14 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
             store, line, started, log, call_id=row.get("persona_call_id"))
         checks.append(check)
     leg = None
-    if target:
+    if target and target.get("persona"):
+        target_checks, leg = _staff_checks(store, target, started, log)
+        row["target_call_id"] = str((leg or {}).get("id") or "")
+        if expect.get("target", "pass") == "pass":
+            checks += target_checks
+        if not row["target_call_id"] and queued_staff:
+            store.cancel_customer_persona(queued_staff)  # it would answer the next transfer
+    elif target:
         target_checks, leg = _target_checks(target, started)
         row["target_call_id"] = str((leg or {}).get("id") or "")
         if expect.get("target", "pass") == "pass":

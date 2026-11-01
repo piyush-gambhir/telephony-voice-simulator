@@ -95,6 +95,16 @@ def fidelity_test(name: str, persona: dict[str, Any], model: str) -> dict[str, A
     }
 
 
+# A staff persona answers a transfer: the agent under test briefs it, then the customer joins.
+STAFF_REPLAY_PREFIX = (
+    "Judge only the earlier conversation in the history. In this conversation the agent role "
+    "is a dealership employee answering a transferred call, and the user role is everyone who "
+    "called them: first the dealership's AI assistant (which may brief them), then the "
+    "customer once connected. In the statement below, \"the agent\" means the dealership's AI "
+    "assistant and \"the employee\" means the agent role. Statement: "
+)
+
+
 def judge_test(
     name: str, persona: dict[str, Any], dialogue: list[dict[str, str]], expectation: str, model: str
 ) -> dict[str, Any]:
@@ -104,7 +114,9 @@ def judge_test(
         "dynamic_variables": {"customer_profile": persona["profile"]},
         "chat_history": chat_history(dialogue),
         "simulation_scenario": REPLAY_SCENARIO,
-        "success_conditions": [REPLAY_PREFIX + expectation],
+        "success_conditions": [
+            (STAFF_REPLAY_PREFIX if persona.get("role") == "staff" else REPLAY_PREFIX) + expectation
+        ],
         "simulation_max_turns": 1,
         "evaluation_model": model,
         "simulated_user_model": model,
