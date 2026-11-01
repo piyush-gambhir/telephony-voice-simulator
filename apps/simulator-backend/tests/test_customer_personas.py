@@ -196,6 +196,10 @@ def test_sync_agent_configures_bases_variants_and_pinned_branches(store, monkeyp
     staff = variants['staff-assistant-accept']
     assert len(staff['personas']) == 4 and 'staff' in staff['name']
     assert sent[staff['agent_id']]['agent']['prompt']['prompt'] == customer.STAFF_PROMPT
+    # Every persona agent can hang up, or two bridged personas loop on goodbyes.
+    for config in sent.values():
+        tool = config['agent']['prompt']['built_in_tools']['end_call']
+        assert tool['params']['system_tool_type'] == 'end_call'
     office = sent[variants['busy-recall-owner']['agent_id']]
     assert office['conversation']['background_sound'] == {
         'source_type': 'preset', 'source_id': 'office1', 'volume': 0.2, 'crossfade_loop': True}

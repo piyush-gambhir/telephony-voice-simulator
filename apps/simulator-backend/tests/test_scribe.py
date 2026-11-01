@@ -42,3 +42,8 @@ def test_checks_accept_a_phrase_from_either_transcript():
     assert rescued[0]["passed"] is True and rescued[0]["heard_in"] == ["recording"]
     caught = judge.run_checks(persona, dialogue, heard="lighthouse")
     assert caught[1]["passed"] is False and caught[1]["heard_in"] == ["recording"]
+
+
+def test_a_late_recording_moves_the_first_word_onto_the_call_clock():
+    channels = [{"channel": 0, "words": _words(("Hi", 0.4, 0.6))}, {"channel": 1, "words": []}]
+    assert scribe.summarize(channels, offset=1.1)["ttfw_s"] == 1.5

@@ -61,8 +61,11 @@ def utterances(words: list[dict[str, Any]], channel: int) -> list[dict[str, Any]
     return out
 
 
-def summarize(channels: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize(channels: list[dict[str, Any]], offset: float = 0.0) -> dict[str, Any]:
     """Remote and local text, time to the far party's first word, and response gaps.
+
+    ``offset`` is how long after answering the recording began; it moves the first word
+    onto the call's clock (gaps between words do not depend on it).
 
     A response gap runs from the end of something this side said to the far party's next
     utterance that starts after it: what the caller experiences as the agent's latency.
@@ -80,7 +83,8 @@ def summarize(channels: list[dict[str, Any]]) -> dict[str, Any]:
         "remote_text": " ".join(u["text"] for u in remote),
         "local_text": " ".join(u["text"] for u in local),
         "turns": sorted(remote + local, key=lambda u: u["start"]),
-        "ttfw_s": round(remote[0]["start"], 2) if remote else None,
+        "ttfw_s": round(remote[0]["start"] + offset, 2) if remote else None,
+        "recording_offset_s": offset,
         "response_gap_p50_s": round(statistics.median(gaps), 2) if gaps else None,
         "response_gap_p95_s": _p95(gaps),
         "response_gaps": len(gaps),

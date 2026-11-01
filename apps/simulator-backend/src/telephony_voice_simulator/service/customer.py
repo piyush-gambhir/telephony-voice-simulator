@@ -614,7 +614,7 @@ def _scribe(store: SimulatorStore, call: Any, progress: Progress) -> dict[str, A
     channels = scribe.transcribe(Path(path)) if path else None
     if channels is None:
         return None
-    summary = scribe.summarize(channels)
+    summary = scribe.summarize(channels, offset=float(call.analysis.get("recording_offset_s") or 0))
     _update_analysis(store, call.id, {"scribe": summary})
     return summary
 
