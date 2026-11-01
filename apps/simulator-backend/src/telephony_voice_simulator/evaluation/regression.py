@@ -594,6 +594,8 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
     if _lanes(suite) > 1 and not suite.get("persona_lines"):
         suite = {**suite, "persona_lines": [suite["persona_line"]]} if suite.get("persona_line") \
             else suite
+    if _lanes(suite) <= 1 and not suite.get("persona_line") and suite.get("persona_lines"):
+        suite = {**suite, "persona_line": suite["persona_lines"][0]}  # one lane: the first line
     if _lanes(suite) > 1:
         rows = _run_lanes(selected, suite, suite_path, baseline, base, store, pace, out_dir,
                           report_id, log)
