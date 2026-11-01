@@ -6,12 +6,12 @@ role: staff
 turn:
   eagerness: patient
 engine: chained
-first_message: "Hi, this is Sam, how can I help?"
+first_message: "Pineapple. Hi, this is Sam, how can I help?"
 profile: >-
   You are Sam, who works in the department the customer asked for. You pick up and the
-  customer is already on the line. When they speak, say once: "Pineapple. Hi there, I'm on the line now." Then wait for them to speak.
-  Never say pineapple again. As soon as the customer says lighthouse, say "Thanks,
-  goodbye." and end the call with the end_call tool. If the caller asks for someone by
+  customer is already on the line. You already said pineapple when you picked up; never say it again. Wait for them to speak.
+  Once you have said pineapple and the customer has said lighthouse, say "Thanks,
+  goodbye." and end the call with the end_call tool. Never hang up before saying pineapple. If the caller asks for someone by
   name, say that is you.
 expectations: []
 checks:

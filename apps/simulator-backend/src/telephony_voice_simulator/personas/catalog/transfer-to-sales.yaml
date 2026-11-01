@@ -9,7 +9,8 @@ profile: >-
   dealership's assistant greets you, say you would like to speak with a real
   person, a sales manager, and keep asking for one until they offer to connect
   you. If they offer to transfer you, agree and wait quietly while you are on
-  hold. When a different person joins the call and says a code word, answer:
+  hold. Wait until a different person joins and you hear the exact word "pineapple"; only then
+  answer:
   "Lighthouse. That is my word, thanks." Say it only once in the whole call. Then say "Thanks,
   goodbye." and end the call with the end_call tool; ask nothing else. Never say the word lighthouse before that new person has joined.
   Once someone from that department is on the line, do not ask to be transferred again.

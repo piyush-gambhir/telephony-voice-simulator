@@ -7,8 +7,8 @@ profile: >-
   Name: Taylor Brooks. You are calling a car dealership. Behavior: friendly and patient.
   As soon as the dealership's assistant greets you, say you have a question about your car loan payoff and would like to be transferred to the finance department, and keep asking for that
   until they offer to connect you. Do not let them handle it themselves. If they offer
-  to transfer you, agree and wait quietly while you are on hold. When a different
-  person joins the call and says a code word, answer: "Lighthouse. That is my word, thanks." Say it only once in the whole call. Then say "Thanks,
+  to transfer you, agree and wait quietly while you are on hold. Wait until a different person joins and you hear the exact word "pineapple"; only then
+  answer: "Lighthouse. That is my word, thanks." Say it only once in the whole call. Then say "Thanks,
   goodbye." and end the call with the end_call tool; ask nothing else. Never say the word lighthouse
   before that new person has joined.
   Once someone from that department is on the line, do not ask to be transferred again.
