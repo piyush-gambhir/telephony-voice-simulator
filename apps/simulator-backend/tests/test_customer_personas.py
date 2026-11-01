@@ -200,6 +200,8 @@ def test_sync_agent_configures_bases_variants_and_pinned_branches(store, monkeyp
     for config in sent.values():
         tool = config['agent']['prompt']['built_in_tools']['end_call']
         assert tool['params']['system_tool_type'] == 'end_call'
+        assert tool['description']
+    assert sent[staff['agent_id']]['conversation']['max_duration_seconds'] == customer.MAX_STAFF_SECONDS
     office = sent[variants['busy-recall-owner']['agent_id']]
     assert office['conversation']['background_sound'] == {
         'source_type': 'preset', 'source_id': 'office1', 'volume': 0.2, 'crossfade_loop': True}
@@ -242,8 +244,9 @@ def test_strip_tags_and_chat_history():
         {'role': 'user', 'message': DIALOGUE[0]['content'], 'time_in_call_secs': 0},
         {'role': 'agent', 'message': DIALOGUE[1]['content'], 'time_in_call_secs': 1},
     ]
-    with pytest.raises(ValueError):
-        judge.chat_history(DIALOGUE * 100)
+    # A longer call keeps its first MAX_HISTORY turns (the tail is goodbyes).
+    long = judge.chat_history(DIALOGUE * 100)
+    assert len(long) == judge.MAX_HISTORY and long[0]['message'] == DIALOGUE[0]['content']
 
 
 def _finished_call(store, persona, dialogue=DIALOGUE):
@@ -397,12 +400,12 @@ def test_grading_refuses_verdicts_from_slots_another_process_rewrote(store, test
     assert 'grade' not in store.get_incoming_call(SID).analysis
 
 
-def test_overlong_transcripts_are_recorded_as_grading_errors(store, tests_api):
+def test_overlong_transcripts_are_judged_on_their_first_200_turns(store, tests_api):
     _finished_call(store, PERSONA, DIALOGUE * 70)
     service.grade_quietly(store, SID)
     analysis = store.get_incoming_call(SID).analysis
-    assert 'judging allows 200' in analysis['grade_error']
-    assert analysis['grading'] is False
+    assert analysis.get('grade_error') is None and analysis['grading'] is False
+    assert len(judge.chat_history(DIALOGUE * 70)) == judge.MAX_HISTORY
 
 
 def test_duplicate_post_call_deliveries_grade_once(store):
