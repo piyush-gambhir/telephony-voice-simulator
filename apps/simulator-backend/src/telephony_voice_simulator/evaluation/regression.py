@@ -37,6 +37,11 @@ A case may run ``before`` and ``after`` commands (shell words, no shell), e.g. t
 the agent's transfer type for one case and back; ``after`` runs even when the case fails,
 and a failing ``before`` fails the case without placing a call.
 
+``defaults.lanes`` above 1 runs cases in parallel (see ``lanes``): each call takes its own
+persona line from ``persona_lines``, its target line and AMD line (``line`` may list
+several), and ``pace_seconds`` then applies per line. Cases sharing a ``before``/``after``
+pair form a group whose hooks run once around it; groups run one after another.
+
 ``expect`` keys: status, ended_reason, fine_reason (dotted path from
 ``fine_reason_path``), transfer_status, tools_include, tools_exclude,
 An ``amd`` case's ``scenario_expect`` merges into the scenario's expectations (null drops
@@ -86,6 +91,7 @@ import yaml
 
 from ..integrations import agent_api
 from ..service.errors import ValidationError
+from . import lanes
 from .benchmark import execution
 from .benchmark.plan import load_scenarios
 
@@ -134,11 +140,13 @@ def load_suite(path: str | Path) -> dict[str, Any]:
             scenarios = scenarios or load_scenarios()
             if case.get("scenario") not in scenarios or not case.get("line"):
                 raise ValidationError(f"{name}: amd cases need a known scenario and a line")
+            if not isinstance(case["line"], str) and _lanes(suite) <= 1:
+                raise ValidationError(f"{name}: a list of lines needs defaults.lanes above 1")
         else:
             if not case.get("persona"):
                 raise ValidationError(f"{name}: persona cases need a persona")
-            if not suite.get("persona_line"):
-                raise ValidationError("persona cases need the suite's persona_line")
+            if not (suite.get("persona_line") or suite.get("persona_lines")):
+                raise ValidationError("persona cases need the suite's persona_line or persona_lines")
         if kind == "inbound" and not (case.get("agent_number") and suite.get("find_command")):
             raise ValidationError(f"{name}: inbound cases need agent_number and find_command")
         target = case.get("target")
@@ -146,6 +154,10 @@ def load_suite(path: str | Path) -> dict[str, Any]:
                                        and target.get("scenario")):
             raise ValidationError(f"{name}: target needs line and scenario")
     return suite
+
+
+def _lanes(suite: dict[str, Any]) -> int:
+    return int((suite.get("defaults") or {}).get("lanes", 1) or 1)
 
 
 def select(suite: dict[str, Any], names: list[str] | None) -> list[dict[str, Any]]:
@@ -531,7 +543,14 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
     report_id = f"regress-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{uuid.uuid4().hex[:6]}"
     rows = []
     pace = float((suite.get("defaults") or {}).get("pace_seconds", 10))
-    for index, case in enumerate(selected):
+    began = time.time()
+    if _lanes(suite) > 1 and not suite.get("persona_lines"):
+        suite = {**suite, "persona_lines": [suite["persona_line"]]} if suite.get("persona_line") \
+            else suite
+    if _lanes(suite) > 1:
+        rows = _run_lanes(selected, suite, suite_path, baseline, base, store, pace, out_dir,
+                          report_id, log)
+    for index, case in enumerate(selected if _lanes(suite) <= 1 else []):
         if index:
             time.sleep(pace)
         log(f"[{index + 1}/{len(selected)}] {case['name']} ({case['kind']})")
@@ -548,8 +567,37 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
     if baseline:
         compare_baseline(rows, json.loads(Path(baseline).read_text()), tolerance)
     report = _report(report_id, suite, suite_path, baseline, rows)
+    report.update(lanes=_lanes(suite), duration_s=round(time.time() - began, 1))
     report["path"] = _write(out_dir, report_id, report)
     return report
+
+
+def _run_lanes(selected: list[dict[str, Any]], suite: dict[str, Any], suite_path: str | Path,
+               baseline: str | Path | None, base: agent_api.AgentApiConfig, store: Any,
+               pace: float, out_dir: str | Path, report_id: str, log: Log) -> list[dict[str, Any]]:
+    """Cases over parallel lanes (see ``lanes``); hooks run once per group of cases."""
+    done: dict[int, dict[str, Any]] = {}
+
+    def failed(case: dict[str, Any], error: str) -> dict[str, Any]:
+        return _verdict({"case": case["name"], "kind": case["kind"], "started_at": time.time(),
+                         "error": error, "checks": []})
+
+    def run_one(case: dict[str, Any], view: dict[str, Any]) -> dict[str, Any]:
+        return _run_case(case, view, base, store, log)
+
+    def on_row(index: int, row: dict[str, Any]) -> None:
+        verdict = {True: "PASS", False: "FAIL", None: "INDET"}[row["passed"]]
+        log(f"  {verdict} {row['case']} call_id={row.get('call_id')} "
+            f"failed={row['failed_checks']}" + (f" error={row['error']}" if row.get("error") else ""))
+        done[index] = row
+        _write(out_dir, report_id, _report(report_id, suite, suite_path, baseline,
+                                           [done[i] for i in sorted(done)]))
+
+    def hook(command: str) -> str | None:
+        return _hook({"hook": command}, "hook")
+
+    return lanes.run(selected, suite, lanes=_lanes(suite), pace=pace, run_one=run_one, hook=hook,
+                     failed=failed, on_row=on_row, log=log)
 
 
 def _report(report_id: str, suite: dict[str, Any], suite_path: str | Path,

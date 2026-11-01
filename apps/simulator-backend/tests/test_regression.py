@@ -167,3 +167,35 @@ def test_a_crashing_case_becomes_a_failed_row_and_the_report_is_kept(tmp_path, m
     assert [r["passed"] for r in report["cases"]] == [False, True]
     assert "simulator down" in report["cases"][0]["error"]
     assert json.loads((tmp_path / "out" / f"{report['report_id']}.json").read_text())["failed"] == 1
+
+
+def test_lanes_run_each_case_on_its_own_persona_line_and_keep_the_report_shape(tmp_path, monkeypatch):
+    suite = _suite(tmp_path, [
+        {"name": "a", "kind": "outbound", "persona": "sales-shopper"},
+        {"name": "b", "kind": "outbound", "persona": "sales-shopper"},
+        {"name": "c", "kind": "outbound", "persona": "sales-shopper", "before": "true"}],
+        persona_lines=["+15550100001", "+15550100002"], defaults={"pace_seconds": 0, "lanes": 2})
+    monkeypatch.setenv("AGENT_API_TRIGGER_URL", "https://agent.example/trigger")
+    body = tmp_path / "body.json"
+    body.write_text("{}")
+    monkeypatch.setenv("AGENT_API_BODY", str(body))
+    monkeypatch.setenv("AGENT_API_RECORD_COMMAND", "true {call_id}")
+    seen = []
+
+    def fake(case, view, *_a):
+        seen.append((case["name"], view["persona_line"]))
+        return regression._verdict({"case": case["name"], "started_at": 0,
+                                    "checks": [{"check": "x", "passed": True}]})
+
+    monkeypatch.setattr(regression, "_run_case", fake)
+    report = regression.run(suite_path=suite, store=None, out_dir=tmp_path / "out", log=lambda _l: None)
+    assert [r["case"] for r in report["cases"]] == ["a", "b", "c"] and report["passed"] == 3
+    assert {line for _, line in seen[:2]} == {"+15550100001", "+15550100002"}
+    assert report["lanes"] == 2 and report["duration_s"] >= 0
+
+
+def test_a_list_of_amd_lines_needs_lanes(tmp_path):
+    with pytest.raises(ValidationError, match="needs defaults.lanes"):
+        regression.load_suite(_suite(tmp_path, [{"name": "a", "kind": "amd",
+                                                  "scenario": "stock_voicemail_beep_1000",
+                                                  "line": ["+15550100007"]}]))
