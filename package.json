@@ -28,7 +28,7 @@
     "uat:check": "pnpm --filter simulator-backend uat:check",
     "prompts:check": "pnpm --filter simulator-backend prompts:check"
   },
-  "packageManager": "pnpm@12.15.0",
+  "packageManager": "pnpm@12.16.1",
   "workspaces": [
     "apps/*"
   ]

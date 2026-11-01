@@ -1,7 +1,7 @@
 FROM node:26.13.0-alpine AS build
 
 RUN apk add --no-cache python3 py3-yaml ffmpeg
-RUN npm install --global pnpm@12.15.0
+RUN npm install --global pnpm@12.16.1
 
 WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

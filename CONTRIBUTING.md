@@ -4,7 +4,7 @@ Thank you for improving Telephony Voice Simulator.
 
 ## Development setup
 
-Prerequisites are Python 3.14, `uv`, Node 26.13.0 for development, pnpm 12.15.0, and `ffmpeg`.
+Prerequisites are Python 3.14, `uv`, Node 26.13.0 for development, pnpm 12.16.1, and `ffmpeg`.
 
 ```bash
 pnpm install

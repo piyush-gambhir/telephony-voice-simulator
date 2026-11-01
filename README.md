@@ -76,7 +76,7 @@ not represented as complete.
 
 ## Run locally
 
-Requirements are Node 26.13.0, pnpm 12.15.0, Python 3.14, `uv`, and `ffmpeg`. The `.nvmrc` and web-console Docker build use Node 26; CI uses the same Node 26 pin.
+Requirements are Node 26.13.0, pnpm 12.16.1, Python 3.14, `uv`, and `ffmpeg`. The `.nvmrc` and web-console Docker build use Node 26; CI uses the same Node 26 pin.
 
 ```bash
 pnpm install
@@ -194,13 +194,14 @@ delete those recordings in Twilio separately.
 
 ### Node tooling verification
 
-The web console was checked with Node 26.12.1 and 24.22.1: lint, explicit
-TypeScript 7 typecheck, and the 48-page static build passed. TypeScript 6.0.3
-remains installed for `typescript-eslint` (which requires TypeScript below 6.1),
-and ESLint 9 remains compatible with `eslint-plugin-react`'s peer range.
-Node 24 type definitions preserve the supported host API baseline.
-The Node 26 Docker image built successfully, and its console tabs and refresh
-were exercised in an isolated browser with local backend fixtures. These checks
+The web console was checked with Node 26.13.0 and pnpm 12.16.1 on 2026-11-01:
+lint, explicit TypeScript 7 typecheck (the `typescript7` alias), and the 72-page
+static build passed. TypeScript 6.0.3 remains installed for `typescript-eslint`
+(which requires TypeScript below 6.1), so Dependabot ignores TypeScript majors.
+ESLint 10 runs the plugins bundled by `eslint-config-next` through
+`peerDependencyRules`. An earlier Node 26 Docker image built successfully, and
+its console tabs and refresh were exercised in an isolated browser with local
+backend fixtures. These checks
 do not validate live telephony, provider credentials, calls, or SMS.
 
 The web dependency full and production audits reported no advisories. See
