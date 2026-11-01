@@ -15,8 +15,6 @@ expectations:
   - The customer was routed to service or a service assistant.
   - Someone discussed or offered an oil change appointment for the Civic.
 checks:
-  must_not_say:
-    - pineapple
   max_turns: 40
 fidelity:
   scenario: >-

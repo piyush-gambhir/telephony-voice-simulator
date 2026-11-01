@@ -225,3 +225,21 @@ def test_staff_checks_grade_the_persona_leg_on_the_target_line(monkeypatch):
                         lambda *a, **k: ({"check": "persona_leg_present", "passed": False}, ""))
     checks, leg = regression._staff_checks(store, {"line": "+15550100003"}, 0, print)
     assert leg is None and checks[0]["passed"] is False
+
+
+def test_target_repeat_is_validated(tmp_path):
+    case = {"name": "a", "kind": "outbound", "persona": "sales-shopper"}
+    regression.load_suite(_suite(tmp_path, [{**case, "target": {
+        "line": "+15550100003", "scenario": "transfer_target_busy", "repeat": 3}}]))
+    with pytest.raises(ValidationError, match="target.repeat"):
+        regression.load_suite(_suite(tmp_path, [{**case, "target": {
+            "line": "+15550100003", "scenario": "transfer_target_busy", "repeat": 9}}]))
+
+
+def test_ttfw_is_dropped_when_the_caller_spoke_first():
+    from types import SimpleNamespace
+
+    persona = SimpleNamespace(analysis={"customer_dialogue": [{"role": "user", "content": "x", "t": 4}],
+                                        "scribe": {"ttfw_s": 17.0, "caller_spoke_first": True}})
+    metrics = regression._metrics(None, {}, persona, None)
+    assert metrics["ttfw_customer_s"] is None and metrics["caller_spoke_first"] is True
