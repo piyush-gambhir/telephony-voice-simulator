@@ -3,6 +3,8 @@ description: >-
   Dealership employee who cannot take a transfer: hears the assistant out, then declines.
   Pair with a transfer-to-*-unreachable customer persona in assistant mode.
 role: staff
+turn:
+  eagerness: patient
 engine: chained
 first_message: "Hi, this is Sam."
 profile: >-

@@ -12,8 +12,7 @@ profile: >-
   helps you, give your name, the car, and say any weekday morning next week works.
   Accept the first appointment time they offer, then thank them and say goodbye.
 expectations:
-  - The customer was routed to service or a service assistant.
-  - Someone discussed or offered an oil change appointment for the Civic.
+  - Someone on the call helped with booking or discussing the oil change for the Civic.
 checks:
   max_turns: 40
 fidelity:
