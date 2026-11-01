@@ -31,7 +31,7 @@ jobs:
         - image: telephony-voice-simulator-web
           dockerfile: apps/web-console/Dockerfile
           context: .
-    uses: docker/github-builder/.github/workflows/build.yml@cbc9d42f8c89a55623392aadd03600965b80e963
+    uses: docker/github-builder/.github/workflows/build.yml@cbc9d42f8c89a55623392aadd03600965b80e963 # v1.18.1
     permissions:
       contents: read
       packages: write

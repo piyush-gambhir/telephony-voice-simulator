@@ -5,7 +5,7 @@ description = "Telephony and voice scenario simulator for AMD, IVR, PBX, routing
 license = "Apache-2.0"
 requires-python = ">=3.14"
 dependencies = [
-    "livekit>=1.1.21",
+    "livekit>=1.2.0",
     "livekit-api>=1.2.2",
     "numpy>=2.5.4",
     "pyyaml>=6.0.3",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=9.1.1", "pytest-asyncio>=1.4.1", "ruff>=0.17.2"]
+dev = ["pytest>=9.2.0", "pytest-asyncio>=1.4.1", "ruff>=0.17.3"]
 
 [build-system]
 requires = ["setuptools>=68"]
