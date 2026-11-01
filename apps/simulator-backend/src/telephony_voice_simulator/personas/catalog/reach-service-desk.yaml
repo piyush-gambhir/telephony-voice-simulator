@@ -1,0 +1,28 @@
+id: reach-service-desk
+description: >-
+  Caller who asks the front desk for service to book an oil change. Pair with a receptionist
+  that routes service calls to a service AI: the customer should end up with an assistant
+  who can book the appointment.
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic that
+  needs its first oil change. Behavior: friendly, answers in one or two sentences. When
+  the dealership answers, say you need to book an oil change and ask for the service
+  department. If they connect you somewhere, wait quietly while it connects. Whoever
+  helps you, give your name, the car, and say any weekday morning next week works.
+  Accept the first appointment time they offer, then thank them and say goodbye.
+expectations:
+  - The customer was routed to service or a service assistant.
+  - Someone discussed or offered an oil change appointment for the Civic.
+checks:
+  must_not_say:
+    - pineapple
+  max_turns: 40
+fidelity:
+  scenario: >-
+    You are the front desk at Valley Honda. When the caller asks for service, say you will
+    connect them, then speak as the service assistant: ask for their name and car, and
+    offer Tuesday at 9am for the oil change. Say goodbye once they accept.
+  conditions:
+    - The customer asked for the service department.
+    - The customer accepted the first appointment time offered.

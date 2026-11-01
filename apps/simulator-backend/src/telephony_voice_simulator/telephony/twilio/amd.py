@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from pathlib import Path
@@ -26,6 +27,17 @@ def _call_scenario(call: dict) -> CompiledScenario:
     if "grading_spec" in call:
         return CompiledScenario.from_dict(call["grading_spec"]["compiled"])
     return state.STATE.scenarios[call["scenario"]]
+
+
+NO_ANSWER_RING_S = float(os.environ.get("PSTN_NO_ANSWER_RING_S", "13"))
+if not 0 < NO_ANSWER_RING_S < 15:
+    # Past Twilio's 15 s webhook timeout the call would be answered with an error message.
+    raise RuntimeError("PSTN_NO_ANSWER_RING_S must be between 0 and 15 seconds")
+
+
+def _rejects_without_answer(call: dict) -> bool:
+    main = _call_scenario(call).sequences.get("main") or []
+    return bool(main) and main[0].terminal == "reject" and main[0].reject_reason == "no_answer"
 
 
 def compiled_rejects(call: dict) -> bool:
@@ -75,7 +87,9 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
 
     if segment.terminal == "reject":
         # Validation keeps this to the first main step, so the line never answers.
-        return [f'<Reject reason="{escape(segment.reject_reason or "rejected")}"/>']
+        # no_answer is held in handle_voice first; Twilio's Reject only knows busy/rejected.
+        reason = "busy" if segment.reject_reason == "no_answer" else segment.reject_reason
+        return [f'<Reject reason="{escape(reason or "rejected")}"/>']
     if segment.audio_file:
         verbs.append(play(segment.audio_file))
     if segment.terminal == "dial":
@@ -147,6 +161,9 @@ async def handle_voice(request: web.Request) -> web.Response:
             return twiml("<Hangup/>")
         if "voice_response" not in existing:
             existing["voice_response"] = twiml(*_segment_twiml(existing, "main", 0)).text
+        if _rejects_without_answer(existing):
+            # A retry during the ring must not turn the caller away early.
+            await asyncio.sleep(max(0.0, existing["answered_at"] + NO_ANSWER_RING_S - time.time()))
         return web.Response(text=existing["voice_response"], content_type="application/xml")
     persisted = call_store().get_incoming_call(sid)
     if persisted is not None:
@@ -248,6 +265,10 @@ async def handle_voice(request: web.Request) -> web.Response:
     )
     if rejects:
         print(f"[voice] {sid} to={to_number} from={call['from']} scenario={scenario} rejected")
+        if _rejects_without_answer(call):
+            # The caller hears ringback while Twilio waits for this reply. Stay under
+            # Twilio's 15 s webhook timeout, after which it would answer with an error.
+            await asyncio.sleep(NO_ANSWER_RING_S)
         return web.Response(text=call["voice_response"], content_type="application/xml")
     call["audit_recording_start"] = await start_audit_recording(sid, to_number)
     if call_is_deleted(sid) or call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:

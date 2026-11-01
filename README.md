@@ -146,7 +146,10 @@ end-to-end call flows. See [Deployment](docs/DEPLOYMENT.md) for containers and l
 [Benchmark](docs/BENCHMARK.md) for scoring an agent's answering-machine
 detection over repeats, [Transfers](docs/TRANSFERS.md) for two-line
 warm, assistant, cold and failed-transfer tests, and [Regression](docs/REGRESSION.md)
-for a one-command pass/fail suite (voicemail, normal calls, transfers) against a deployed agent.
+for a one-command pass/fail suite (voicemail, normal calls, transfers) against a deployed agent,
+including end-to-end packs that measure time to first word, turn latency, transfer setup and
+hold time, and check the transfer caller id and end-of-call report. Account-specific packs,
+team ids and numbers stay in gitignored `config/*.local.*` files.
 
 See [Extending the simulator](docs/EXTENDING.md) for adding private scenario
 packs, provider adapters, PBX models, and console features. The console opens on

@@ -1,0 +1,28 @@
+id: after-hours-transfer
+description: >-
+  Caller who asks to be transferred to a department that is closed right now. The agent
+  must not transfer; it should say the team is unavailable and offer a callback or message.
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
+  that needs its first oil change. Behavior: friendly and patient. As soon as the
+  dealership's assistant greets you, ask to be transferred to the service department.
+  If they say the department is closed or unavailable, ask for someone to call you back
+  tomorrow morning, give your name if asked, then say goodbye. If they offer to book
+  the appointment themselves, say you would rather talk to a person and ask for the
+  callback instead.
+expectations:
+  - The agent did not leave the customer on hold or silence waiting for a transfer.
+  - The agent said the department was closed or unavailable, or offered a callback or message instead of connecting.
+checks:
+  must_not_say:
+    - pineapple
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are the assistant at Valley Honda. It is after hours. When the caller asks for
+    service, say the service department is closed right now and offer a callback
+    tomorrow morning, then say goodbye.
+  conditions:
+    - The customer asked to be transferred to service.
+    - The customer asked for a callback after hearing the department was closed.

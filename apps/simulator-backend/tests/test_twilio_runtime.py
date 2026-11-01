@@ -256,6 +256,35 @@ async def test_reject_scenario_turns_call_away_without_recording(pstn_client, as
     assert "<Play>" not in body
 
 
+async def test_no_answer_scenario_rings_then_rejects(pstn_client, assets, tmp_path, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio import amd
+
+    client, state = pstn_client
+    scenario = {"name": "silent", "machine": {"main": [{"reject": "no_answer"}]}, "expect": {}}
+    state.scenarios["silent"] = compile_scenario(scenario, assets_dir=assets, out_dir=tmp_path / "compiled")
+    state.raw_scenarios["silent"] = scenario
+    held = []
+
+    async def ring(seconds):
+        held.append(seconds)
+
+    monkeypatch.setattr(amd.asyncio, "sleep", ring)
+    _queue_on_line("+15550009997", "silent")
+    body = await _post_form(
+        client, "/twilio/voice", {"CallSid": "CA3", "To": "+15550009997", "From": "+12223334444"}
+    )
+    # Twilio's Reject knows only busy/rejected; the ring comes from holding the reply.
+    assert '<Reject reason="busy"/>' in body
+    assert held == [amd.NO_ANSWER_RING_S] and amd.NO_ANSWER_RING_S < 15
+    # A Twilio retry mid-ring waits out the rest of the ring instead of rejecting at once.
+    state.calls["CA3"]["answered_at"] -= 5
+    retry = await _post_form(
+        client, "/twilio/voice", {"CallSid": "CA3", "To": "+15550009997", "From": "+12223334444"}
+    )
+    assert '<Reject reason="busy"/>' in retry
+    assert len(held) == 2 and amd.NO_ANSWER_RING_S - 6 < held[1] <= amd.NO_ANSWER_RING_S - 5
+
+
 async def test_voice_retry_reuses_exact_response_without_replaying_runtime(pstn_client):
     client, state = pstn_client
     state.default_scenario = 'gate'

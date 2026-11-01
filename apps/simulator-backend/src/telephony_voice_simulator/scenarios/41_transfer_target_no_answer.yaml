@@ -1,0 +1,11 @@
+# TRANSFER TARGET, no answer: the line rings without answering (PSTN_NO_ANSWER_RING_S,
+# default 13 s, under Twilio's 15 s webhook timeout) and then rejects. Set the agent's
+# transfer ring timeout below that so it gives up while the line still rings; the agent
+# must come back to the caller (graded on the customer line and the agent's record).
+name: transfer_target_no_answer
+pstn_only: true
+transfer_target: true
+machine:
+  main:
+    - reject: no_answer
+expect: {}

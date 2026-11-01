@@ -40,6 +40,36 @@ voicemail text differs from the scenario's.
 time included), `llm_p95_ms_max`, `tts_p95_ms_max` and `min_duration_s`. `persona: skip`
 and `target: skip` drop those grades. A missing latency is indeterminate, never a pass.
 
+Persona cases also get `metrics` in the report and can assert on them:
+
+| Metric | From | Assert with |
+|---|---|---|
+| `ttfw_customer_s` | First agent turn in the persona transcript (what the caller heard) | `ttfw_s_max` |
+| `ttfw_agent_s` | The record's `timeline.first_agent_word_s` | |
+| `turn_p50_ms`, `turn_p95_ms` | The record's e2e latency | `latency_p50_ms_max`, `latency_p95_ms_max` |
+| `transfer_setup_s` | `timeline.transfer_started_at` to the target line ringing | `transfer_setup_s_max` |
+| `hold_s`, `briefing_s` | `timeline.hold_ms`; `consult_started_at` to `briefing_ended_at` | `hold_s_max` |
+| `target_caller_id` | The caller id the target line saw | `target_caller_id: [customer, agent, "+1..."]` |
+
+`ttfw_customer_s` is as precise as the persona transcript, about a second, counted from
+when the persona's conversation started. `consult_after_s` (transfer start to the agent's
+consult opener) is reported too and stands in for setup time when no target leg exists.
+Timeline times may be ISO-8601 or epoch seconds; an ISO time without an offset is read as UTC.
+
+`complete: true` requires every dotted path in the suite's `complete_fields` to be
+non-empty on the record (the end-of-call report of a transferred call, say); a list of
+paths adds case-specific ones, such as the recording of the post-transfer room.
+
+## End-to-end packs
+
+The same runner drives a full end-to-end pack against one dedicated test account whose
+transfer destinations are simulator lines: inbound to every agent, warm and cold transfers
+to each destination with the target answering, declining, busy, not answering or reaching
+voicemail, after-hours transfer requests, receptionist routing, and outbound calls to a
+person and to a mailbox. Keep the account-specific suite, hooks and notes in gitignored
+`config/*.local.*` files; a `before`/`after` hook can flip the account's hours, routing or
+transfer type for one case and put it back.
+
 The record comes from `AGENT_API_RECORD_URL`, or from `AGENT_API_RECORD_COMMAND`, a
 command containing `{call_id}` that prints the record as JSON (nothing while it does not
 exist yet), for agents whose records live in a warehouse rather than behind an API.

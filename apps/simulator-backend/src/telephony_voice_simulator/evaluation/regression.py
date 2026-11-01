@@ -44,7 +44,23 @@ one), for expectations that depend on the agent, such as the exact voicemail tex
 
 transcript_contains, transcript_excludes, latency_p50_ms_max, latency_p95_ms_max (end of the
 user's turn to agent audio, tool time included), llm_p95_ms_max, tts_p95_ms_max,
-min_duration_s, persona (pass|skip), target (pass|skip).
+min_duration_s, persona (pass|skip), target (pass|skip), ttfw_s_max, transfer_setup_s_max,
+hold_s_max, target_caller_id, complete.
+
+Every persona row also gets ``metrics``: time to first word as the customer heard it
+(``ttfw_customer_s``, from the persona transcript) and as the agent logged it
+(``ttfw_agent_s``), turn latency p50/p95, and for transfers the setup time (agent decided to
+transfer -> the target line rang, ``transfer_setup_s``), the hold (``hold_s``) and briefing
+(``briefing_s``) on warm transfers, and the caller id the target line saw. The agent-side
+timings come from an optional ``timeline`` object on the record::
+
+    timeline: {first_agent_word_s, transfer_started_at, consult_started_at,
+               briefing_ended_at, hold_ms}            # ISO-8601 times, seconds, ms
+
+``target_caller_id`` lists who the target line may see as the caller: ``customer`` (the
+persona line), ``agent`` (the case's ``agent_number``) or an E.164 number. ``complete: true``
+requires every dotted path in the suite's ``complete_fields`` to be non-empty on the record,
+e.g. the end-of-call report of a transferred call; a list of paths adds to those.
 
 The agent API (trigger URL, authorization, record source) comes from the
 ``AGENT_API_*`` environment, as for the benchmark; a case's ``body`` replaces the body
@@ -61,6 +77,7 @@ import subprocess
 import time
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -77,7 +94,7 @@ EXPECT_KEYS = {
     "status", "ended_reason", "fine_reason", "transfer_status", "tools_include",
     "tools_exclude", "transcript_contains", "transcript_excludes", "latency_p50_ms_max",
     "latency_p95_ms_max", "llm_p95_ms_max", "tts_p95_ms_max", "min_duration_s", "persona",
-    "target",
+    "target", "ttfw_s_max", "transfer_setup_s_max", "hold_s_max", "target_caller_id", "complete",
 }
 # Paths into the agent's record; overridable per suite for another platform's shape.
 DEFAULT_PATHS = {
@@ -110,6 +127,9 @@ def load_suite(path: str | Path) -> dict[str, Any]:
             raise ValidationError(f"{name}: kind must be one of {', '.join(KINDS)}")
         if unknown := set(case.get("expect") or {}) - EXPECT_KEYS:
             raise ValidationError(f"{name}: unknown expect keys {sorted(unknown)}")
+        for key in ("ttfw_s_max", "transfer_setup_s_max", "hold_s_max"):
+            if key in (case.get("expect") or {}) and _number(case["expect"][key]) is None:
+                raise ValidationError(f"{name}: {key} must be a number")
         if kind == "amd":
             scenarios = scenarios or load_scenarios()
             if case.get("scenario") not in scenarios or not case.get("line"):
@@ -202,6 +222,72 @@ def _record_checks(expect: dict[str, Any], record: dict[str, Any] | None,
     return checks, observed
 
 
+def _epoch(value: Any) -> float | None:
+    """Epoch seconds from a number or an ISO-8601 string; a time without an offset is UTC."""
+    if _number(value) is not None:
+        return float(value)
+    if not isinstance(value, str) or not value:
+        return None
+    with contextlib.suppress(ValueError):
+        parsed = datetime.fromisoformat(value)
+        return (parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)).timestamp()
+    return None
+
+
+def _seconds_between(start: Any, end: Any) -> float | None:
+    a, b = _epoch(start), _epoch(end)
+    return round(b - a, 2) if a is not None and b is not None else None
+
+
+def _metrics(record: dict[str, Any] | None, observed: dict[str, Any],
+             persona_call: Any, target_leg: dict[str, Any] | None) -> dict[str, Any]:
+    """Timings for the report; every value is None when its evidence is missing."""
+    timeline = (record or {}).get("timeline") or {}
+    dialogue = ((getattr(persona_call, "analysis", None) or {}).get("customer_dialogue")) or []
+    # In the persona transcript the agent under test is the "user" side.
+    first = next((t.get("t") for t in dialogue if t.get("role") == "user"), None)
+    started = timeline.get("transfer_started_at")
+    hold_ms = _number(timeline.get("hold_ms"))
+    return {
+        "ttfw_customer_s": _number(first),
+        "ttfw_agent_s": _number(timeline.get("first_agent_word_s")),
+        "turn_p50_ms": observed.get("latency_p50_ms"),
+        "turn_p95_ms": observed.get("latency_p95_ms"),
+        "transfer_setup_s": _seconds_between(started, (target_leg or {}).get("started_at"))
+        if target_leg else _seconds_between(started, timeline.get("consult_started_at")),
+        "consult_after_s": _seconds_between(started, timeline.get("consult_started_at")),
+        "hold_s": round(hold_ms / 1000, 1) if hold_ms is not None else None,
+        "briefing_s": _seconds_between(timeline.get("consult_started_at"),
+                                       timeline.get("briefing_ended_at")),
+        "target_caller_id": (target_leg or {}).get("from_address"),
+    }
+
+
+def _metric_checks(expect: dict[str, Any], metrics: dict[str, Any], case: dict[str, Any],
+                   suite: dict[str, Any], record: dict[str, Any] | None) -> list[dict[str, Any]]:
+    checks = []
+    for key, metric in (("ttfw_s_max", "ttfw_customer_s"), ("transfer_setup_s_max", "transfer_setup_s"),
+                        ("hold_s_max", "hold_s")):
+        if (limit := expect.get(key)) is not None:
+            value = metrics.get(metric)
+            checks.append(_check(f"{metric} <= {limit}", None if value is None else value <= limit,
+                                 f"{metric}={value}"))
+    if allowed := expect.get("target_caller_id"):
+        names = {"customer": suite.get("persona_line"), "agent": case.get("agent_number")}
+        want = [names.get(a, a) for a in (allowed if isinstance(allowed, list) else [allowed])]
+        seen = metrics.get("target_caller_id")
+        checks.append(_check("target_caller_id", None if not seen else seen in want,
+                             f"want {allowed} ({want}) got {seen!r}"))
+    if complete := expect.get("complete"):
+        # true: the suite's complete_fields; a list adds case-specific paths (e.g. a bridge).
+        extra = complete if isinstance(complete, list) else []
+        missing = [path for path in [*(suite.get("complete_fields") or []), *extra]
+                   if agent_api.dotted(record or {}, path) in (None, "", [], {})]
+        checks.append(_check("call_ended_complete", None if record is None else not missing,
+                             f"missing {missing}" if missing else "all fields present"))
+    return checks
+
+
 def _find_inbound(suite: dict[str, Any], agent_number: str, since: float, timeout: float) -> str:
     argv = [a.format(customer=suite["persona_line"], agent=agent_number, since=int(since))
             for a in shlex.split(suite["find_command"])]
@@ -255,10 +341,11 @@ def _grade_persona(store: Any, line: str, since: float, log: Log,
                   "passed" if grade.get("passed") else f"failed: {failed}"), call.id
 
 
-def _target_checks(target: dict[str, Any], since: float) -> tuple[list[dict[str, Any]], str]:
+def _target_checks(target: dict[str, Any], since: float
+                   ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     leg = execution.find_sim_call(target["line"], since, timeout=120)
     if leg is None:
-        return [_check("target_reached", False, f"the agent never called {target['line']}")], ""
+        return [_check("target_reached", False, f"the agent never called {target['line']}")], None
     analysis = leg.get("analysis") or {}
     checks = [_check("target_reached", True, f"leg {leg.get('id')}"),
               _check("target_scenario", leg.get("scenario") == target["scenario"],
@@ -268,7 +355,7 @@ def _target_checks(target: dict[str, Any], since: float) -> tuple[list[dict[str,
                              f"leg {leg.get('id')} was never graded by the simulator"))
     checks += [{**c, "check": f"target {c.get('check')}", "passed": c.get("passed")}
                for c in analysis.get("checks") or []]
-    return checks, str(leg.get("id") or "")
+    return checks, leg
 
 
 def _hook(case: dict[str, Any], key: str) -> str | None:
@@ -375,12 +462,18 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
         check, row["persona_call_id"] = _grade_persona(
             store, line, started, log, call_id=row.get("persona_call_id"))
         checks.append(check)
+    leg = None
     if target:
-        target_checks, row["target_call_id"] = _target_checks(target, started)
+        target_checks, leg = _target_checks(target, started)
+        row["target_call_id"] = str((leg or {}).get("id") or "")
         if expect.get("target", "pass") == "pass":
             checks += target_checks
         if not row["target_call_id"]:
             _cancel(queued_target)  # unclaimed, it would answer the next case's transfer
+    persona_call = store.get_incoming_call(row["persona_call_id"]) \
+        if row.get("persona_call_id") else None
+    row["metrics"] = _metrics(record, row["observed"], persona_call, leg)
+    checks += _metric_checks(expect, row["metrics"], case, suite, record)
     row["checks"] = checks
     return _verdict(row)
 
@@ -480,12 +573,17 @@ def _write(out_dir: str | Path, report_id: str, report: dict[str, Any]) -> str:
     return str(path)
 
 
+def _fmt(value: Any) -> str:
+    return "" if value is None else f"{value:g}" if isinstance(value, float) else str(value)
+
+
 def summary_table(report: dict[str, Any]) -> str:
     lines = ["| case | result | call id | status / reason | transfer | e2e p50 / p95 ms "
-             "| llm p95 ms | failed checks |",
-             "|---|---|---|---|---|---|---|---|"]
+             "| llm p95 ms | ttfw s | setup / hold s | failed checks |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for r in report["cases"]:
         o = r.get("observed") or {}
+        m = r.get("metrics") or {}
         verdict = {True: "PASS", False: "FAIL", None: "INDET"}[r["passed"]]
         p50, p95 = o.get("latency_p50_ms"), o.get("latency_p95_ms")
         lat = f"{p50:.0f} / {p95:.0f}" if p50 is not None and p95 is not None else ""
@@ -493,6 +591,8 @@ def summary_table(report: dict[str, Any]) -> str:
             f"| {r['case']} | {verdict} | {r.get('call_id') or ''} | {o.get('status', '')} / "
             f"{o.get('fine_reason') or o.get('ended_reason', '')} | {o.get('transfer_status', '')} "
             f"| {lat} | {o.get('llm_p95_ms') if o.get('llm_p95_ms') is not None else ''} "
+            f"| {_fmt(m.get('ttfw_customer_s'))} "
+            f"| {_fmt(m.get('transfer_setup_s'))} / {_fmt(m.get('hold_s'))} "
             f"| {', '.join(r['failed_checks']) or (r.get('error') or '')} |"
         )
     return "\n".join(lines)

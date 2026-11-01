@@ -1,0 +1,29 @@
+id: transfer-to-named-person
+description: >-
+  Caller who asks for the sales manager Jordan Reyes and should be transferred to a person. Pair with a
+  transfer-target scenario that accepts (warm, assistant or cold).
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are calling a car dealership. Behavior: friendly and patient.
+  As soon as the dealership's assistant greets you, say you would like to speak with Jordan Reyes, the sales manager, by name, who asked you to call back today, and keep asking for that
+  until they offer to connect you. Do not let them handle it themselves. If they offer
+  to transfer you, agree and wait quietly while you are on hold. When a different
+  person joins the call and says a code word, answer: "Great, thanks. The word on my
+  end is lighthouse." Then thank them and say goodbye. Never say the word lighthouse
+  before that new person has joined.
+expectations:
+  - The agent agreed to connect the customer with the sales manager Jordan Reyes.
+  - The customer was connected to a second person who said a code word.
+checks:
+  must_say:
+    - pineapple
+  max_turns: 30
+fidelity:
+  scenario: >-
+    You are the assistant at Valley Honda. Greet the caller. When they ask for the
+    sales manager Jordan Reyes, tell them you will transfer them and ask them to hold. Then speak as Sam:
+    "Hi there, I'm on the line now. The code word on my end is pineapple." Answer
+    whatever the caller says and end the call politely.
+  conditions:
+    - The customer asked for the sales manager Jordan Reyes.
+    - The customer said the word lighthouse only after Sam joined.
