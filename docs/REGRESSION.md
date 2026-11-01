@@ -70,6 +70,16 @@ every party is synthetic or has agreed.
 non-empty on the record (the end-of-call report of a transferred call, say); a list of
 paths adds case-specific ones, such as the recording of the post-transfer room.
 
+## Preflight
+
+`regression run` first checks that the run can work at all, and places no calls when it
+cannot (`--skip-preflight` overrides): the local API and `PUBLIC_BASE_URL` answer, a signed
+webhook sent through the public URL is accepted (a server started with another tunnel's URL
+rejects every Twilio signature), every line the suite uses points its webhook at that URL,
+persona and staff lines are configured, the agents and persona lines may call them, and no
+personas or scenarios are still queued from an earlier run. Run it on its own with
+`regression preflight --suite ...`; `--clear` cancels leftovers.
+
 ## Parallel lanes
 
 `defaults.lanes: N` runs up to N calls at once. Give the suite a pool of persona lines
