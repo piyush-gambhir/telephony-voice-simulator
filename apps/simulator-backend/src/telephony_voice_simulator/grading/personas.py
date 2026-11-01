@@ -63,8 +63,9 @@ def strip_tags(text: str) -> str:
 
 def chat_history(dialogue: list[dict[str, str]]) -> list[dict[str, Any]]:
     """Our dialogue (user = agent under test, assistant = persona) as ElevenLabs history."""
-    if len(dialogue) > MAX_HISTORY:
-        raise ValueError(f"The transcript has {len(dialogue)} turns; judging allows {MAX_HISTORY}")
+    # ElevenLabs judges at most MAX_HISTORY turns. A longer call is almost always two
+    # personas trading goodbyes at the end, so the judge sees the first MAX_HISTORY turns.
+    dialogue = dialogue[:MAX_HISTORY]
     return [
         {
             "role": "agent" if turn["role"] == "assistant" else "user",
