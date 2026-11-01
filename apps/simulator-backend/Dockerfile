@@ -2,7 +2,7 @@
 # Compose's PSTN overlay changes the command to add `--with-pstn` after all
 # public-webhook credentials are configured and /api remains private.
 
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # uv for fast, locked installs (mirrors local dev).
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
