@@ -216,3 +216,6 @@ uv run --env-file .env telephony-voice-sim corpus build
 Existing corpus files remain cached. Use `--force` only when intentionally
 replacing generated assets; imported or captured assets still require the
 additional `--replace-imported` safeguard.
+
+| `PSTN_RECORD_PERSONA_CALLS` | `false` | Record persona and staff calls on two channels so grading can transcribe them with Scribe (see Regression). |
+| `PSTN_NO_ANSWER_RING_S` | `13` | How long a `reject: no_answer` line rings before rejecting; must stay under Twilio's 15 s webhook timeout. |

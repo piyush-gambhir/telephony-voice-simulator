@@ -13,11 +13,13 @@ import time
 from collections import defaultdict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 from .. import personas
 from ..paths import DATA_DIR
 from ..grading import personas as judge
+from ..grading import scribe
 from ..integrations import elevenlabs
 from ..storage.sqlite import SimulatorStore
 from ..telephony.twilio import customer, twiml
@@ -42,6 +44,8 @@ OPTIONAL_ENV = (
 SCAN_LIMIT = 1000
 # ElevenLabs roles: "user" is the agent under test, "agent" is our persona.
 ROLES = {"user": "user", "agent": "assistant"}
+# How long grading waits for a recorded call's recording to be downloaded.
+SCRIBE_WAIT_SECONDS = 90
 # Overlapping refreshes of one call run one at a time, so the last write is the newest read.
 _REFRESH_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
 # Judge tests are reusable slots rewritten for every grading, so gradings run one at a time.
@@ -565,7 +569,8 @@ def grade_session(
     if status != "done":
         raise ConflictError(f"The transcript for {call_id} is not finished (status {status})")
     dialogue = call.analysis["customer_dialogue"]
-    checks = judge.run_checks(persona, dialogue)
+    heard = _scribe(store, call, progress)
+    checks = judge.run_checks(persona, dialogue, (heard or {}).get("remote_text"))
     expectations: list[dict[str, Any]] = []
     meta = call.analysis.get("elevenlabs") or {}
     grade: dict[str, Any] = {
@@ -585,6 +590,33 @@ def grade_session(
     _update_analysis(store, call_id, {"grade": grade, "graded": True, "grading": False,
                                       "grade_error": None})
     return grade
+
+
+def _scribe(store: SimulatorStore, call: Any, progress: Progress) -> dict[str, Any] | None:
+    """The call recording transcribed by Scribe, saved on the call; None without a recording.
+
+    The recording lands a little after the call ends, so a recorded call waits for it.
+    """
+    if "scribe" in call.analysis:
+        return call.analysis["scribe"]
+    # Only a call whose recording started (or already landed) has one to wait for.
+    if call.recording_status not in ("recording", "completed") and not call.recordings:
+        return None
+    deadline = time.monotonic() + SCRIBE_WAIT_SECONDS
+    while True:
+        latest = store.get_incoming_call(call.id) or call
+        path = next((r.local_path for r in latest.recordings
+                     if r.kind == "full_call" and r.status == "completed" and r.local_path), None)
+        if path or time.monotonic() > deadline:
+            break
+        progress("waiting for the call recording")
+        time.sleep(5)
+    channels = scribe.transcribe(Path(path)) if path else None
+    if channels is None:
+        return None
+    summary = scribe.summarize(channels)
+    _update_analysis(store, call.id, {"scribe": summary})
+    return summary
 
 
 def _update_analysis(store: SimulatorStore, call_id: str, changes: dict[str, Any]) -> None:

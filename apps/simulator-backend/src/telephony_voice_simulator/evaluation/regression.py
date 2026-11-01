@@ -257,9 +257,14 @@ def _metrics(record: dict[str, Any] | None, observed: dict[str, Any],
              persona_call: Any, target_leg: dict[str, Any] | None) -> dict[str, Any]:
     """Timings for the report; every value is None when its evidence is missing."""
     timeline = (record or {}).get("timeline") or {}
-    dialogue = ((getattr(persona_call, "analysis", None) or {}).get("customer_dialogue")) or []
-    # In the persona transcript the agent under test is the "user" side.
-    first = next((t.get("t") for t in dialogue if t.get("role") == "user"), None)
+    analysis = getattr(persona_call, "analysis", None) or {}
+    dialogue = analysis.get("customer_dialogue") or []
+    # Scribe on the call recording times words to a tenth of a second; the persona's own
+    # transcript (where the agent under test is the "user" side) only to the second.
+    heard = analysis.get("scribe") or {}
+    first = heard.get("ttfw_s")
+    if first is None:
+        first = next((t.get("t") for t in dialogue if t.get("role") == "user"), None)
     started = timeline.get("transfer_started_at")
     hold_ms = _number(timeline.get("hold_ms"))
     return {
@@ -267,6 +272,9 @@ def _metrics(record: dict[str, Any] | None, observed: dict[str, Any],
         "ttfw_agent_s": _number(timeline.get("first_agent_word_s")),
         "turn_p50_ms": observed.get("latency_p50_ms"),
         "turn_p95_ms": observed.get("latency_p95_ms"),
+        # What the caller waited from finishing a sentence to the agent's reply, from audio.
+        "response_gap_p50_s": heard.get("response_gap_p50_s"),
+        "response_gap_p95_s": heard.get("response_gap_p95_s"),
         "transfer_setup_s": _seconds_between(started, (target_leg or {}).get("started_at"))
         if target_leg else _seconds_between(started, timeline.get("consult_started_at")),
         "consult_after_s": _seconds_between(started, timeline.get("consult_started_at")),

@@ -130,6 +130,11 @@ def prune_calls() -> None:
             ACTIVE.pop(sid, None)
 
 
+def record_personas() -> bool:
+    """Opt-in: record persona calls (two channels) so Scribe can grade them independently."""
+    return os.environ.get("PSTN_RECORD_PERSONA_CALLS", "false").lower() in ("1", "true", "yes")
+
+
 def profiles() -> dict[str, str]:
     path = os.environ.get("PSTN_CUSTOMER_PROFILES", "")
     return json.loads(Path(path).read_text()) if path else {}
@@ -230,8 +235,14 @@ async def handle_customer(request: web.Request) -> web.Response:
         ACTIVE.pop(sid, None)
         return twiml.twiml("<Hangup/>")
     ACTIVE[sid] = (ACTIVE[sid][0], connect)
+    recording = "disabled"
+    if record_personas():
+        from .recordings import recording_status, start_audit_recording
+
+        # Started while answering, so the recording's clock matches the call's.
+        recording = recording_status(await start_audit_recording(sid, force=True))
     state.call_store().upsert_incoming_call(
-        call_id=sid,
+        call_id=sid, recording_status=recording,
         analysis={**analysis, "elevenlabs": {"agent_id": agent_id, "branch_id": branch_id,
                                              "status": "registered"}},
     )

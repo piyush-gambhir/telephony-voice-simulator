@@ -60,9 +60,12 @@ def _full_call_recording_enabled(to_number: str) -> bool:
     )
 
 
-async def start_audit_recording(call_sid: str, to_number: str = "") -> dict:
-    """Start the full-call audit recording while handling the answer webhook."""
-    if not _full_call_recording_enabled(to_number):
+async def start_audit_recording(call_sid: str, to_number: str = "", *, force: bool = False) -> dict:
+    """Start the full-call audit recording while handling the answer webhook.
+
+    ``force`` records regardless of the line's setting, for callers with their own opt-in.
+    """
+    if not force and not _full_call_recording_enabled(to_number):
         return {"started": False, "disabled": True, "error": "Recording disabled by configuration"}
     account = os.environ.get("TWILIO_ACCOUNT_SID", "")
     token = os.environ.get("TWILIO_AUTH_TOKEN", "")
