@@ -194,6 +194,27 @@ def test_lanes_run_each_case_on_its_own_persona_line_and_keep_the_report_shape(t
     assert report["lanes"] == 2 and report["duration_s"] >= 0
 
 
+def test_one_lane_with_only_persona_lines_calls_from_the_first_line(tmp_path, monkeypatch):
+    suite = _suite(tmp_path, [{"name": "a", "kind": "outbound", "persona": "sales-shopper"}],
+                   persona_line=None, persona_lines=["+15550100002", "+15550100003"],
+                   defaults={"pace_seconds": 0, "lanes": 1})
+    monkeypatch.setenv("AGENT_API_TRIGGER_URL", "https://agent.example/trigger")
+    body = tmp_path / "body.json"
+    body.write_text("{}")
+    monkeypatch.setenv("AGENT_API_BODY", str(body))
+    monkeypatch.setenv("AGENT_API_RECORD_COMMAND", "true {call_id}")
+    seen = []
+
+    def fake(case, view, *_a):
+        seen.append(view.get("persona_line"))
+        return regression._verdict({"case": case["name"], "started_at": 0,
+                                    "checks": [{"check": "x", "passed": True}]})
+
+    monkeypatch.setattr(regression, "run_case", fake)
+    report = regression.run(suite_path=suite, store=None, out_dir=tmp_path / "out", log=lambda _l: None)
+    assert seen == ["+15550100002"] and report["passed"] == 1
+
+
 def test_a_list_of_amd_lines_needs_lanes(tmp_path):
     with pytest.raises(ValidationError, match="needs defaults.lanes"):
         regression.load_suite(_suite(tmp_path, [{"name": "a", "kind": "amd",
