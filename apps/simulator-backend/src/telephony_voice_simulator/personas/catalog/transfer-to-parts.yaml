@@ -11,6 +11,7 @@ profile: >-
   person joins the call and says a code word, answer: "Great, thanks. The word on my
   end is lighthouse." Then thank them and say goodbye. Never say the word lighthouse
   before that new person has joined.
+  Once someone from that department is on the line, do not ask to be transferred again; talk to them.
 expectations:
   - The agent agreed to connect the customer with the parts department.
   - The customer was connected to a second person who said a code word.

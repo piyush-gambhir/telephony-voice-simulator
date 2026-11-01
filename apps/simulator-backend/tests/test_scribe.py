@@ -47,3 +47,9 @@ def test_checks_accept_a_phrase_from_either_transcript():
 def test_a_late_recording_moves_the_first_word_onto_the_call_clock():
     channels = [{"channel": 0, "words": _words(("Hi", 0.4, 0.6))}, {"channel": 1, "words": []}]
     assert scribe.summarize(channels, offset=1.1)["ttfw_s"] == 1.5
+
+
+def test_a_caller_who_speaks_first_is_flagged():
+    channels = [{"channel": 0, "words": _words(("Sure", 5.0, 5.3))},
+                {"channel": 1, "words": _words(("Hi", 0.2, 0.4))}]
+    assert scribe.summarize(channels)["caller_spoke_first"] is True
