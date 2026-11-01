@@ -60,6 +60,21 @@ Timeline times may be ISO-8601 or epoch seconds; an ISO time without an offset i
 non-empty on the record (the end-of-call report of a transferred call, say); a list of
 paths adds case-specific ones, such as the recording of the post-transfer room.
 
+## Parallel lanes
+
+`defaults.lanes: N` runs up to N calls at once. Give the suite a pool of persona lines
+(`persona_lines`), one per lane; an `amd` case's `line` may list several lines to pick from.
+Each call holds its persona line, its target's line and its AMD line, so two cases never
+share a line at the same time, and `pace_seconds` applies per line after it is released
+(a carrier or agent can still count the previous call as active). `exclusive_agent_numbers:
+true` also stops two lanes from calling one agent number at once.
+
+`before`/`after` hooks change state the whole account shares, so in parallel mode cases with
+the same hook pair form a group: the hooks run once around the group, groups run one after
+another, and only cases inside a group overlap. Reports keep their shape, with each row's
+`lane` and the report's `lanes` and `duration_s` added. Without `lanes` the suite runs one
+case at a time, as before.
+
 ## End-to-end packs
 
 The same runner drives a full end-to-end pack against one dedicated test account whose
