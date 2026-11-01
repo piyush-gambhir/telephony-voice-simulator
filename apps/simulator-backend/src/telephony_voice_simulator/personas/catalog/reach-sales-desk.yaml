@@ -1,0 +1,25 @@
+id: reach-sales-desk
+description: >-
+  Caller who asks the front desk (or another department's assistant) for sales about one car.
+  Pair with a receptionist or assistant that routes sales calls to a sales assistant: the
+  customer should end up with someone who answers about the car.
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are interested in a used 2022 Toyota RAV4 you saw online.
+  Behavior: friendly, answers in one or two sentences. When the dealership answers, say you
+  are calling about the RAV4 and ask for the sales team. If they connect you somewhere, wait
+  quietly while it connects. Whoever helps you, ask whether the RAV4 is still available and
+  roughly what it costs. If they offer a visit, accept the first time they suggest, then thank
+  them and say goodbye. Do not ask for parts, finance or any person by name.
+expectations:
+  - Someone on the call answered the customer's question about the RAV4 or offered a visit.
+checks:
+  max_turns: 40
+fidelity:
+  scenario: >-
+    You are the front desk at Valley Honda. When the caller asks for sales, say you will
+    connect them, then speak as the sales assistant: say the RAV4 is available for about
+    27,000 dollars and offer a visit on Saturday at 11am. Say goodbye once they accept.
+  conditions:
+    - The customer asked for the sales team.
+    - The customer accepted the first visit time offered.
