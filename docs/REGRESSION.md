@@ -56,6 +56,16 @@ when the persona's conversation started. `consult_after_s` (transfer start to th
 consult opener) is reported too and stands in for setup time when no target leg exists.
 Timeline times may be ISO-8601 or epoch seconds; an ISO time without an offset is read as UTC.
 
+With `PSTN_RECORD_PERSONA_CALLS=true` the simulator records persona and staff calls on two
+channels (the far party on channel 0, this side on channel 1) and grading transcribes the
+recording with ElevenLabs Scribe (`ELEVENLABS_STT_MODEL`, default `scribe_v2`). A persona's
+`must_say` phrase then counts when either transcript has it and `must_not_say` only when
+neither does, so a word the persona's live recognition misheard no longer fails a call.
+Scribe's word timestamps replace the persona's whole-second times for `ttfw_customer_s`
+and add `response_gap_p50_s`/`response_gap_p95_s`: from the end of a sentence on this side
+to the far party's reply, as the caller heard it. Recording is opt-in: enable it only where
+every party is synthetic or has agreed.
+
 `complete: true` requires every dotted path in the suite's `complete_fields` to be
 non-empty on the record (the end-of-call report of a transferred call, say); a list of
 paths adds case-specific ones, such as the recording of the post-transfer room.

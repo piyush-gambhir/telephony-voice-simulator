@@ -123,16 +123,29 @@ def judge_test(
     }
 
 
-def run_checks(persona: dict[str, Any], dialogue: list[dict[str, str]]) -> list[dict[str, Any]]:
-    """Deterministic checks on the agent under test's turns."""
+def run_checks(persona: dict[str, Any], dialogue: list[dict[str, str]],
+               heard: str | None = None) -> list[dict[str, Any]]:
+    """Deterministic checks on the agent under test's turns.
+
+    ``heard`` is an independent transcript of the far party (Scribe on the call recording).
+    The persona's live recognition can mishear a word, so a phrase counts as said when
+    either transcript has it, and as never said only when neither does.
+    """
     spoken = " ".join(t["content"] for t in dialogue if t["role"] == "user").lower()
+    sources = [("persona", spoken)] + ([("recording", heard.lower())] if heard else [])
     checks = persona["checks"]
+
+    def found(phrase: str) -> list[str]:
+        return [name for name, text in sources if phrase.lower() in text]
+
     results = [
-        {"check": f"says {phrase!r}", "passed": phrase.lower() in spoken}
+        {"check": f"says {phrase!r}", "passed": bool(found(phrase)),
+         "heard_in": found(phrase)}
         for phrase in checks["must_say"]
     ]
     results += [
-        {"check": f"never says {phrase!r}", "passed": phrase.lower() not in spoken}
+        {"check": f"never says {phrase!r}", "passed": not found(phrase),
+         "heard_in": found(phrase)}
         for phrase in checks["must_not_say"]
     ]
     if checks["max_turns"] is not None:
