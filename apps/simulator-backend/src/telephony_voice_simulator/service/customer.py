@@ -400,7 +400,7 @@ def _customer_call(store: SimulatorStore, call_id: str) -> Any:
     return call
 
 
-def _dialogue(transcript: list[dict[str, Any]]) -> list[dict[str, str]]:
+def _dialogue(transcript: list[dict[str, Any]]) -> list[dict[str, Any]]:
     dialogue = []
     for turn in transcript or []:
         role = ROLES.get(turn.get("role"))
@@ -408,7 +408,10 @@ def _dialogue(transcript: list[dict[str, Any]]) -> list[dict[str, str]]:
         if role == "assistant":
             text = judge.strip_tags(text)
         if role and text:
-            dialogue.append({"role": role, "content": text})
+            turn_ = {"role": role, "content": text}
+            if isinstance(turn.get("time_in_call_secs"), (int, float)):
+                turn_["t"] = turn["time_in_call_secs"]  # seconds into the call, for timings
+            dialogue.append(turn_)
     return dialogue
 
 

@@ -95,8 +95,54 @@ def test_an_unreached_target_is_cancelled_and_an_ungraded_leg_fails(monkeypatch)
 
     monkeypatch.setattr(execution, "find_sim_call", lambda *a, **k: {"id": "CA1", "scenario": "s"})
     checks, leg = regression._target_checks({"line": "+15550100003", "scenario": "s"}, 0)
-    assert leg == "CA1"
+    assert leg["id"] == "CA1"
     assert {c["check"]: c["passed"] for c in checks}["target_graded"] is False
+
+
+def test_metrics_time_the_transfer_from_the_agent_timeline_and_the_target_leg():
+    record = {"timeline": {"first_agent_word_s": 1.2,
+                           "transfer_started_at": "2026-11-01T12:00:00+00:00",
+                           "consult_started_at": "2026-11-01T12:00:09+00:00",
+                           "briefing_ended_at": "2026-11-01T12:00:15.5+00:00",
+                           "hold_ms": 21000}}
+
+    from types import SimpleNamespace
+
+    persona = SimpleNamespace(analysis={"customer_dialogue": [
+        {"role": "assistant", "content": "hi", "t": 0},
+        {"role": "user", "content": "Thanks for calling", "t": 2}]})
+    leg = {"started_at": "2026-11-01T12:00:06+00:00", "from_address": "+15550100001"}
+    m = regression._metrics(record, {"latency_p50_ms": 900.0, "latency_p95_ms": 1500.0}, persona, leg)
+    assert m["ttfw_customer_s"] == 2 and m["ttfw_agent_s"] == 1.2
+    assert m["transfer_setup_s"] == 6.0 and m["consult_after_s"] == 9.0
+    assert m["hold_s"] == 21.0 and m["briefing_s"] == 6.5
+    assert m["turn_p95_ms"] == 1500.0 and m["target_caller_id"] == "+15550100001"
+    assert regression._metrics(None, {}, None, None)["transfer_setup_s"] is None
+    # Epoch seconds and offset-less ISO times (read as UTC) work too.
+    assert regression._seconds_between(1793534400, "2026-11-01T12:00:05") == 5.0
+    assert regression._seconds_between("not a time", 5) is None
+
+
+def test_metric_limits_must_be_numbers(tmp_path):
+    with pytest.raises(ValidationError, match="ttfw_s_max must be a number"):
+        regression.load_suite(_suite(tmp_path, [{"name": "a", "kind": "outbound", "persona": "p",
+                                                  "expect": {"ttfw_s_max": "5"}}]))
+
+
+def test_metric_checks_cover_caller_id_completeness_and_limits():
+    suite = {"persona_line": "+15550100001", "complete_fields": ["status", "recording_url"]}
+    case = {"agent_number": "+15550100002"}
+    metrics = {"ttfw_customer_s": 5.0, "transfer_setup_s": None, "target_caller_id": "+15550100002"}
+    record = {"status": "completed", "recording_url": "", "extra": {"x": 1}}
+    checks = {c["check"]: c["passed"] for c in regression._metric_checks(
+        {"ttfw_s_max": 4, "transfer_setup_s_max": 10, "target_caller_id": ["customer"],
+         "complete": ["extra.x"]}, metrics, case, suite, record)}
+    assert checks == {"ttfw_customer_s <= 4": False, "transfer_setup_s <= 10": None,
+                      "target_caller_id": False, "call_ended_complete": False}
+    record["recording_url"] = "https://rec"
+    checks = {c["check"]: c["passed"] for c in regression._metric_checks(
+        {"target_caller_id": ["customer", "agent"], "complete": True}, metrics, case, suite, record)}
+    assert checks == {"target_caller_id": True, "call_ended_complete": True}
 
 
 def test_a_crashing_case_becomes_a_failed_row_and_the_report_is_kept(tmp_path, monkeypatch):

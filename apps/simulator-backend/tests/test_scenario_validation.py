@@ -18,7 +18,7 @@ from telephony_voice_simulator.domains.amd.validation import asset_path, validat
     ({"main": [], "max_duration": True}, "expected a number"),
     ({"main": [], "on_dtmf": {"switch": "missing"}}, "target sequence"),
     ({"main": [], "on_dtmf": {"switch": "main", "digits": []}}, "DTMF keys"),
-    ({"main": [{"reject": "maybe"}]}, "busy or rejected"),
+    ({"main": [{"reject": "maybe"}]}, "busy or rejected or no_answer"),
     ({"main": [{"wait": 1}, {"reject": "busy"}]}, "only step"),
     ({"main": [{"reject": "busy"}, {"wait": 1}]}, "only step"),
     ({"main": [], "other": [{"reject": "busy"}]}, "only step"),

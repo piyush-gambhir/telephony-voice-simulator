@@ -27,11 +27,21 @@ that run `all`.
 | `transfer_target_cold_accept` | Answers and says the code word; no briefing may arrive | `transfer-to-sales` |
 | `transfer_target_decline` | Answers, hears the briefing, declines and hangs up | `transfer-to-sales-unreachable` |
 | `transfer_target_busy` | Returns busy without answering (`reject: busy`) | `transfer-to-sales-unreachable` |
+| `transfer_target_no_answer` | Rings without answering, then rejects (`reject: no_answer`) | `transfer-to-sales-unreachable` |
 | any voicemail scenario, e.g. `stock_voicemail_beep_1000` | The transfer reaches a mailbox; the agent must not bridge into it | `transfer-to-sales-unreachable` |
 
-Not covered yet: a target that rings without answering. Twilio answers a call
-as soon as it runs any TwiML other than `<Reject>`, so a no-answer target needs
-a number with no voice URL or a carrier-side setup.
+A no-answer target works around Twilio answering a call as soon as it runs any
+TwiML other than `<Reject>`: the simulator holds its reply to the voice webhook for
+`PSTN_NO_ANSWER_RING_S` (default 13 s, under Twilio's 15 s webhook timeout), so the
+caller hears ringback, and then rejects. Set the agent's transfer ring timeout below
+that so the agent gives up while the line is still ringing; with a longer ring timeout the
+agent hears busy instead, and the case tests busy handling.
+
+More personas for transfer packs: `transfer-to-sales-department`, `transfer-to-parts`,
+`transfer-to-finance` and `transfer-to-named-person` (all expect the code word),
+`after-hours-transfer` (the agent must not transfer and should offer a callback),
+`reach-service-desk` (a receptionist routes the caller to a service assistant) and
+`service-booker` (a plain service booking).
 
 ## Running one case
 

@@ -13,7 +13,8 @@ from typing import Any
 
 STEP_KEYS = {"wait", "hold", "play", "tone", "repeat_from", "hangup", "dial", "reject"}
 # Carrier responses a ``reject`` step can give instead of answering.
-REJECT_REASONS = ("busy", "rejected")
+# no_answer rings (Twilio waits on the webhook) and then rejects, so the caller times out.
+REJECT_REASONS = ("busy", "rejected", "no_answer")
 MACHINE_OPTIONS = {"on_dtmf", "max_duration"}
 EXPECT_KEYS = {
     "callee_class", "webhook_received", "ended_reason", "ended_reason_any_of",
