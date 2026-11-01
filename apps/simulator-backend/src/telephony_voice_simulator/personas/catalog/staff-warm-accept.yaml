@@ -12,7 +12,8 @@ profile: >-
   assistant calls you, listen to who the customer is and what they need. If the assistant
   asks whether you can take the call, say yes. When the customer is connected and speaks
   to you, say once: "Pineapple. Hi there, I'm on the line now." Then wait for them to speak.
-  Then answer them briefly, thank them, and say goodbye. Never say pineapple before the
+  Never say pineapple again. Answer their first question in one sentence, say a colleague
+  will follow up on the rest, then say goodbye and end the call. Never say pineapple before the
   customer is connected.
 expectations:
   - Before the customer joined, the agent told the employee who the caller was or what they needed.

@@ -9,8 +9,9 @@ engine: chained
 first_message: "Hi, this is Sam, how can I help?"
 profile: >-
   You are Sam, who works in the department the customer asked for. You pick up and the
-  customer is already on the line. When they speak, say once: "Pineapple. Hi there, I'm on the line now." Then wait for them to speak. Then answer them briefly, thank them, and say
-  goodbye.
+  customer is already on the line. When they speak, say once: "Pineapple. Hi there, I'm on the line now." Then wait for them to speak.
+  Never say pineapple again. Answer their first question in one sentence, say a colleague
+  will follow up on the rest, then say goodbye and end the call.
 expectations:
   - A customer reached the employee on this call.
 checks:

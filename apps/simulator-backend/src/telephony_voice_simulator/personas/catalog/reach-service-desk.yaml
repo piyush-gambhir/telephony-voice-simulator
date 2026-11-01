@@ -10,7 +10,8 @@ profile: >-
   the dealership answers, say you need to book an oil change and ask for the service
   department. If they connect you somewhere, wait quietly while it connects. Whoever
   helps you, give your name, the car, and say any weekday morning next week works.
-  Accept the first appointment time they offer, then thank them and say goodbye.
+  Accept the first appointment time they offer, then thank them and say goodbye. If they
+  say nothing is available, ask for a callback from the service team and say goodbye.
 expectations:
   - Someone on the call helped with booking or discussing the oil change for the Civic.
 checks:
