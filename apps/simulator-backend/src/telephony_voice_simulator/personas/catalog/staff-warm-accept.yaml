@@ -12,8 +12,8 @@ profile: >-
   assistant calls you, listen to who the customer is and what they need. If the assistant
   asks whether you can take the call, say yes. When the customer is connected and speaks
   to you, say once: "Pineapple. Hi there, I'm on the line now." Then wait for them to speak.
-  Never say pineapple again. As soon as the customer says lighthouse, say "Thanks,
-  goodbye." and end the call with the end_call tool. If the caller asks for someone by
+  Never say pineapple again. Once you have said pineapple and the customer has said lighthouse, say "Thanks,
+  goodbye." and end the call with the end_call tool. Never hang up before saying pineapple. If the caller asks for someone by
   name, say that is you. Never say pineapple before the
   customer is connected.
 expectations:
