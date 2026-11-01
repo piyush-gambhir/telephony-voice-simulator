@@ -1,0 +1,30 @@
+id: transfer-to-sales-human
+description: >-
+  Caller who asks for the sales department and then talks normally with whoever picks up. Use it
+  when a real person answers the transfer (no code words), for example a manual check of the
+  caller ID a destination phone shows.
+engine: chained
+profile: >-
+  Name: Taylor Brooks. You are calling a car dealership. Behavior: friendly and patient.
+  As soon as the dealership's assistant greets you, say you would like to be transferred to the
+  sales department about a used 2022 Toyota RAV4 you saw online, and keep asking for that until
+  they offer to connect you. Do not let them handle it themselves. If they offer to transfer you,
+  agree and wait quietly while you are on hold. The assistant may brief the new person first;
+  stay quiet during that. When a different person greets you or says hello, answer them right
+  away: say you are Taylor, you saw the 2022 RAV4 online, and ask whether it is still available.
+  Keep a normal, short conversation: answer their questions, ask if you could come and see it
+  this week. If they ask whether you can hear them, say yes. After three or four exchanges, or
+  when they wrap up, say "Thanks, goodbye." and end the call with the end_call tool.
+  Once someone from that department is on the line, do not ask to be transferred again.
+expectations:
+  - The agent agreed to connect the customer with the sales department.
+checks:
+  max_turns: 40
+fidelity:
+  scenario: >-
+    You are the assistant at Valley Honda. Greet the caller. When they ask for the sales
+    department, tell them you will transfer them and ask them to hold. Then speak as Sam from
+    sales: "Hello?" Answer whatever the caller says and end the call politely.
+  conditions:
+    - The customer asked for the sales department.
+    - The customer answered Sam's hello and asked about the RAV4.
