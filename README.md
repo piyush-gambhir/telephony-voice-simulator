@@ -162,6 +162,37 @@ automatic refresh are kept.
 The [project review](docs/PROJECT_REVIEW.md) records the improvements,
 verification, and remaining integration boundaries.
 
+## Testing a deployed voice agent end to end
+
+The regression runner places real calls against a deployed agent and grades them: synthetic
+customers and dealership staff are ElevenLabs agents, scripted lines play busy, no answer and
+voicemail, and every leg can be recorded and transcribed with ElevenLabs Scribe.
+
+1. **Lines.** Buy or reuse Twilio numbers on the simulator's account for persona lanes
+   (customers), AMD lines and transfer destinations. Point the agent's transfer destinations
+   at the destination lines. Keep account-specific numbers and ids in gitignored
+   `config/*.local.*` files.
+2. **Start.** Run the backend with a public HTTPS URL in `PUBLIC_BASE_URL` (see
+   [Deployment](docs/DEPLOYMENT.md)), point persona lanes at `/twilio/customer` and the other
+   lines at `/twilio/voice` (`telephony-voice-sim numbers attach` / `numbers point`), and run
+   `customer sync-agent` once so the persona and staff agents exist.
+3. **Check.** `telephony-voice-sim regression preflight --suite config/<suite>.local.yaml`
+   proves signed webhooks get through, every line points at this server, and nothing is left
+   queued (`--clear` removes leftovers). `regression run` runs it first and places no calls if
+   it fails.
+4. **Run.** `telephony-voice-sim regression run --suite config/<suite>.local.yaml --markdown`
+   runs every case, or `--case NAME` one case. `defaults.lanes` runs cases in parallel.
+5. **Compare.** Add `--baseline results/regression/<report>.json` to fail on a case that
+   stopped passing or got slower than the accepted run.
+6. **Read results.** Each run writes `results/regression/<report id>.json` with every case's
+   checks, call ids and timings (time to first word, turn latency, response gaps, transfer
+   setup, hold and briefing), and the console shows each leg's recording and grade.
+
+To add a case, give it a `kind`, a customer `persona`, the agent number or trigger body, and
+for a transfer a `target` line with a staff `persona` or a scripted `scenario`; team changes a
+case needs go in `before`/`after` hooks. See [Regression](docs/REGRESSION.md) and
+[Transfers](docs/TRANSFERS.md).
+
 ## Migration and open-source status
 
 The feature-by-feature migration, replacements, and retained command-line
