@@ -51,7 +51,7 @@ MAX_ACTIVE = 20
 MAX_SECONDS = 240
 # A staff persona only takes a briefing and a short handover; the cap ends any goodbye loop
 # between two personas long before the customer's own limit.
-MAX_STAFF_SECONDS = 150
+MAX_STAFF_SECONDS = 90
 # Twilio retries the answer webhook; a registered call keeps its TwiML this long.
 RETENTION_SECONDS = MAX_SECONDS + 60
 # ElevenLabs' default wait before the customer re-engages a silent dealership.

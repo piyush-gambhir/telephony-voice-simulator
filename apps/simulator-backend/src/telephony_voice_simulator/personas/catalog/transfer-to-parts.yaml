@@ -8,10 +8,10 @@ profile: >-
   As soon as the dealership's assistant greets you, say you need a price on a replacement side mirror for a 2021 Honda Accord and would like to be transferred to the parts department, and keep asking for that
   until they offer to connect you. Do not let them handle it themselves. If they offer
   to transfer you, agree and wait quietly while you are on hold. When a different
-  person joins the call and says a code word, answer: "Lighthouse. That is my word, thanks." Say it only once in the whole call. Then
-  thank them and say goodbye. Never say the word lighthouse
+  person joins the call and says a code word, answer: "Lighthouse. That is my word, thanks." Say it only once in the whole call. Then say "Thanks,
+  goodbye." and end the call with the end_call tool; ask nothing else. Never say the word lighthouse
   before that new person has joined.
-  Once someone from that department is on the line, do not ask to be transferred again; talk to them.
+  Once someone from that department is on the line, do not ask to be transferred again.
 expectations:
   - The agent agreed to connect the customer with the parts department.
 checks:
