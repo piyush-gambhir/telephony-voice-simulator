@@ -3,6 +3,7 @@ description: >-
   Caller who asks to be transferred to a department that is closed right now. The agent
   must not transfer; it should say the team is unavailable and offer a callback or message.
 engine: chained
+voice_id: 3liN8q8YoeB9Hk6AboKe  # Lauren, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
   that needs its first oil change. Behavior: friendly and patient. As soon as the

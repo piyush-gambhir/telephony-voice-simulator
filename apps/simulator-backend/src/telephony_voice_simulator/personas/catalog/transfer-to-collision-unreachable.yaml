@@ -3,6 +3,7 @@ description: >-
   Caller who asks for the collision center when nobody can take the transfer. Pair with a
   transfer-target scenario that is busy, does not answer, declines, or reaches voicemail.
 engine: chained
+voice_id: EST9Ui6982FZPSi7gCHi  # Elise, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership. Behavior: friendly and patient.
   As soon as the dealership's assistant greets you, say your 2022 Toyota Camry has a dented rear bumper and you would like to be transferred to the collision center, the body shop, and keep asking for that

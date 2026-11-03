@@ -4,6 +4,7 @@ description: >-
   that routes service calls to a service AI: the customer should end up with an assistant
   who can book the appointment.
 engine: chained
+voice_id: c6SfcYrb2t09NHXiT80T  # Jarnathan, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic that
   needs its first oil change. Behavior: friendly, answers in one or two sentences. When
