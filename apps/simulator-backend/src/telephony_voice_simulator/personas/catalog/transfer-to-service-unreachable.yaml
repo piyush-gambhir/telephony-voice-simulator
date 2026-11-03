@@ -3,6 +3,7 @@ description: >-
   Caller who asks for the service department when nobody can take the transfer. Pair with a
   transfer-target scenario that is busy, declines, or reaches voicemail.
 engine: chained
+voice_id: EST9Ui6982FZPSi7gCHi  # Elise, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
   that needs its first oil change. Behavior: friendly and patient. As soon as the

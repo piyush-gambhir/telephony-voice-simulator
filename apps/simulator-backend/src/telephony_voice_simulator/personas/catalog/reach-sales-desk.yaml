@@ -4,6 +4,7 @@ description: >-
   Pair with a receptionist or assistant that routes sales calls to a sales assistant: the
   customer should end up with someone who answers about the car.
 engine: chained
+voice_id: r1KmysJdVYZjJCm4mL3b  # Jessica, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are interested in a used 2022 Toyota RAV4 you saw online.
   Behavior: friendly, answers in one or two sentences. When the dealership answers, say you

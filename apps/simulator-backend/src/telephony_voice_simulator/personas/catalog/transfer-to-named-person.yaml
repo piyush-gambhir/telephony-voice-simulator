@@ -3,6 +3,7 @@ description: >-
   Caller who asks for the sales manager Jordan Reyes and should be transferred to a person. Pair with a
   transfer-target scenario that accepts (warm, assistant or cold).
 engine: chained
+voice_id: Gubgw9l4dtIoQA9YZHgx  # Brian, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership. Behavior: friendly and patient.
   As soon as the dealership's assistant greets you, say you would like to speak with Jordan Reyes, the sales manager, by name, who asked you to call back today, and keep asking for that

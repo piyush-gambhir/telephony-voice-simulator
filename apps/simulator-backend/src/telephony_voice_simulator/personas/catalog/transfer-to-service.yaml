@@ -3,6 +3,7 @@ description: >-
   Caller who asks for the service department and should be transferred to a person.
   Pair with a transfer-target scenario that accepts (warm, assistant or cold).
 engine: chained
+voice_id: Gubgw9l4dtIoQA9YZHgx  # Brian, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership about a 2024 Honda Civic
   that needs its first oil change. Behavior: friendly and patient. As soon as the

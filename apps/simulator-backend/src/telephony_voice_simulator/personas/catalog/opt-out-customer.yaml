@@ -1,6 +1,7 @@
 id: opt-out-customer
 description: Customer who does not want recall calls and asks to be removed.
 engine: chained
+voice_id: 7EzWGsX10sAS4c9m9cPf  # Jack John, rated high quality on Eleven v4 Turbo
 first_message: Hello?
 profile: >-
   Name: Priya Shah. Vehicle: 2019 Honda CR-V with an open recall for a fuel pump.

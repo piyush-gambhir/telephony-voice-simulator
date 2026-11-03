@@ -4,6 +4,7 @@ description: >-
   when a real person answers the transfer (no code words), for example a manual check of the
   caller ID a destination phone shows.
 engine: chained
+voice_id: 3liN8q8YoeB9Hk6AboKe  # Lauren, rated high quality on Eleven v4 Turbo
 profile: >-
   Name: Taylor Brooks. You are calling a car dealership. Behavior: friendly and patient.
   As soon as the dealership's assistant greets you, say you would like to be transferred to the

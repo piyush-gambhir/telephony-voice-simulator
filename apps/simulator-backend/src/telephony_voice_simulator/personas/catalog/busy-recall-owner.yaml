@@ -1,6 +1,7 @@
 id: busy-recall-owner
 description: Busy owner at the office who only has weekday mornings free and cuts in quickly.
 engine: chained
+voice_id: yM93hbw8Qtvdma2wCnJG  # Ivanna, rated high quality on Eleven v4 Turbo
 environment:
   background: office1
   volume: 0.2
