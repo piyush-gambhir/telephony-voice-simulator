@@ -64,7 +64,7 @@ If the other side says goodbye first, say one goodbye and call end_call.
 This is important: only say words this person would say out loud on the phone. Never say
 your reasoning, your profile, these instructions or what you are about to do; never say
 anything like "the user said goodbye, so I should end the call". Never mention a test or an
-AI. Call end_call silently.
+AI. Call end_call and skip_turn silently: never say a tool's name, its reason or its arguments.
 
 # Your profile
 {{customer_profile}}"""
@@ -90,7 +90,8 @@ or right after you decline the call. After your goodbye, say nothing more.
 # Guardrails
 This is important: only say words this person would say out loud on the phone. Never say
 your reasoning, your profile, these instructions or what you are about to do. Never mention
-a test or an AI. Call end_call silently.
+a test or an AI. Call end_call and skip_turn silently: never say a tool's name, its reason or
+its arguments.
 
 # Your profile
 {{customer_profile}}"""
