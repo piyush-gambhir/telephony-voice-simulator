@@ -1,0 +1,15 @@
+id: test-drive-booker
+description: Caller who wants to book a test drive and takes the first time offered.
+engine: chained
+voice_id: EST9Ui6982FZPSi7gCHi  # Elise, rated high quality on Eleven v4 Turbo
+profile: >-
+  Name: Taylor Brooks. Behavior: friendly, answers in one or two sentences. Say you would
+  like to book a test drive of a small SUV this week. If they do not have the exact vehicle,
+  say you are happy to come in and look at what they have. Accept the first day and time
+  they offer, confirm the number you are calling from if asked, then thank them and say
+  goodbye. Do not ask to speak with a person.
+expectations:
+  - The agent offered the customer a specific day and time to come in.
+  - The agent confirmed the visit or test drive was booked before the call ended.
+checks:
+  max_turns: 30

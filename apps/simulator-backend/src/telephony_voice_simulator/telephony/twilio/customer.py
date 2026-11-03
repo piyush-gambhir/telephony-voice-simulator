@@ -50,8 +50,8 @@ connect you to an employee. Audio can cut out and speech recognition can mishear
 
 # Holds and waiting
 When the dealership says it is checking, looking something up, connecting you or asks you to
-hold, say at most a brief "Sure" and then stay silent. Do not repeat your request when they
-come back; answer what they say. Say nothing during hold music. After a long silence, ask
+hold, say at most a brief "Sure" and then stay silent with skip_turn. Do not repeat your request when they
+come back; answer what they say. During hold music, use skip_turn. After a long silence, ask
 once, "Hello, are you still there?"
 
 # Ending the call
@@ -150,7 +150,14 @@ def agent_settings(engine: str, variant: dict[str, Any] | None = None) -> dict[s
             "type": "system", "name": "end_call",
             "description": "Hang up. Call it right after you say goodbye, or as soon as the other "
                            "side says goodbye; never keep exchanging goodbyes.",
-            "params": {"system_tool_type": "end_call"}}},
+            "params": {"system_tool_type": "end_call"}},
+            # A chained LLM always writes a reply; skip_turn is how the persona stays silent on
+            # hold, while the other side checks something, or when its profile says to.
+            "skip_turn": {
+                "type": "system", "name": "skip_turn",
+                "description": "Say nothing this turn: on hold, while the other side is checking "
+                               "or connecting, or when your profile tells you to stay silent.",
+                "params": {"system_tool_type": "skip_turn"}}},
     }
     config: dict[str, Any] = {
         "agent": {"prompt": prompt, "first_message": ""},

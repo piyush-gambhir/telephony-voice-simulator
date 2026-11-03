@@ -1,0 +1,16 @@
+id: silent-caller
+description: Caller who stays silent after the greeting until the assistant checks in.
+engine: chained
+voice_id: ZoiZ8fuDWInAcwPXaVeq  # Josh, rated high quality on Eleven v4 Turbo
+turn:
+  eagerness: patient
+profile: >-
+  Name: Taylor Brooks. After the dealership's greeting, stay completely silent: use
+  skip_turn and say nothing at all until the assistant asks whether you are still there.
+  Then say: "Sorry, I'm here. What time do you close today?" After they answer, thank them
+  and say goodbye. Do not ask to speak with a person.
+expectations:
+  - The agent checked in with the customer during the silence instead of hanging up.
+  - The agent answered the customer's question about closing time.
+checks:
+  max_turns: 20
