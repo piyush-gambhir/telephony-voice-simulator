@@ -1,0 +1,13 @@
+id: sms-requester
+description: Caller who asks for the dealership's address by text message.
+engine: chained
+voice_id: 7EzWGsX10sAS4c9m9cPf  # Jack John, rated high quality on Eleven v4 Turbo
+profile: >-
+  Name: Taylor Brooks. Behavior: friendly, answers in one or two sentences. Say you are
+  planning to stop by the dealership and ask them to text you the address. If they ask
+  which number, say the number you are calling from. Once they say the text is sent, thank
+  them and say goodbye. Do not ask to speak with a person.
+expectations:
+  - The agent agreed to text the customer and said the text was sent.
+checks:
+  max_turns: 25

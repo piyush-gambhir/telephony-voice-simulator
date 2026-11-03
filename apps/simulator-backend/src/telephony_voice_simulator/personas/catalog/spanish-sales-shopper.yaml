@@ -1,0 +1,16 @@
+id: spanish-sales-shopper
+description: Spanish-speaking shopper asking about a Civic and accepting a visit.
+engine: chained
+voice_id: 3liN8q8YoeB9Hk6AboKe  # Lauren, rated high quality on Eleven v4 Turbo
+language: es
+first_message: "Hola, buenas tardes."
+profile: >-
+  Nombre: Taylor Brooks. Habla solo español. Comportamiento: amable, responde en una o dos
+  frases. Pregunte si tienen un Honda Civic 2024 y más o menos cuánto cuesta. Si le ofrecen
+  una visita, acepte la primera hora que le ofrezcan, luego dé las gracias y despídase. No
+  pida hablar con una persona.
+expectations:
+  - The agent spoke Spanish for the whole call.
+  - The agent answered the customer's question about the Civic or offered a visit.
+checks:
+  max_turns: 30

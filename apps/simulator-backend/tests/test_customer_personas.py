@@ -191,7 +191,8 @@ def test_sync_agent_configures_bases_variants_and_pinned_branches(store, monkeyp
     assert result['agents']['chained']['branch_id'] == 'branch_agent_chained'
 
     variants = {v['personas'][0]: v for v in result['variants']}
-    assert set(variants) == {'busy-recall-owner', 'spanish-speaking-owner', 'staff-assistant-accept'}
+    assert set(variants) == {'busy-recall-owner', 'interrupting-caller', 'silent-caller',
+                             'spanish-speaking-owner', 'staff-assistant-accept'}
     # Every staff persona shares one staff variant, with the employee prompt.
     staff = variants['staff-assistant-accept']
     assert len(staff['personas']) == 4 and 'staff' in staff['name']

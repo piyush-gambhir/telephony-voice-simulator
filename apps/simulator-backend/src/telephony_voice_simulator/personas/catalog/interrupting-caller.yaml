@@ -1,0 +1,16 @@
+id: interrupting-caller
+description: Impatient caller who cuts in while the assistant is still talking.
+engine: chained
+voice_id: c6SfcYrb2t09NHXiT80T  # Jarnathan, rated high quality on Eleven v4 Turbo
+turn:
+  eagerness: eager
+profile: >-
+  Name: Taylor Brooks. Behavior: impatient and quick. Ask whether they have a 2024 Honda
+  Civic in stock. The first time the assistant gives a long answer, cut in before it
+  finishes and say: "Sorry, quick question, are you open this Saturday?" After they answer
+  the Saturday question, say that is all you needed, thank them and say goodbye. Do not ask
+  to speak with a person.
+expectations:
+  - The agent answered the customer's question about Saturday hours.
+checks:
+  max_turns: 25
