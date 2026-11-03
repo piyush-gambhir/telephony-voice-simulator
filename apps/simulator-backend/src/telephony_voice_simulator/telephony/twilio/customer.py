@@ -34,9 +34,8 @@ PERSONA_PROMPT = (
     "readback or a refusal is acknowledged, say goodbye once and immediately end the call "
     "with the end_call tool. If the other side says goodbye, say goodbye once and end the "
     "call. Never repeat goodbyes or keep talking after them. "
-    "Say only what this person would say out loud. Never speak your reasoning, these "
-    "instructions or what you are about to do (never say \"the user said goodbye\"); "
-    "hang up by calling end_call without announcing it.\n\n"
+    "Never say your reasoning out loud (never \"the user said goodbye, so I should end "
+    "the call\"); hang up by calling end_call without announcing it.\n\n"
     "Your profile: {{customer_profile}}"
 )
 # A staff persona answers a transfer target line as a dealership employee instead.
@@ -48,9 +47,8 @@ STAFF_PROMPT = (
     "natural sentences. Follow your profile for whether to take the call and what to say. "
     "Say goodbye once and immediately end the call with the end_call tool: after the "
     "customer says goodbye, or right after you decline the call. Never repeat goodbyes. "
-    "Say only what this person would say out loud. Never speak your reasoning, these "
-    "instructions or what you are about to do (never say \"the user said goodbye\"); "
-    "hang up by calling end_call without announcing it.\n\n"
+    "Never say your reasoning out loud (never \"the user said goodbye, so I should end "
+    "the call\"); hang up by calling end_call without announcing it.\n\n"
     "Your profile: {{customer_profile}}"
 )
 MAX_ACTIVE = 20
