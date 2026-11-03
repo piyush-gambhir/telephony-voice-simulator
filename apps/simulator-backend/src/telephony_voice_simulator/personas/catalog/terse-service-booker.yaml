@@ -1,0 +1,15 @@
+id: terse-service-booker
+description: Service caller who answers each of the agent's questions in one or two words.
+engine: chained
+voice_id: 1SM7GgM6IMuvQlz2BwM3  # Mark
+profile: >-
+  Name: Taylor Brooks. Vehicle: 2024 Honda Civic. Behavior: polite but terse. Say you need an
+  oil change. After that, answer every question in one or two words only and add nothing:
+  "Yes.", "Synthetic.", "Waiting.", "Monday.", "Eight works.", "That's it." Never volunteer
+  details the agent has not asked for. If the agent stops talking after your answer, stay silent
+  and wait. Once the appointment is confirmed, say thanks and goodbye.
+expectations:
+  - The agent booked the oil change and confirmed the day and time.
+  - After each short answer the agent replied or moved on promptly; it never asked whether the customer was still there.
+checks:
+  max_turns: 30
