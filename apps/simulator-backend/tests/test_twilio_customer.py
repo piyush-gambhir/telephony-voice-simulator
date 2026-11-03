@@ -252,7 +252,10 @@ def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch, fake_a
     assert config['tts']['agent_output_audio_format'] == 'ulaw_8000'
     assert config['asr']['user_input_audio_format'] == 'ulaw_8000'
     assert config['conversation']['max_duration_seconds'] == customer.MAX_SECONDS
-    assert config['agent']['prompt']['llm'] == 'gpt-6-luna'
+    assert config['agent']['prompt']['llm'] == 'gpt-6.1-terra'
+    assert config['agent']['prompt']['reasoning_effort'] == 'low'
+    assert config['tts']['model_id'] == 'eleven_v4_turbo'
+    assert config['tts']['voice_id'] == customer.CUSTOMER_VOICE_ID
     assert 'realtime_model' not in config
     assert body['platform_settings']['overrides']['conversation_config_override'] == {
         'agent': {'first_message': True, 'language': True}, 'tts': {'voice_id': True}}

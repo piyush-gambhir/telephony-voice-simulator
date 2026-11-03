@@ -182,7 +182,7 @@ def test_sync_agent_configures_bases_variants_and_pinned_branches(store, monkeyp
 
     sent = {agent: body['conversation_config'] for agent, body, _ in fake_agents.updates}
     assert all(versioning for *_, versioning in fake_agents.updates)
-    assert sent['agent_chained']['agent']['prompt']['llm'] == 'gpt-6-luna'
+    assert sent['agent_chained']['agent']['prompt']['llm'] == 'gpt-6.1-terra'
     assert sent['agent_chained']['conversation']['background_sound']['source_id'] is None
     assert sent['agent_chained']['turn']['turn_eagerness'] == 'normal'
     assert sent['agent_realtime']['realtime_model'] == customer.REALTIME_MODEL
