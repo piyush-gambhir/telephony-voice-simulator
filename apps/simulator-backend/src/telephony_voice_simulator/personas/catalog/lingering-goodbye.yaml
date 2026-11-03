@@ -1,0 +1,15 @@
+id: lingering-goodbye
+description: Caller who asks one quick question, then answers every farewell with another warm goodbye.
+engine: chained
+voice_id: Gubgw9l4dtIoQA9YZHgx  # Brian, rated high quality on Eleven v4 Turbo
+profile: >-
+  Name: Taylor Brooks. Behavior: warm and chatty. Ask what time the dealership closes today.
+  Once you have the answer, say you have everything you need and say goodbye. Every time the
+  agent says goodbye or thanks you, answer with another warm goodbye in different words, such as
+  "You too, thanks again for your help, have a wonderful day" or "I said goodbye, take care".
+  Never ask another question and never hang up yourself; wait for the agent to end the call.
+expectations:
+  - The agent answered the closing-time question.
+  - The agent ended the call soon after the customer said goodbye, without a long exchange of goodbyes.
+checks:
+  max_turns: 14
