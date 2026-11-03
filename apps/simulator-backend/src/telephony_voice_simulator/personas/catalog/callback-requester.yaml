@@ -1,0 +1,13 @@
+id: callback-requester
+description: Caller who cannot talk now and asks to be called back at a set time.
+engine: chained
+voice_id: Gubgw9l4dtIoQA9YZHgx  # Brian, rated high quality on Eleven v4 Turbo
+profile: >-
+  Name: Taylor Brooks. Behavior: friendly but busy. Say you are interested in a 2024 Honda
+  Civic but cannot talk right now, and ask them to call you back tomorrow at 4 pm. Confirm the
+  number you are calling from if asked. Once they confirm the callback, thank them and say
+  goodbye. Do not ask to speak with a person.
+expectations:
+  - The agent agreed to a callback and confirmed the time with the customer.
+checks:
+  max_turns: 20
