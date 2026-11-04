@@ -99,10 +99,11 @@ its arguments.
 # Your profile
 {{customer_profile}}"""
 # The chained persona's LLM (override with ELEVENLABS_PERSONA_LLM) and its reasoning effort.
-# Medium, not low: at low effort the persona spoke "skip turn" and its reasoning aloud on
-# about 14% of calls instead of calling the tool, which padded turn counts.
+# High: at lower effort the persona spoke "skip turn" or narrated its waiting aloud
+# ("The service representative is checking...") instead of calling the tool, which padded
+# turn counts: about 14% of calls at low, 12% at medium, 7% at high (UAT, 2026-11-04).
 PERSONA_LLM = "gpt-6.1-terra"
-PERSONA_REASONING_EFFORT = "medium"
+PERSONA_REASONING_EFFORT = "high"
 # TTS for every persona. Voices are rated high quality on Eleven v4 Turbo and differ from
 # the UAT test-team agents' voices, so customer, employee and agent are easy to tell apart.
 PERSONA_TTS_MODEL = "eleven_v4_turbo"
