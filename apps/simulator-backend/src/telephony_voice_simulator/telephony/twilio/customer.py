@@ -109,6 +109,11 @@ PERSONA_REASONING_EFFORT = "high"
 PERSONA_TTS_MODEL = "eleven_v4_turbo"
 CUSTOMER_VOICE_ID = "1SM7GgM6IMuvQlz2BwM3"  # Mark: casual, relaxed, American male
 STAFF_VOICE_ID = "kdmDKE6EkgrWrrykO9Qt"  # Alexandra: conversational, natural, American female
+# The agent's backchannels and fillers do not interrupt the persona. Otherwise a "Mm-hmm" in a
+# mid-sentence pause made it restart its whole line, three times in UAT 01a1a62e-fb59, and the
+# extra turns hit the case's turn cap. A real caller keeps talking through them.
+BACKCHANNELS = ["mm-hmm", "mhm", "uh-huh", "hmm", "okay", "alright", "sure", "got it", "right",
+                "one moment", "just a second", "just a moment", "go ahead"]
 MAX_ACTIVE = 20
 MAX_SECONDS = 240
 # A staff persona only takes a briefing and a short handover; the cap ends any goodbye loop
@@ -183,6 +188,8 @@ def agent_settings(engine: str, variant: dict[str, Any] | None = None) -> dict[s
     config["turn"] = {
         "turn_eagerness": turn.get("eagerness") or "normal",
         "turn_timeout": turn.get("timeout_s") or DEFAULT_TURN_TIMEOUT,
+        "interruption_ignore_terms": BACKCHANNELS,
+        "merge_with_default_ignore_terms": True,
     }
     if engine == "realtime":
         config["realtime_model"] = REALTIME_MODEL

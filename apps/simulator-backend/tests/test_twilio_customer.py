@@ -254,6 +254,8 @@ def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch, fake_a
     assert config['conversation']['max_duration_seconds'] == customer.MAX_SECONDS
     assert config['agent']['prompt']['llm'] == 'gpt-6.1-terra'
     assert config['agent']['prompt']['reasoning_effort'] == 'high'
+    assert 'mm-hmm' in config['turn']['interruption_ignore_terms']
+    assert config['turn']['merge_with_default_ignore_terms'] is True
     assert config['tts']['model_id'] == 'eleven_v4_turbo'
     assert config['tts']['voice_id'] == customer.CUSTOMER_VOICE_ID
     assert 'realtime_model' not in config
