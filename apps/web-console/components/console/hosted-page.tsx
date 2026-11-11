@@ -186,7 +186,7 @@ function GradePanel({ ask }: { ask: Ask }) {
     const scope = mode === "sid" ? `call ${sid}` : `the last ${lastCount} calls to ${formatAddress(number)}`;
     ask({
       title: "Grade these calls?",
-      body: `Downloads the recordings of ${scope} from Twilio and grades them. Scenarios that check what a voicemail message says send that audio to a paid transcription API (ElevenLabs or OpenAI, whichever is configured).`,
+      body: `Downloads the recordings of ${scope} from Twilio and grades them. Scenarios that check what a voicemail message says send that audio to ElevenLabs, a paid transcription API.`,
       confirm: "Grade",
       tone: "primary",
       onConfirm: async () => {

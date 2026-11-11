@@ -219,7 +219,7 @@ export const CORPUS_SOURCE_TYPES = [
   "internal_device_capture",
   "internal_carrier_capture",
 ] as const;
-export const PROMPT_ENGINES = ["auto", "elevenlabs", "openai", "macos"] as const;
+export const PROMPT_ENGINES = ["auto", "elevenlabs", "macos"] as const;
 
 export const corpus = {
   build: (body: { only?: string; force?: boolean; replace_imported?: boolean }) => post<Operation>("/api/corpus/build", body),

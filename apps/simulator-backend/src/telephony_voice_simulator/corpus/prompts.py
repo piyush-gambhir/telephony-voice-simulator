@@ -128,30 +128,6 @@ def _elevenlabs(
     }
 
 
-def _openai(
-    text: str, output: Path, _config: dict[str, Any]
-) -> dict[str, Any]:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("set OPENAI_API_KEY")
-    model = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
-    voice = os.environ.get("OPENAI_TTS_VOICE", "alloy")
-    response = httpx.post(
-        "https://api.openai.com/v1/audio/speech",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "voice": voice,
-            "input": text,
-            "response_format": "mp3",
-        },
-        timeout=90,
-    )
-    response.raise_for_status()
-    output.write_bytes(response.content)
-    return {"engine": "openai", "model": model, "voice": voice}
-
-
 def _macos(
     text: str, output: Path, _config: dict[str, Any]
 ) -> dict[str, Any]:
@@ -189,7 +165,6 @@ ENGINES: dict[
     str, Callable[[str, Path, dict[str, Any]], dict[str, Any]]
 ] = {
     "elevenlabs": _elevenlabs,
-    "openai": _openai,
     "macos": _macos,
 }
 
@@ -225,12 +200,10 @@ def _select_engine(requested: str) -> str:
         return requested
     if os.environ.get("ELEVENLABS_API_KEY") and os.environ.get("ELEVENLABS_VOICE_ID"):
         return "elevenlabs"
-    if os.environ.get("OPENAI_API_KEY"):
-        return "openai"
     if sys.platform == "darwin":
         return "macos"
     raise RuntimeError(
-        "no TTS backend available; configure ElevenLabs/OpenAI or run on macOS"
+        "no TTS backend available; configure ElevenLabs or run on macOS"
     )
 
 

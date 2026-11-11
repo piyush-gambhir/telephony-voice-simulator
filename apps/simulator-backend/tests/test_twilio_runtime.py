@@ -1274,35 +1274,21 @@ async def test_pound_gate_captured_and_bridged(pstn_client, monkeypatch, assets,
     assert state.calls["CA20"]["digits"][0]["digit"] == "#"
 
 
-def test_transcribe_prefers_elevenlabs_then_openai(monkeypatch, tmp_path) -> None:
-    """Backend selection must not depend on which key happens to be set."""
+def test_transcribe_uses_elevenlabs(monkeypatch, tmp_path) -> None:
     from telephony_voice_simulator.grading import analyze
 
     wav = tmp_path / "message.wav"
     wav.write_bytes(b"RIFF")
-    calls: list[str] = []
-
-    monkeypatch.setattr(
-        analyze, "_transcribe_elevenlabs", lambda p, k: calls.append("11labs") or "eleven"
-    )
-    monkeypatch.setattr(
-        analyze, "_transcribe_openai", lambda p, k: calls.append("openai") or "open"
-    )
-
+    monkeypatch.setattr(analyze, "_transcribe_elevenlabs", lambda p, k: "eleven")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
-    monkeypatch.setenv("OPENAI_API_KEY", "y")
     assert analyze.transcribe_recording(wav) == "eleven"
-    assert calls == ["11labs"]
 
-    # A flaky ElevenLabs call falls through rather than losing the check.
-    calls.clear()
-    monkeypatch.setattr(analyze, "_transcribe_elevenlabs", lambda p, k: None)
-    assert analyze.transcribe_recording(wav) == "open"
-    assert calls == ["openai"]
+    # A failed or empty transcription is indeterminate, not a failure.
+    monkeypatch.setattr(analyze, "_transcribe_elevenlabs", lambda p, k: "")
+    assert analyze.transcribe_recording(wav) is None
 
-    # No backend configured is indeterminate, not a failure.
+    # No key configured is indeterminate too.
     monkeypatch.delenv("ELEVENLABS_API_KEY")
-    monkeypatch.delenv("OPENAI_API_KEY")
     assert analyze.transcribe_recording(wav) is None
 
 

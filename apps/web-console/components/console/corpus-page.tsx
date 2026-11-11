@@ -42,9 +42,8 @@ const SOURCE_TYPE_LABEL: Record<(typeof CORPUS_SOURCE_TYPES)[number], string> = 
 };
 
 const ENGINE_LABEL: Record<(typeof PROMPT_ENGINES)[number], string> = {
-  auto: "Auto (ElevenLabs, then OpenAI, then macOS)",
+  auto: "Auto (ElevenLabs, then macOS)",
   elevenlabs: "ElevenLabs",
-  openai: "OpenAI",
   macos: "macOS say (local, free)",
 };
 
@@ -144,7 +143,7 @@ function BuildSection({ ask }: { ask: Ask }) {
       : `Synthesizes speech for ${scope} that has no audio yet`;
     ask({
       title: "Build corpus audio",
-      body: `${what} with a paid TTS API (ElevenLabs, then OpenAI, falling back to macOS say), then writes the audio and the provenance manifest. Each generated clip is billed by the TTS provider.`,
+      body: `${what} with ElevenLabs, a paid TTS API (falling back to macOS say), then writes the audio and the provenance manifest. Each generated clip is billed by the TTS provider.`,
       confirm: "Build",
       tone: "primary",
       onConfirm: async () => {
@@ -384,7 +383,7 @@ function PromptsSection({ ask }: { ask: Ask }) {
     const cost = engine === "macos"
       ? "with macOS say on the API host. This is local and free."
       : engine === "auto"
-        ? "with the first available engine: ElevenLabs, then OpenAI (both paid TTS APIs, billed per clip), then macOS say."
+        ? "with the first available engine: ElevenLabs (a paid TTS API, billed per clip), then macOS say."
         : `with ${ENGINE_LABEL[engine as (typeof PROMPT_ENGINES)[number]]}, a paid TTS API billed per clip.`;
     ask({
       title: "Render IVR prompts",

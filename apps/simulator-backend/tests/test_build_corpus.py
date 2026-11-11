@@ -30,7 +30,7 @@ def test_builder_binds_generated_audio_to_provenance(
             "generator_voice": "test-voice",
         }
 
-    monkeypatch.setattr(build_corpus, "_tts_openai", fake_tts)
+    monkeypatch.setattr(build_corpus, "_tts_elevenlabs", fake_tts)
 
     result = build_corpus.build_assets()
 

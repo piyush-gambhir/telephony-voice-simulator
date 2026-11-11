@@ -14,7 +14,7 @@ runner uses, mapped to what is observable on this side of the call:
   message_start_after {mark: tone_end}  → aligned delay after the mark in
                                           [min, max + RECORD_START_SLACK]
   message_content {expected, min_recall} → transcribe the mailbox recording
-                                          (OpenAI) and verify the configured
+                                          (ElevenLabs) and verify the configured
                                           voicemail message actually landed:
                                           enough of its words present, and
                                           the OPENING words intact (a missing
@@ -127,44 +127,20 @@ def _transcribe_elevenlabs(path: Path, key: str) -> str | None:
         return None
 
 
-def _transcribe_openai(path: Path, key: str) -> str | None:
-    import httpx
-
-    try:
-        with path.open("rb") as fh:
-            resp = httpx.post(
-                "https://api.openai.com/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {key}"},
-                data={"model": os.environ.get("OPENAI_STT_MODEL", "whisper-1"), "language": "en"},
-                files={"file": (path.name, fh, "audio/wav")},
-                timeout=120,
-            )
-        resp.raise_for_status()
-        return str(resp.json().get("text", "")).strip()
-    except Exception:
-        return None
-
-
 def transcribe_recording(path: Path) -> str | None:
     """Transcribe a mailbox recording; None when no backend is configured.
 
-    ElevenLabs is tried first because a deployment that synthesizes the
-    scenario corpus already holds that key, so content grading costs no extra
-    credential. OpenAI stays as a fallback for setups configured the other way.
-    Returning None marks the check indeterminate rather than failed — a
+    ElevenLabs is used because a deployment that synthesizes the scenario
+    corpus already holds that key, so content grading costs no extra
+    credential. Returning None marks the check indeterminate rather than failed — a
     missing or flaky transcriber is not evidence about the agent.
     """
     if not path.exists():
         return None
-    elevenlabs = os.environ.get("ELEVENLABS_API_KEY")
-    if elevenlabs:
-        text = _transcribe_elevenlabs(path, elevenlabs)
-        if text:
-            return text
-    openai = os.environ.get("OPENAI_API_KEY")
-    if openai:
-        return _transcribe_openai(path, openai)
-    return None
+    key = os.environ.get("ELEVENLABS_API_KEY")
+    if not key:
+        return None
+    return _transcribe_elevenlabs(path, key) or None
 
 
 def _phrase_in(phrase: list[str], got: list[str]) -> bool:

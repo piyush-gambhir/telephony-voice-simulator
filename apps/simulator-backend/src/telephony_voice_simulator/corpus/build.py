@@ -6,8 +6,7 @@ steps), so this corpus is speech only.
 
 TTS backends, in order:
   1. ElevenLabs (API key + voice ID set).
-  2. OpenAI TTS (OPENAI_API_KEY set).
-  3. macOS ``say`` — keyless local fallback so the harness runs anywhere.
+  2. macOS ``say`` — keyless local fallback so the harness runs anywhere.
 
 Real greetings beat synthetic ones: see ``from_recordings.py`` (``corpus from-recording``) for pulling the
 callee channel out of existing dual-channel call recordings through the
@@ -253,37 +252,6 @@ CORPUS: dict[str, tuple[str, str]] = {
         "Sorry, I'm with another customer and can't take this one right now. Bye.",
     ),
 }
-
-
-def _tts_openai(
-    text: str, voice_hint: str, out_wav: Path
-) -> dict[str, str] | None:
-    key = os.environ.get("OPENAI_API_KEY")
-    if not key:
-        return None
-    import httpx
-
-    voice = "alloy" if voice_hint == "female" else "onyx"
-    model = os.environ.get("OPENAI_TTS_MODEL", "tts-1")
-    response = httpx.post(
-        "https://api.openai.com/v1/audio/speech",
-        headers={"Authorization": f"Bearer {key}"},
-        json={"model": model, "voice": voice, "input": text, "response_format": "wav"},
-        timeout=60,
-    )
-    response.raise_for_status()
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tmp.write(response.content)
-        raw = Path(tmp.name)
-    _to_48k_mono(raw, out_wav)
-    raw.unlink(missing_ok=True)
-    if not _has_audio(out_wav):
-        return None
-    return {
-        "generator_engine": "OpenAI TTS",
-        "generator_model": model,
-        "generator_voice": voice,
-    }
 
 
 def _elevenlabs_voice_settings(model: str) -> dict[str, float | bool]:
@@ -541,13 +509,12 @@ def build_assets(
         try:
             metadata = (
                 _tts_elevenlabs(text, voice, generated)
-                or _tts_openai(text, voice, generated)
                 or _tts_say(text, voice, generated)
             )
             if not metadata:
                 raise RuntimeError(
                     f"{name}: no TTS backend "
-                    "(set ElevenLabs/OpenAI credentials or run on macOS)"
+                    "(set ElevenLabs credentials or run on macOS)"
                 )
             generated.replace(out)
         finally:

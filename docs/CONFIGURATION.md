@@ -137,8 +137,6 @@ The REST agent adapter (`AGENT_API_*`, see `.env.example`) is driven with
 | `EXPECTED_VOICEMAIL_MESSAGE` | Override the portable fixture during hosted grading |
 | `UAT_EXPECTED_VOICEMAIL_MESSAGE` | Backward-compatible alias for the same override |
 | `RECORDINGS_BUCKET` | Operator-owned bucket used by the optional recording importer |
-| `OPENAI_API_KEY` | Optional analysis, corpus TTS, or IVR prompt TTS |
-| `OPENAI_TTS_MODEL` / `OPENAI_TTS_VOICE` | IVR prompt generation choices |
 | `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | Optional IVR prompt generation |
 | `ELEVENLABS_MODEL_ID` | ElevenLabs model, default `eleven_v3` |
 | `ELEVENLABS_SEED` | Best-effort deterministic generation seed, default `42` |
