@@ -43,8 +43,7 @@ def store(tmp_path, monkeypatch):
     lines.write_text(json.dumps({LINE: 'busy-recall-owner'}))
     monkeypatch.setenv('PSTN_CUSTOMER_PROFILES', str(lines))
     monkeypatch.setenv('ELEVENLABS_API_KEY', 'test')
-    monkeypatch.setenv('ELEVENLABS_CUSTOMER_AGENT_ID', 'agent_chained')
-    for key in ('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', 'ELEVENLABS_EVALUATION_MODEL',
+    for key in ('ELEVENLABS_EVALUATION_MODEL',
                 'ELEVENLABS_PERSONA_LLM', 'PSTN_CUSTOMER_PERSONAS_DIR'):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(customer_grading, 'POLL_SECONDS', 0)
@@ -80,8 +79,6 @@ def test_queue_validates_line_persona_and_engine(store):
         service.queue_persona(store, '+15555550999', persona_id='busy-recall-owner')
     with pytest.raises(ValidationError, match='either'):
         service.queue_persona(store, LINE)
-    with pytest.raises(ValidationError, match='ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID'):
-        service.queue_persona(store, LINE, persona_id='spanish-speaking-owner')
     first = service.queue_persona(store, LINE, inline='id: inline-one\nprofile: Jo.\n', label='pr-7')
     service.queue_persona(store, LINE, inline={'id': 'inline-two', 'profile': 'Kim.'})
     assert [q['persona']['id'] for q in service.list_queue(store, LINE)] == ['inline-one', 'inline-two']
@@ -152,8 +149,7 @@ async def test_line_default_persona_runs_on_its_synced_variant(client, store, re
     assert (meta['agent_id'], meta['branch_id']) == (variant, f'branch_{variant}')
 
 
-async def test_realtime_persona_uses_the_realtime_variant(client, store, registrations, monkeypatch):
-    monkeypatch.setenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', 'agent_realtime')
+async def test_realtime_persona_uses_the_realtime_variant(client, store, registrations):
     service.queue_persona(store, LINE, persona_id='spanish-speaking-owner')
     await signed_post(client, '/twilio/customer')
     assert registrations[0]['agent_id'].startswith('agent_variant_')
@@ -166,19 +162,19 @@ async def test_base_agent_runs_unpinned_until_synced(client, store, registration
     assert (registrations[0]['agent_id'], registrations[0]['branch_id']) == ('agent_chained', None)
 
 
-async def test_queued_persona_for_a_missing_engine_rejects_and_records(client, store, monkeypatch):
-    monkeypatch.setenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', 'agent_realtime')
-    service.queue_persona(store, LINE, persona_id='spanish-speaking-owner')
-    monkeypatch.delenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID')
-    r = await signed_post(client, '/twilio/customer')
-    assert '<Reject' in await r.text()
-    saved = store.get_incoming_call(SID)
-    assert saved.status == 'failed'
-    assert saved.analysis['stopped'] == 'customer_persona_error'
+async def test_missing_base_agent_is_created_and_pinned_on_first_call(
+        client, store, registrations, fake_agents):
+    del fake_agents.names[personas.base_name('chained')]
+    service.queue_persona(store, LINE, persona_id='opt-out-customer')
+    await signed_post(client, '/twilio/customer')
+    [(name, body)] = fake_agents.created
+    assert name == personas.base_name('chained')
+    assert body['conversation_config']['tts']['agent_output_audio_format'] == 'ulaw_8000'
+    assert (registrations[0]['agent_id'], registrations[0]['branch_id']) == (
+        'agent_created_1', 'branch_agent_created_1')
 
 
-def test_sync_agent_configures_bases_variants_and_pinned_branches(store, monkeypatch, fake_agents):
-    monkeypatch.setenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', 'agent_realtime')
+def test_sync_agent_configures_bases_variants_and_pinned_branches(store, fake_agents):
     result = service.sync_agent()
 
     sent = {agent: body['conversation_config'] for agent, body, _ in fake_agents.updates}
@@ -236,7 +232,7 @@ def test_environment_and_turn_validation():
 def test_queueing_an_inline_variant_creates_it(store, fake_agents):
     service.queue_persona(store, LINE, inline={'id': 'street', 'profile': 'Jo.',
                                                'environment': {'background': 'city'}})
-    assert list(fake_agents.names) == [
+    assert [n for n in fake_agents.names if 'variant' in n] == [
         'TVS persona variant: chained city 0.15 (telephony-voice-simulator)']
 
 

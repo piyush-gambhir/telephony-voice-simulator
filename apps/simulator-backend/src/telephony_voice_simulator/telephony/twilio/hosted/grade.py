@@ -50,6 +50,18 @@ def twilio_client() -> tuple[httpx.Client, str]:
     return httpx.Client(auth=(sid, token), timeout=60), sid
 
 
+def _other_line(client: httpx.Client, account: str, number: str) -> str:
+    """A voice-capable number on the account other than ``number``, to place the call from."""
+    resp = client.get(
+        f"{API}/Accounts/{account}/IncomingPhoneNumbers.json", params={"PageSize": 1000}
+    )
+    resp.raise_for_status()
+    for line in resp.json().get("incoming_phone_numbers") or []:
+        if line.get("phone_number") != number and (line.get("capabilities") or {}).get("voice"):
+            return str(line["phone_number"])
+    raise ValueError(f"the Twilio account has no other voice line to call {number} from")
+
+
 def _load_scenario(name: str) -> dict:
     for path in SCENARIOS_DIR.glob("*.yaml"):
         raw = yaml.safe_load(path.read_text())
@@ -190,10 +202,12 @@ def smoke_call(
     from_number: str,
     log: Log = _no_log,
 ) -> dict | None:
-    """Queue the scenario, call the sim line, and grade the inbound leg it answered."""
+    """Queue the scenario, call the sim line, and grade the inbound leg it answered.
+
+    Without ``from_number`` the call comes from another voice line on the same account.
+    """
     raw = _load_scenario(scenario)
-    if not from_number:
-        raise ValueError("--from-number or TWILIO_FROM_NUMBER required")
+    from_number = from_number or _other_line(client, account, number)
     queue = queue_scenario(client, number, scenario)
     log(f"queued {scenario} on {number} (queue={queue})")
     resp = client.post(

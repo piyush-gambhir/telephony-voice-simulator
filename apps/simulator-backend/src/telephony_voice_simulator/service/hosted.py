@@ -6,7 +6,6 @@ Needs only Twilio credentials in the environment; no simulator server is involve
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -84,7 +83,7 @@ def smoke_call(
 ) -> dict[str, Any]:
     """Long-running. Queue a scenario, place a real call to the sim line, grade the result.
 
-    Dials from ``from_number`` (or TWILIO_FROM_NUMBER). Returns the graded call.
+    Dials from ``from_number``, or another line on the account. Returns the graded call.
     """
     with _translated():
         client, account = hosted_grade.twilio_client()
@@ -94,7 +93,7 @@ def smoke_call(
                 account,
                 number=number,
                 scenario=scenario,
-                from_number=from_number or os.environ.get("TWILIO_FROM_NUMBER", ""),
+                from_number=from_number or "",
                 log=log or hosted_grade._no_log,
             )
     if call is None:

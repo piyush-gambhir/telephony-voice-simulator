@@ -7,7 +7,6 @@ import os
 from typing import Any
 
 from ... import personas
-from ...integrations import elevenlabs
 from ...telephony.twilio import customer
 from ..errors import NotFoundError, ValidationError
 from .common import _translated
@@ -16,12 +15,10 @@ REQUIRED_ENV = (
     "PSTN_CUSTOMER_PROFILES",
     "PSTN_CUSTOMER_ALLOWED_CALLERS",
     "ELEVENLABS_API_KEY",
-    "ELEVENLABS_CUSTOMER_AGENT_ID",
     "TWILIO_ACCOUNT_SID",
 )
 
 OPTIONAL_ENV = (
-    "ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID",
     "ELEVENLABS_WEBHOOK_SECRET",
     "PSTN_CUSTOMER_PERSONAS_DIR",
 )
@@ -73,6 +70,3 @@ def resolve_persona(persona_id: str | None = None, inline: Any = None) -> dict[s
     parse = personas.parse if isinstance(inline, str) else personas.validate
     return _translated(lambda: parse(inline))
 
-
-def _check_engine(persona: dict[str, Any]) -> None:
-    _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))

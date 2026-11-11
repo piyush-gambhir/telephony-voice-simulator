@@ -93,7 +93,7 @@ def register(commands: argparse._SubParsersAction) -> None:
     )
     smoke.add_argument("--number", required=True)
     smoke.add_argument("--scenario", required=True)
-    smoke.add_argument("--from-number", help="caller ID; defaults to TWILIO_FROM_NUMBER")
+    smoke.add_argument("--from-number", help="caller ID; defaults to another voice line on the account")
     grade = action(actions, "grade", "grade recorded sim calls", _grade)
     grade.add_argument("--call-sid")
     grade.add_argument("--number")

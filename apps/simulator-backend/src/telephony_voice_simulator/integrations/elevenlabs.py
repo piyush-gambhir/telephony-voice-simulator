@@ -14,10 +14,6 @@ import httpx
 
 API_URL = "https://api.elevenlabs.io"
 TIMEOUT_SECONDS = 10.0
-AGENT_ENV = {
-    "chained": "ELEVENLABS_CUSTOMER_AGENT_ID",
-    "realtime": "ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID",
-}
 # Accepted by ElevenLabs for simulations as of 2026-10; gpt-6-sol and gpt-5.5 are not.
 DEFAULT_EVALUATION_MODEL = "gpt-6-luna"
 
@@ -31,15 +27,6 @@ def api_key() -> str:
     if not key:
         raise ValueError("Set ELEVENLABS_API_KEY to use the synthetic customer")
     return key
-
-
-def customer_agent_id(engine: str = "chained") -> str:
-    """The persona agent for an engine: chained (ASR, LLM, TTS) or Realtime speech-to-speech."""
-    key = AGENT_ENV[engine]
-    agent_id = os.environ.get(key, "")
-    if not agent_id:
-        raise ValueError(f"Set {key} to the {engine} persona agent's ID")
-    return agent_id
 
 
 def evaluation_model() -> str:
@@ -151,6 +138,13 @@ def find_agent(name: str, *, client: httpx.Client | None = None) -> str | None:
         if agent.get("name") == name:
             return agent["agent_id"]
     return None
+
+
+def create_agent(name: str, body: dict[str, Any], *, client: httpx.Client | None = None) -> str:
+    """Create an agent from ``conversation_config`` and ``platform_settings``; returns its ID."""
+    return _request(
+        "POST", "/v1/convai/agents/create", client, json={**body, "name": name}
+    )["agent_id"]
 
 
 def duplicate_agent(agent_id: str, name: str, *, client: httpx.Client | None = None) -> str:

@@ -36,7 +36,7 @@ function NumberInput({ id, value, onChange, optional }: { id: string; value: str
       id={id}
       list={NUMBERS_LIST}
       inputMode="tel"
-      placeholder={optional ? "TWILIO_FROM_NUMBER" : "+15555550100"}
+      placeholder={optional ? "Another line on the account" : "+15555550100"}
       value={value}
       onChange={(event) => onChange(event.target.value.trim())}
       aria-invalid={value !== "" && !E164.test(value)}
@@ -117,7 +117,7 @@ function SmokePanel({ scenarios, ask }: { scenarios: Scenario[]; ask: Ask }) {
     event.preventDefault();
     ask({
       title: "Place a smoke call?",
-      body: `Places one real Twilio call from ${from ? formatAddress(from) : "TWILIO_FROM_NUMBER"} to ${formatAddress(number)} running ${scenario}, then grades it. The call is billed to the Twilio account.`,
+      body: `Places one real Twilio call from ${from ? formatAddress(from) : "another line on the account"} to ${formatAddress(number)} running ${scenario}, then grades it. The call is billed to the Twilio account.`,
       confirm: "Place call",
       tone: "primary",
       onConfirm: async () => {
@@ -140,7 +140,7 @@ function SmokePanel({ scenarios, ask }: { scenarios: Scenario[]; ask: Ask }) {
               <ScenarioSelect id="smoke-scenario" value={scenario} onChange={setScenario} scenarios={scenarios} />
             </Field>
           </div>
-          <Field id="smoke-from" label="From number" help="Optional. Defaults to TWILIO_FROM_NUMBER on the API host.">
+          <Field id="smoke-from" label="From number" help="Optional. Defaults to another voice line on the Twilio account.">
             <NumberInput id="smoke-from" value={from} onChange={setFrom} optional />
           </Field>
           <ActionError message={action.error} />

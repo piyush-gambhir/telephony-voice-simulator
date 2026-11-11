@@ -278,8 +278,7 @@ async def handle_customer(request: web.Request) -> web.Response:
     allowed = profiles()
     if (number not in allowed or caller not in _allowed_callers()
             or str(form.get("AccountSid", "")) != os.environ.get("TWILIO_ACCOUNT_SID")
-            or not os.environ.get("ELEVENLABS_API_KEY")
-            or not os.environ.get("ELEVENLABS_CUSTOMER_AGENT_ID")):
+            or not os.environ.get("ELEVENLABS_API_KEY")):
         return twiml.twiml("<Reject/>")
     if sid in ACTIVE:
         cached = ACTIVE[sid][1]

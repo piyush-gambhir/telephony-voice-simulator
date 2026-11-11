@@ -44,8 +44,7 @@ async def client(tmp_path, monkeypatch, registrations):
     path.write_text(json.dumps({'+15555550100': 'You are Alex, book the earliest offered visit.'}))
     for k, v in {'PUBLIC_BASE_URL': 'https://sim.example', 'TWILIO_AUTH_TOKEN': 'test-token',
                  'TWILIO_ACCOUNT_SID': 'ACtest', 'PSTN_CUSTOMER_PROFILES': str(path),
-                 'PSTN_CUSTOMER_ALLOWED_CALLERS': '+15555550101', 'ELEVENLABS_API_KEY': 'test',
-                 'ELEVENLABS_CUSTOMER_AGENT_ID': 'agent_persona'}.items():
+                 'PSTN_CUSTOMER_ALLOWED_CALLERS': '+15555550101', 'ELEVENLABS_API_KEY': 'test'}.items():
         monkeypatch.setenv(k, v)
     monkeypatch.setattr(twilio_state, 'CALL_STORE', SimulatorStore(tmp_path / 'calls.sqlite3'))
     app = web.Application()
@@ -78,7 +77,7 @@ async def test_customer_accepts_only_configured_line_caller_and_account(client, 
 
 
 async def test_missing_agent_configuration_rejects_without_registering(client, registrations, monkeypatch):
-    monkeypatch.delenv('ELEVENLABS_CUSTOMER_AGENT_ID')
+    monkeypatch.delenv('ELEVENLABS_API_KEY')
     r = await signed_post(client, '/twilio/customer')
     assert '<Reject' in await r.text()
     assert not registrations
@@ -89,7 +88,7 @@ async def test_allowed_call_is_handed_to_the_persona_agent(client, registrations
 
     assert await r.text() == CONNECT
     assert registrations == [{
-        'agent_id': 'agent_persona', 'from_number': '+15555550101', 'to_number': '+15555550100',
+        'agent_id': 'agent_chained', 'from_number': '+15555550101', 'to_number': '+15555550100',
         'direction': 'inbound', 'user_id': SID,
         'dynamic_variables': {'customer_profile': 'You are Alex, book the earliest offered visit.'},
         'config_override': {}, 'branch_id': None,
@@ -98,7 +97,7 @@ async def test_allowed_call_is_handed_to_the_persona_agent(client, registrations
     assert saved.scenario == 'automated_customer'
     assert saved.analysis['persona']['profile'].startswith('You are Alex')
     assert saved.analysis['persona_source'] == {'line': '+15555550100'}
-    assert saved.analysis['elevenlabs'] == {'agent_id': 'agent_persona', 'branch_id': None,
+    assert saved.analysis['elevenlabs'] == {'agent_id': 'agent_chained', 'branch_id': None,
                                             'status': 'registered'}
     assert saved.analysis['customer_dialogue'] == []
 
@@ -206,7 +205,7 @@ async def test_refresh_stores_the_elevenlabs_transcript(client, registrations, m
     session = customer_service.refresh_session(twilio_state.call_store(), SID)
 
     assert seen[0] == ('GET', '/v1/convai/conversations',
-                       {'agent_id': 'agent_persona', 'user_id': SID, 'page_size': '1'})
+                       {'agent_id': 'agent_chained', 'user_id': SID, 'page_size': '1'})
     assert seen[1][1] == '/v1/convai/conversations/conv_1'
     assert session['transcript_status'] == 'done'
     assert session['dialogue'] == [
@@ -241,13 +240,11 @@ async def test_refresh_errors_are_service_errors(client, registrations, monkeypa
 
 def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch, fake_agents):
     monkeypatch.setenv('ELEVENLABS_API_KEY', 'test')
-    monkeypatch.setenv('ELEVENLABS_CUSTOMER_AGENT_ID', 'agent_persona')
-    monkeypatch.delenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', raising=False)
     monkeypatch.setattr(personas, 'catalog', dict)
     result = customer_service.sync_agent()
 
     agent_id, body, versioning = fake_agents.updates[0]
-    assert (agent_id, versioning) == ('agent_persona', True)
+    assert (agent_id, versioning) == ('agent_chained', True)
     config = body['conversation_config']
     assert '{{customer_profile}}' in config['agent']['prompt']['prompt']
     assert config['tts']['agent_output_audio_format'] == 'ulaw_8000'
@@ -262,10 +259,10 @@ def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch, fake_a
     assert 'realtime_model' not in config
     assert body['platform_settings']['overrides']['conversation_config_override'] == {
         'agent': {'first_message': True, 'language': True}, 'tts': {'voice_id': True}}
-    assert result == {'agents': {'chained': {'agent_id': 'agent_persona',
-                                             'branch_id': 'branch_agent_persona',
-                                             'version_id': 'ver_branch_agent_persona'}},
-                      'variants': []}
+    assert result == {'agents': {
+        engine: {'agent_id': f'agent_{engine}', 'branch_id': f'branch_agent_{engine}',
+                 'version_id': f'ver_branch_agent_{engine}'}
+        for engine in ('chained', 'realtime')}, 'variants': []}
 
 
 async def test_a_finished_transcript_is_never_refetched_or_replaced(client, registrations, monkeypatch):
@@ -275,7 +272,7 @@ async def test_a_finished_transcript_is_never_refetched_or_replaced(client, regi
     done = [{'role': 'user', 'content': 'Hi'}, {'role': 'assistant', 'content': 'Hello'}]
     store.upsert_incoming_call(call_id=SID, analysis={
         **saved.analysis, 'customer_dialogue': done,
-        'elevenlabs': {'agent_id': 'agent_persona', 'status': 'done', 'conversation_id': 'conv_1'}})
+        'elevenlabs': {'agent_id': 'agent_chained', 'status': 'done', 'conversation_id': 'conv_1'}})
 
     def unexpected(*_args, **_kwargs):
         raise AssertionError('a finished transcript must not be fetched again')

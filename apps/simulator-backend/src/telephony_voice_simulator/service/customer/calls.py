@@ -12,7 +12,7 @@ from ...telephony.twilio import twiml
 from ...telephony.twilio.management import TwilioManagementError, TwilioNumberManager
 from ..errors import ConflictError, NotFoundError, ValidationError
 from .agents import ensure_variant
-from .catalog import _check_engine, _lines, profiles, resolve_persona
+from .catalog import _lines, profiles, resolve_persona
 
 
 def queue_persona(
@@ -27,7 +27,6 @@ def queue_persona(
     if number not in _lines():
         raise ValidationError(f"{number} is not a persona line in PSTN_CUSTOMER_PROFILES")
     persona = resolve_persona(persona_id, inline)
-    _check_engine(persona)
     ensure_variant(persona)
     return store.enqueue_customer_persona(number, persona, label)
 

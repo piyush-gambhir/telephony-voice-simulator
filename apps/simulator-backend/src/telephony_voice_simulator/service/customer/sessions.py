@@ -10,6 +10,7 @@ from ...grading import personas as judge
 from ...integrations import elevenlabs
 from ...storage.sqlite import SimulatorStore
 from ..errors import NotFoundError, ValidationError
+from .agents import base_agent
 from .common import _translated
 
 # Scan before applying the result limit, because ordinary calls share the repository.
@@ -125,7 +126,7 @@ def _refresh(store: SimulatorStore, call_id: str) -> Any:
     if meta.get("status") == "done":
         # A finished transcript never changes; keep it rather than refetching.
         return call
-    agent_id = meta.get("agent_id") or _translated(elevenlabs.customer_agent_id)
+    agent_id = meta.get("agent_id") or base_agent()
     summary = _translated(lambda: elevenlabs.find_conversation(agent_id, call_id))
     if summary is None:
         return call

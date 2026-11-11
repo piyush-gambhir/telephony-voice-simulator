@@ -1,5 +1,6 @@
 import pytest
 
+from telephony_voice_simulator import personas
 from telephony_voice_simulator.integrations import elevenlabs
 from telephony_voice_simulator.service.customer import agents as customer_agents
 
@@ -8,7 +9,11 @@ class FakeAgents:
     """ElevenLabs agents and branches in memory: what sync-agent and call routing touch."""
 
     def __init__(self):
-        self.names = {}      # variant agent name -> agent id
+        self.names = {       # agent name -> agent id; base agents already exist
+            personas.base_name('chained'): 'agent_chained',
+            personas.base_name('realtime'): 'agent_realtime',
+        }
+        self.created = []    # (name, body) of agents created from scratch
         self.branches = {}   # agent id -> pinned branch id
         self.updates = []    # (agent id, body, enable_versioning)
         self.voice = 'voice_base'
@@ -26,6 +31,11 @@ class FakeAgents:
     def find_agent(self, name):
         return self.names.get(name)
 
+    def create_agent(self, name, body):
+        self.created.append((name, body))
+        self.names[name] = f'agent_created_{len(self.created)}'
+        return self.names[name]
+
     def duplicate_agent(self, _agent_id, name):
         self.names[name] = f'agent_variant_{len(self.names) + 1}'
         return self.names[name]
@@ -39,10 +49,11 @@ def fake_agents(monkeypatch, tmp_path):
     agents = FakeAgents()
     monkeypatch.setattr(customer_agents, 'DATA_DIR', tmp_path / 'data')
     for name in ('update_agent', 'find_branch', 'create_branch', 'find_agent',
-                 'duplicate_agent', 'get_agent'):
+                 'create_agent', 'duplicate_agent', 'get_agent'):
         monkeypatch.setattr(elevenlabs, name, getattr(agents, name))
     monkeypatch.setattr(elevenlabs, 'rebase_branch', lambda *_a: {})
     monkeypatch.setattr(elevenlabs, 'branch_version', lambda a, b: f'ver_{b}')
+    monkeypatch.setattr(customer_agents, '_BASE_AGENTS', {})
     monkeypatch.setattr(customer_agents, '_VARIANT_AGENTS', {})
     monkeypatch.setattr(customer_agents, '_PINNED_BRANCHES', {})
     return agents

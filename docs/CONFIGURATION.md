@@ -72,7 +72,6 @@ Do not commit those values.
 | `PUBLIC_BASE_URL` | none | Public HTTPS origin used in TwiML callbacks and assets |
 | `TWILIO_ACCOUNT_SID` | none | Twilio account identifier |
 | `TWILIO_AUTH_TOKEN` | none | Twilio API credential and webhook-signature secret |
-| `TWILIO_FROM_NUMBER` | none | Owned source number for hosted smoke calls |
 | `IVR_CALLER_ID` | inbound Twilio number | Caller ID for the IVR's bridged outbound leg |
 | `IVR_MAX_ATTEMPTS` | `3` | IVR input attempts, clamped to a safe maximum |
 | `PSTN_DEFAULT_SCENARIO` | none | AMD scenario for numbers no endpoint manages |
@@ -182,8 +181,6 @@ These optional routes use the existing signed Twilio ingress. See
 | `PSTN_CUSTOMER_ALLOWED_CALLERS` | Comma-separated allowed counterpart numbers, also checked for outbound calls |
 | `PSTN_CUSTOMER_PERSONAS_DIR` | Optional directory of private persona YAML files; they override bundled personas with the same id |
 | `ELEVENLABS_API_KEY` | Required to register customer calls, read transcripts, and run persona checks and grading |
-| `ELEVENLABS_CUSTOMER_AGENT_ID` | The chained (speech-to-text, LLM, text-to-speech) persona agent |
-| `ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID` | Optional Realtime persona agent, used by personas with `engine: realtime` |
 | `ELEVENLABS_PERSONA_LLM` | Model `customer sync-agent` pins on the chained agent, default `gpt-6-luna` |
 | `ELEVENLABS_EVALUATION_MODEL` | Model that judges persona checks and grading and plays the simulated dealership, default `gpt-6-luna` |
 | `ELEVENLABS_WEBHOOK_SECRET` | Secret of the ElevenLabs post-call webhook; unset refuses `/elevenlabs/post-call` |

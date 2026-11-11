@@ -163,6 +163,11 @@ def variant(persona: dict[str, Any]) -> dict[str, Any] | None:
     return settings
 
 
+def base_name(engine: str) -> str:
+    """The ElevenLabs agent name of an engine's base persona agent, e.g. "TVS persona: chained"."""
+    return f"TVS persona: {engine} (telephony-voice-simulator)"
+
+
 def variant_name(settings: dict[str, Any]) -> str:
     """A stable, readable ElevenLabs agent name for a variant, e.g. "chained city 0.2 eager"."""
     parts = [settings["engine"]]

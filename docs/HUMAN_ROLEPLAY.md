@@ -96,10 +96,9 @@ variants. Personas without these fields use the base agent.
 
 ### Setup
 
-1. Create a persona agent in ElevenLabs Agents and set `ELEVENLABS_CUSTOMER_AGENT_ID`.
-   Optionally create a second one for Realtime speech-to-speech and set
-   `ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID`; personas with `engine: realtime` use it.
-   Pick each agent's voice in ElevenLabs.
+1. Nothing to create in ElevenLabs: the simulator creates one base persona agent per
+   engine (named `TVS persona: chained (telephony-voice-simulator)` and
+   `TVS persona: realtime (telephony-voice-simulator)`) on first use or at `customer sync-agent`.
 2. Set `ELEVENLABS_API_KEY`, `PSTN_CUSTOMER_ALLOWED_CALLERS`, and a private
    `PSTN_CUSTOMER_PROFILES` JSON file mapping each persona line (E.164) to its default
    persona id, for example `{"+15555550100": "busy-recall-owner"}`. Free profile text

@@ -1,6 +1,7 @@
 """Hosted grading must not pass media expectations without downloaded message audio."""
 
 import httpx
+import pytest
 
 from telephony_voice_simulator.telephony.twilio.hosted import grade as grade_hosted
 
@@ -53,3 +54,18 @@ def test_hosted_grade_aligns_message_timing_to_default_mark(tmp_path, monkeypatc
     call = grade_hosted.grade_call_detail(client, 'AC1', 'CA1')
     check = next(c for c in call['analysis']['checks'] if c['check'] == 'message_start_after')
     assert check['passed'] is True
+
+
+def test_smoke_caller_defaults_to_another_voice_line():
+    lines = [
+        {'phone_number': '+15555550100', 'capabilities': {'voice': True}},
+        {'phone_number': '+15555550101', 'capabilities': {'voice': False}},
+        {'phone_number': '+15555550102', 'capabilities': {'voice': True}},
+    ]
+    client = httpx.Client(transport=httpx.MockTransport(
+        lambda _r: httpx.Response(200, json={'incoming_phone_numbers': lines})))
+    assert grade_hosted._other_line(client, 'AC1', '+15555550100') == '+15555550102'
+    only = httpx.Client(transport=httpx.MockTransport(
+        lambda _r: httpx.Response(200, json={'incoming_phone_numbers': lines[:2]})))
+    with pytest.raises(ValueError, match='no other voice line'):
+        grade_hosted._other_line(only, 'AC1', '+15555550100')

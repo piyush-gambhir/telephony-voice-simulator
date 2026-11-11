@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import fcntl
-import os
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -20,6 +19,7 @@ from .common import _translated
 
 ROUTING_TTL_SECONDS = 300.0
 # Dashboard changes can invalidate agent IDs, so routing entries expire.
+_BASE_AGENTS: dict[str, tuple[float, str]] = {}
 _VARIANT_AGENTS: dict[str, tuple[float, str]] = {}
 _PINNED_BRANCHES: dict[str, tuple[float, str]] = {}
 # The thread lock and file lock serialize provisioning within and across processes.
@@ -41,6 +41,7 @@ def _cached(cache: dict[str, tuple[float, str]], key: str, lookup: Callable[[], 
 
 def forget_routing() -> None:
     """Drop cached agent and branch IDs, e.g. after ElevenLabs refused a registration."""
+    _BASE_AGENTS.clear()
     _VARIANT_AGENTS.clear()
     _PINNED_BRANCHES.clear()
 
@@ -66,6 +67,31 @@ def _variant_agent(name: str) -> str | None:
     return _cached(_VARIANT_AGENTS, name, lambda: _translated(lambda: elevenlabs.find_agent(name)))
 
 
+def _find_base(engine: str) -> str | None:
+    name = personas.base_name(engine)
+    return _cached(_BASE_AGENTS, name, lambda: _translated(lambda: elevenlabs.find_agent(name)))
+
+
+def _create_base(engine: str) -> str:
+    """Create the engine's base agent from the settings this repository owns. Hold the lock."""
+    name = personas.base_name(engine)
+    agent_id = _translated(lambda: elevenlabs.create_agent(name, customer.agent_settings(engine)))
+    _BASE_AGENTS[name] = (time.monotonic() + ROUTING_TTL_SECONDS, agent_id)
+    return agent_id
+
+
+def base_agent(engine: str = "chained") -> str:
+    """The engine's base persona agent, found by name and created and pinned on first use."""
+    agent_id = _find_base(engine)
+    if agent_id is None:
+        with _provisioning():
+            agent_id = _find_base(engine)
+            if agent_id is None:
+                agent_id = _create_base(engine)
+                _sync_one(agent_id, customer.agent_settings(engine))
+    return agent_id
+
+
 def resolve_agent(persona: dict[str, Any]) -> tuple[str, str | None]:
     """The persona's agent (its engine's base agent, or its variant) and pinned branch.
 
@@ -73,7 +99,7 @@ def resolve_agent(persona: dict[str, Any]) -> tuple[str, str | None]:
     then run on the live configuration. A variant must be fully provisioned, branch
     included, because an unsynced copy would silently lack its noise and turn settings.
     """
-    base = _translated(lambda: elevenlabs.customer_agent_id(persona["engine"]))
+    base = base_agent(persona["engine"])
     settings = personas.variant(persona)
     if settings is None:
         return base, _pinned_branch(base)
@@ -83,10 +109,6 @@ def resolve_agent(persona: dict[str, Any]) -> tuple[str, str | None]:
     if agent_id is None or branch is None:
         raise ConflictError(f"ElevenLabs agent '{name}' is not provisioned; run customer sync-agent")
     return agent_id, branch
-
-
-def _configured_engines() -> list[str]:
-    return [e for e, key in elevenlabs.AGENT_ENV.items() if os.environ.get(key)]
 
 
 def _sync_one(agent_id: str, settings: dict[str, Any]) -> dict[str, Any]:
@@ -119,7 +141,7 @@ def _sync_variant(variant: dict[str, Any]) -> dict[str, Any]:
     The base agent's current voice is copied each time, so a voice picked in the
     dashboard reaches every variant at the next sync.
     """
-    base = _translated(lambda: elevenlabs.customer_agent_id(variant["engine"]))
+    base = _find_base(variant["engine"]) or _create_base(variant["engine"])
     name = personas.variant_name(variant)
     agent_id = _translated(lambda: elevenlabs.find_agent(name))
     if agent_id is None:
@@ -147,11 +169,11 @@ def sync_agent() -> dict[str, Any]:
 
 
 def _sync_all() -> dict[str, Any]:
-    engines = _configured_engines()
-    if "chained" not in engines:
-        _translated(elevenlabs.customer_agent_id)
+    engines = personas.ENGINES
     bases = {
-        engine: _sync_one(elevenlabs.customer_agent_id(engine), customer.agent_settings(engine))
+        engine: _sync_one(
+            _find_base(engine) or _create_base(engine), customer.agent_settings(engine)
+        )
         for engine in engines
     }
     variants: dict[str, dict[str, Any]] = {}
