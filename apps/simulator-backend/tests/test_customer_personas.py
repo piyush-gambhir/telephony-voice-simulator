@@ -14,6 +14,7 @@ from telephony_voice_simulator.grading import personas as judge
 from telephony_voice_simulator.integrations import elevenlabs
 from telephony_voice_simulator.service import ConflictError, ValidationError
 from telephony_voice_simulator.service import customer as service
+from telephony_voice_simulator.service.customer import grading as customer_grading
 from telephony_voice_simulator.storage.sqlite import SimulatorStore
 from telephony_voice_simulator.telephony.twilio import callbacks, customer
 from telephony_voice_simulator.telephony.twilio import state as twilio_state
@@ -46,7 +47,7 @@ def store(tmp_path, monkeypatch):
     for key in ('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', 'ELEVENLABS_EVALUATION_MODEL',
                 'ELEVENLABS_PERSONA_LLM', 'PSTN_CUSTOMER_PERSONAS_DIR'):
         monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr(service, 'POLL_SECONDS', 0)
+    monkeypatch.setattr(customer_grading, 'POLL_SECONDS', 0)
     return SimulatorStore(tmp_path / 'calls.sqlite3')
 
 
@@ -476,7 +477,7 @@ def test_dial_places_a_persona_call_to_an_allowed_number(store, monkeypatch):
     assert result['call_id'] == 'CA' + '9' * 32
     assert [q['persona']['id'] for q in service.list_queue(store, LINE)] == ['transfer-to-sales']
     # A second dial would claim the first persona, so it is refused.
-    with pytest.raises(service.ConflictError, match='already queued'):
+    with pytest.raises(ConflictError, match='already queued'):
         service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
 
 
@@ -510,7 +511,7 @@ def test_failed_dial_does_not_leave_the_persona_queued(store, monkeypatch):
     monkeypatch.setattr(TwilioNumberManager, 'place_call', refused)
     monkeypatch.setenv('PUBLIC_BASE_URL', 'https://sim.example')
     monkeypatch.setenv('PSTN_CUSTOMER_ALLOWED_CALLERS', '+15555550101')
-    with pytest.raises(service.ConflictError, match='400'):
+    with pytest.raises(ConflictError, match='400'):
         service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
     assert service.list_queue(store, LINE) == []
 

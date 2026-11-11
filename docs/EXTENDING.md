@@ -61,7 +61,7 @@ calling a carrier or transcriber in the test suite.
 
 ## Add a provider
 
-Implement `ProviderAdapter` in `telephony/providers/`. Its descriptor declares
+Implement `ProviderAdapter` in a module under `telephony/`. Its descriptor declares
 endpoint kinds and supported scenario kinds; the console uses the API's
 scenario compatibility results rather than maintaining its own carrier list.
 Implement profile/endpoint validation, runtime readiness, and asynchronous
@@ -98,7 +98,7 @@ This is a deterministic model, not a SIP registrar.
 `use-console-data.ts` owns resource fetching, partial failures, refresh,
 request cancellation, and protection against stale snapshots overwriting mutations.
 Use `updateData` after successful mutations. History filtering, export, and
-paging live in dedicated run/call components; reusable display helpers live in
+display limits live in the Results components; reusable display helpers live in
 `console-status.tsx`. Keep endpoint compatibility in
 `lib/scenario-compatibility.ts`, driven by backend catalog data.
 

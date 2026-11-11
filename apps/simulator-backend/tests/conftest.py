@@ -1,7 +1,7 @@
 import pytest
 
 from telephony_voice_simulator.integrations import elevenlabs
-from telephony_voice_simulator.service import customer as customer_service
+from telephony_voice_simulator.service.customer import agents as customer_agents
 
 
 class FakeAgents:
@@ -37,12 +37,12 @@ class FakeAgents:
 @pytest.fixture
 def fake_agents(monkeypatch, tmp_path):
     agents = FakeAgents()
-    monkeypatch.setattr(customer_service, 'DATA_DIR', tmp_path / 'data')
+    monkeypatch.setattr(customer_agents, 'DATA_DIR', tmp_path / 'data')
     for name in ('update_agent', 'find_branch', 'create_branch', 'find_agent',
                  'duplicate_agent', 'get_agent'):
         monkeypatch.setattr(elevenlabs, name, getattr(agents, name))
     monkeypatch.setattr(elevenlabs, 'rebase_branch', lambda *_a: {})
     monkeypatch.setattr(elevenlabs, 'branch_version', lambda a, b: f'ver_{b}')
-    monkeypatch.setattr(customer_service, '_VARIANT_AGENTS', {})
-    monkeypatch.setattr(customer_service, '_PINNED_BRANCHES', {})
+    monkeypatch.setattr(customer_agents, '_VARIANT_AGENTS', {})
+    monkeypatch.setattr(customer_agents, '_PINNED_BRANCHES', {})
     return agents

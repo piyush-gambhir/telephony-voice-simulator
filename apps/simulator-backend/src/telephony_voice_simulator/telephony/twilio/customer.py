@@ -258,6 +258,7 @@ def _allowed_callers() -> list[str]:
 
 async def handle_customer(request: web.Request) -> web.Response:
     from ...service import customer as service
+    from ...service.errors import ConflictError
     from . import security, state, twiml
 
     form = await request.post()
@@ -301,7 +302,7 @@ async def handle_customer(request: web.Request) -> web.Response:
         persona = queued["persona"] if queued else personas.for_line(allowed[number])
         # Finding a variant agent or the pinned branch may take ElevenLabs lookups.
         agent_id, branch_id = await asyncio.to_thread(service.resolve_agent, persona)
-    except (personas.PersonaError, ValueError, service.ConflictError) as exc:
+    except (personas.PersonaError, ValueError, ConflictError) as exc:
         ACTIVE.pop(sid, None)
         state.call_store().upsert_incoming_call(
             **record, status="failed",

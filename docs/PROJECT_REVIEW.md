@@ -1,3 +1,72 @@
+# Project review: 2026-11-07
+
+## Assessment
+
+The project has a useful separation between scenario domains, carrier adapters,
+agent integrations, evaluation, storage and the operator console. The main
+maintenance problem was concentration of unrelated operations inside the storage
+repository and customer service. Those implementations are now divided by
+responsibility, with their existing API, CLI and database behavior retained.
+
+The current bundled catalog contains 50 scenarios: 33 original callee scenarios,
+six transfer targets, seven IVR journeys and four PBX stories. There are also 34
+personas (30 customers and four staff) and 30 dealer-group PBX cases. These are
+coverage fixtures, not evidence that every carrier or handset behaves identically.
+
+## Cleanup completed
+
+| Area | Result |
+| --- | --- |
+| Repository | `storage/sqlite.py` owns connection lifecycle, migrations and composition. CRUD, managed numbers, queues, operations, runs and call history live in six focused modules. MySQL inherits the same operations and keeps its own connection, migration and locking overrides. |
+| Customer service | `service/customer/` exports the existing public operations. Catalog selection, agent provisioning, dialing/queues, transcript sessions and grading have separate modules. Transcript and grade writes still use the same per-call lock. |
+| HTTP boundary | Shared origin handling lives in `http.py`. Twilio webhooks no longer import the control API; API middleware owns application error responses. |
+| Dependency checks | `tests/test_module_boundaries.py` checks import direction for domains, storage, personas, grading and telephony as part of the normal backend suite. |
+| Documentation | README coverage counts, provider extension paths and architecture ownership descriptions match the current implementation. |
+
+The 71 repository methods retain their original syntax trees, including SQL,
+transaction boundaries, queue claiming and deletion tombstones. Forty moved
+customer functions also retain their syntax trees. The queue function delegates
+its existing provisioning block to the agent module. Runtime code now imports
+application exceptions explicitly instead of reaching through customer imports.
+
+## Improvements and new work, in priority order
+
+| Priority | Type | Finding and next useful change |
+| --- | --- | --- |
+| 1 | Build | **Regression console workflow.** The runner, preflight, baseline comparison and background operation exist, but there is no regression route or client in the web console. `api/regression.py` exposes plan/run/report lookup, without suite/report discovery. Add discovery and a console workflow for selecting cases, running a suite, comparing a baseline and opening call evidence. Establish the screen design before changing real components. |
+| 2 | Build | **Complete result history.** `storage/runs.py` and `storage/calls.py` default to the most recent 100 records. The control API exposes no pagination or server-side history filters, so the Results page can only filter/export its current snapshot. Add cursor pagination and backend search/verdict/date filters, then connect Results to them. Verify a dataset larger than the current limit and concurrent new records. |
+| 3 | Improve | **Console data ownership.** `hooks/use-console-data.ts` refreshes eight resources together every ten seconds. `console-provider.tsx` owns many mutations and imports update types from form components. Move shared update types into the API/type layer, then separate stable catalog/configuration reads from live history refreshes. Measure request volume before considering a new state library. |
+| 4 | Improve when extending | **Large, coherent domain code.** The dealer router remains about 1,200 lines, and the regression runner about 700. The router is one stateful routing engine, so splitting it solely by line count would not improve its boundary. Extract transition handlers or regression metrics/reporting when those areas next change, keeping their existing behavioral tests. |
+| 5 | Build if unattended operation is required | **Durable job execution.** `service/operations.py` runs jobs in a thread pool and prevents duplicate kinds in memory; interrupted operations become failed after restart. Before adding multiple backend workers or scheduled unattended runs, implement durable claims, cancellation and safe retry/resume rules. A recording finalizer already has its own recovery mechanism; it is not a general job queue. |
+| 6 | Build only for a carrier requirement | **Additional live transports.** Telnyx profile validation exists, but `telephony/telnyx.py` explicitly rejects execution. Number management is Twilio-specific. Live SIP/PBX execution is also a separate adapter requirement; the existing PBX engine evaluates deterministic routing. |
+
+Prioritize the regression workflow and accessible history before additional
+providers or infrastructure. They make the existing testing capabilities easier
+to operate and make their evidence easier to inspect.
+
+## Verification
+
+- Backend lint passed.
+- The backend suite passed **657 tests**, with **17 MySQL integration tests
+  skipped** because no dedicated test database was configured. This includes
+  the new dependency checks and existing queue-race, deletion, callback,
+  transcript, persona, CLI and HTTP tests.
+- Source distribution and wheel builds passed. Both contain the new customer
+  package, repository modules and shared HTTP module, with no stale
+  `service/customer.py` module.
+- The installed wheel's customer API, in-memory repository and shared HTTP
+  imports passed an isolated check. Its bundled catalog contains all 50
+  scenarios and 34 personas.
+- Public-release archive checks passed. Local configuration and audio remain
+  excluded from published artifacts.
+- Whitespace checks passed. The refactor does not change the database schema.
+
+Tests used isolated runtime data and results directories. Live carrier calls,
+paid agent/transcription requests, MySQL execution and browser layout were not
+exercised in this pass. The console findings above come from code inspection.
+
+---
+
 # Project review: 2026-10-22
 
 ## Current assessment

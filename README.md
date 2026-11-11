@@ -38,11 +38,13 @@ telephony-voice-simulator/
 
 ## What is included
 
-The catalog currently contains 44 scenarios:
+The catalog currently contains 50 scenarios:
 
 - 33 AMD/callee-machine scenarios covering voicemail, unusual beeps,
   multipart and no-beep greetings, screeners, DTMF gates, dead ends, multiple
   languages, human-answer guards, and a clean-room segmented PBX voicemail.
+- 6 transfer-target scenarios covering warm, assistant and cold acceptance,
+  decline, busy, and no answer.
 - 7 IVR scenarios covering valid routing, invalid input, retry, silence, busy,
   no-answer, carrier failure, and abandonment.
 - 4 PBX scenarios covering schedules, direct extensions, queues, fallback,
@@ -62,6 +64,8 @@ The backend also includes:
   repeats and reports a machine/human/screener confusion matrix.
 - Generic multi-step UAT orchestration with retries, captured values, grading,
   and artifact collection.
+- 34 synthetic personas (30 customers and four staff), plus regression suites
+  for inbound/outbound calls and transfers with baseline comparisons.
 - Opt-in recordings with private-control-plane playback and deletion of
   simulator-managed metadata and local artifacts.
 - A dealer-group PBX model (`domains/pbx/dealer`) with a declarative three-rooftop
@@ -159,8 +163,8 @@ allowed start window and the moment the agent started speaking. Scenarios shows
 coverage per scenario; Lines, IVR lab, Providers and Directory hold the rest.
 Filters live in the URL, and search, JSON export, queued-run cancellation and
 automatic refresh are kept.
-The [project review](docs/PROJECT_REVIEW.md) records the improvements,
-verification, and remaining integration boundaries.
+The [project review](docs/PROJECT_REVIEW.md) records the current module boundaries,
+verification, prioritized improvements, and remaining integration boundaries.
 
 ## Testing a deployed voice agent end to end
 

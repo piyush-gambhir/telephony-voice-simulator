@@ -1,7 +1,7 @@
 """Provider-neutral telephony composition boundary.
 
-The control plane imports only this package. Carrier implementations remain
-independent modules under :mod:`telephony.providers`.
+Run dispatch uses this package's adapter contract and provider registry.
+Carrier implementations live in the mock, Telnyx and Twilio modules.
 """
 
 from .base import ProviderAdapter, ProviderError, ProviderRuntimeStore

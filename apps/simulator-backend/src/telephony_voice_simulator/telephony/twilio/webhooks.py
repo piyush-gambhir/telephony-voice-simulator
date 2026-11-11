@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from aiohttp import web
 
-from ...api.middleware import cors
+from ...http import cors
 from .amd import handle_asset, handle_step, handle_voice
 from .callbacks import handle_recording, handle_status
 from .ivr import handle_ivr_dial, handle_ivr_dial_result, handle_ivr_voice

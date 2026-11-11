@@ -42,9 +42,10 @@ was ported; the duplicate runtime and UI implementations were not.
 ## Portability boundary
 
 Provider-specific code stays under
-`src/telephony_voice_simulator/telephony/providers`. The common
-`telephony` package imports those independent modules through a provider
-registry; the application service never imports a carrier implementation.
+`src/telephony_voice_simulator/telephony/`: `mock.py`, `telnyx.py` and `twilio/`.
+Run dispatch uses the provider registry and `ProviderAdapter` contract.
+Number management currently uses `TwilioNumberManager` directly; a second
+carrier would need an explicit management integration as well as a call adapter.
 Scenario packs expose provider-neutral
 catalog entries and normalized timeline steps. A new carrier or voice-agent
 integration should be an adapter, not a fork of a scenario pack.
@@ -72,15 +73,27 @@ another application.
 | `api/` | HTTP control API over the application service |
 | `cli/` | The `telephony-voice-sim` command over the same service |
 | `service/` | Application service: validation, orchestration and provider dispatch |
-| `storage/` | SQLite and MySQL repositories for every record |
+| `storage/` | `sqlite.py` owns connection lifecycle and migrations; resource, number, queue, run, operation and call modules supply repository methods shared by SQLite and MySQL |
 | `models.py`, `identifiers.py`, `config.py` | Shared records, address validation and runtime configuration checks |
 | `domains/` | Scenario catalog; `amd/` machine and validation, `ivr.py`, `pbx/stories.py` call stories, `pbx/dealer/` multi-site switch model |
 | `grading/` | AMD checks and grading of captured call evidence |
 | `telephony/` | Provider contract and registry; `mock.py`, `telnyx.py`, and `twilio/` (adapter, number management, webhook runtime, synthetic customer, SMS, hosted deploy and grading) |
 | `integrations/` | External agent drivers: the REST adapter and the LiveKit room, dispatch and outbound paths |
-| `evaluation/` | Benchmark suite across scenarios and lines |
+| `evaluation/` | Benchmarks, UAT and regression suites, preflight checks and parallel call lanes |
 | `corpus/` | Audio generation/import, provenance and public-release policy |
 | `components/console/` | One view per route under `/console`; `console-provider.tsx` shares reads (`use-console-data.ts`) and mutations, `lib/results.ts` joins runs and calls into results |
+
+`service/customer/` keeps the existing public customer API while dividing its
+implementation into persona selection (`catalog.py`), ElevenLabs provisioning
+and routing (`agents.py`), queued/outbound calls (`calls.py`), transcript history
+and write locking (`sessions.py`), and fidelity tests and grading (`grading.py`).
+The public package exports these operations to the API, CLI and carrier webhooks.
+
+`http.py` owns the origin policy shared by both HTTP apps. Carrier webhooks do
+not import the control API. `api/middleware.py` only translates application
+errors. The dependency tests in `tests/test_module_boundaries.py` enforce this
+direction and keep domains, storage, personas and grading independent of the
+API, CLI and application service.
 
 The dealer-group PBX model has its own CLI suite. It does not execute live
 consult/transfer media and is not yet a control-API scenario domain. Keep that

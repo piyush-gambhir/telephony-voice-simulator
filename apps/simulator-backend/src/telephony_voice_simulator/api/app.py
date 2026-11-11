@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from aiohttp import web
 
+from ..http import cors
 from ..service import SimulatorService
 from . import (
     agents,
@@ -22,7 +23,7 @@ from . import (
     uat,
 )
 from .common import CALL_EVICTOR_KEY, SERVICE_KEY
-from .middleware import cors, errors
+from .middleware import errors
 
 MAX_REQUEST_BYTES = 32 * 1024 * 1024
 

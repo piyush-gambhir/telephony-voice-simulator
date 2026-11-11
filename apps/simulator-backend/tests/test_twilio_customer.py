@@ -9,6 +9,7 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
+from telephony_voice_simulator import personas
 from telephony_voice_simulator.integrations import elevenlabs
 from telephony_voice_simulator.service import ConflictError, NotFoundError
 from telephony_voice_simulator.service import customer as customer_service
@@ -242,7 +243,7 @@ def test_sync_agent_pushes_the_settings_this_repository_owns(monkeypatch, fake_a
     monkeypatch.setenv('ELEVENLABS_API_KEY', 'test')
     monkeypatch.setenv('ELEVENLABS_CUSTOMER_AGENT_ID', 'agent_persona')
     monkeypatch.delenv('ELEVENLABS_CUSTOMER_REALTIME_AGENT_ID', raising=False)
-    monkeypatch.setattr(customer_service.personas, 'catalog', dict)
+    monkeypatch.setattr(personas, 'catalog', dict)
     result = customer_service.sync_agent()
 
     agent_id, body, versioning = fake_agents.updates[0]
