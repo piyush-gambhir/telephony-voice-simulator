@@ -1,10 +1,6 @@
-# Unified control-plane image. The default command exposes the API only.
-# Compose's PSTN overlay changes the command to add `--with-pstn` after all
-# public-webhook credentials are configured and /api remains private.
 
 FROM python:3.15-slim
 
-# uv for fast, locked installs (mirrors local dev).
 COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/
 
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
