@@ -171,7 +171,7 @@ def import_audio_asset(
     if transcript:
         manifest[asset]["transcript"] = transcript
     else:
-        del corpus_text  # documents that CORPUS is the transcript authority
+        del corpus_text
 
     _write_manifest(manifest)
     return out

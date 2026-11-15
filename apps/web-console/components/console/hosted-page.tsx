@@ -45,7 +45,6 @@ function NumberInput({ id, value, onChange, optional }: { id: string; value: str
   );
 }
 
-/* ---------- queue ---------- */
 
 function QueuePanel({ scenarios }: { scenarios: Scenario[] }) {
   const [number, setNumber] = useState("");
@@ -102,7 +101,6 @@ function QueuePanel({ scenarios }: { scenarios: Scenario[] }) {
   );
 }
 
-/* ---------- smoke call ---------- */
 
 function SmokePanel({ scenarios, ask }: { scenarios: Scenario[]; ask: Ask }) {
   const [number, setNumber] = useState("");
@@ -165,7 +163,6 @@ function SmokePanel({ scenarios, ask }: { scenarios: Scenario[]; ask: Ask }) {
   );
 }
 
-/* ---------- grade ---------- */
 
 function GradePanel({ ask }: { ask: Ask }) {
   const [mode, setMode] = useState<"sid" | "number">("sid");
@@ -262,7 +259,6 @@ function GradePanel({ ask }: { ask: Ask }) {
   );
 }
 
-/* ---------- LiveKit agent call ---------- */
 
 type AgentCallResult = {
   agent_name: string;
@@ -348,7 +344,6 @@ function AgentCallPanel({ scenarios, ask }: { scenarios: Scenario[]; ask: Ask })
   );
 }
 
-/* ---------- deploy ---------- */
 
 type MapRow = { key: number; number: string; scenario: string };
 
@@ -487,13 +482,11 @@ function DeployPanel({ scenarios, ask }: { scenarios: Scenario[]; ask: Ask }) {
   );
 }
 
-/* ---------- page ---------- */
 
 export function HostedPage() {
   const { data } = useConsole();
   const { ask, dialog } = useConfirm();
   const scenarios = data.scenarios.filter((item) => item.kind === "amd");
-  // Scenario defaults are picked once on mount; remount the forms when the catalog first arrives.
   const catalogKey = scenarios.length ? "loaded" : "empty";
 
   return (

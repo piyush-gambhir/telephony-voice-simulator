@@ -18,10 +18,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-# Realtime replies carry expressive tags such as "[friendly]"; they are not speech.
 _TAG = re.compile(r"\[[A-Za-z][A-Za-z -]{0,30}\]\s*")
 MAX_HISTORY = 200
-# How a simulation ended, which ElevenLabs lists among the evaluator's reasons.
 _RUN_NOTES = {
     "The simulated user ended the conversation.",
     "The conversation reached the maximum number of turns.",
@@ -38,18 +36,13 @@ FIDELITY_CONDITIONS = (
     "The customer never invented an appointment time, ID or confirmation the advisor did "
     "not offer.",
 )
-# The evaluator does not see dynamic variables, so the profile goes into the condition.
 PROFILE_CONDITION = "The customer's answers were consistent with this profile: {profile}"
-# The simulated dealership is the "user" role; without this the evaluator can blame the
-# customer for the dealership's lines.
 FIDELITY_PREFIX = (
     "In this conversation the agent role is the customer and the user role is a simulated "
     "dealership, which is expected to speak as the dealership. Judge only the agent role. "
     "Statement: "
 )
 REPLAY_SCENARIO = "The call already happened as shown in the history. Say a short goodbye."
-# In ElevenLabs' history the persona is the "agent" role, but persona expectations say
-# "the agent" for the agent under test, so the condition spells out who is who.
 REPLAY_PREFIX = (
     "Judge only the earlier conversation in the history. In this conversation the user role "
     "is the dealership's agent, and the agent role is the customer. In the statement below, "
@@ -63,8 +56,6 @@ def strip_tags(text: str) -> str:
 
 def chat_history(dialogue: list[dict[str, str]]) -> list[dict[str, Any]]:
     """Our dialogue (user = agent under test, assistant = persona) as ElevenLabs history."""
-    # ElevenLabs judges at most MAX_HISTORY turns. A longer call is almost always two
-    # personas trading goodbyes at the end, so the judge sees the first MAX_HISTORY turns.
     dialogue = dialogue[:MAX_HISTORY]
     return [
         {
@@ -96,7 +87,6 @@ def fidelity_test(name: str, persona: dict[str, Any], model: str) -> dict[str, A
     }
 
 
-# A staff persona answers a transfer: the agent under test briefs it, then the customer joins.
 STAFF_REPLAY_PREFIX = (
     "Judge only the earlier conversation in the history. In this conversation the agent role "
     "is a dealership employee answering a transferred call, and the user role is everyone who "
@@ -172,7 +162,6 @@ def run_results(invocation: dict[str, Any]) -> list[dict[str, Any]]:
             "test_name": run.get("test_name"),
             "status": run.get("status"),
             "passed": run.get("status") == "passed",
-            # "success", "failure", or "unknown" when the evaluator could not decide.
             "result": (run.get("condition_result") or {}).get("result"),
             "reasons": [m for m in rationale.get("messages") or [] if m not in _RUN_NOTES],
             "credits": run.get("credits_used"),

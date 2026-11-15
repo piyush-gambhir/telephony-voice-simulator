@@ -40,7 +40,6 @@ from typing import Any
 from ..domains.amd.validation import validate_expectations
 from .checks import summarize_checks
 
-# Twilio needs a beat to open the record buffer after <Play> ends.
 RECORD_START_SLACK = 0.8
 
 
@@ -161,10 +160,10 @@ def _recordings_transcript(
     parts: list[str] = []
     for rec in recordings:
         if not segments_by_path.get(rec):
-            continue  # silence, or unreadable (already reported)
+            continue
         text = transcribe_recording(rec)
         if text is None:
-            text = transcribe_recording(rec)  # transient failure: retry once
+            text = transcribe_recording(rec)
         if text is None:
             return None
         parts.append(text.strip())
@@ -219,7 +218,7 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
             add("message_start_after", False, "no recording captured")
         else:
             first = segments_by_path.get(message, [])
-            mark = spec.get("mark", "tone_end")  # the validated default
+            mark = spec.get("mark", "tone_end")
             if not first:
                 add("message_start_after", False, "no speech in recording (message not left?)")
             elif window is None or mark not in window.get("marks", {}):
@@ -232,8 +231,6 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
                 add(
                     "message_start_after",
                     lo - 0.2 <= delta <= hi,
-                    # record_offset: how long after the mark the recording starts, so a
-                    # reader can place the window and the start on the recording's own axis.
                     f"delay_after_mark={delta:.2f}s window=[{lo},{hi:.1f}] (+record slack) "
                     f"record_offset={offset:.2f}s",
                 )
@@ -250,13 +247,9 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
         else:
             transcript = transcribe_recording(message)
             if transcript is None:
-                # transient whisper failure: retry once before giving up
                 transcript = transcribe_recording(message)
             call["mailbox_transcript"] = transcript
             if transcript is None:
-                # API-side transient, not evidence about the message itself.
-                # Record as indeterminate (None) so the scenario is not marked
-                # failed; the runner's S3-side content check is the backstop.
                 checks.append(
                     {
                         "check": "message_content",
@@ -270,7 +263,6 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
                 got_set = set(got)
 
                 def hit(token: str) -> bool:
-                    # Exact, else Whisper-tolerant fuzzy matching (Toni/Tony).
                     return token in got_set or any(_tokens_close(token, g) for g in got)
 
                 recall = sum(1 for t in want if hit(t)) / max(1, len(want))
@@ -300,14 +292,12 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
 
     main = compiled.sequences.get("main") if compiled is not None else None
     if main and main[0].terminal == "reject":
-        # Success for a reject scenario is a call that never answered.
         status = str(call.get("status") or "")
         add("rejected_before_answer", status != "completed" if status else None,
             f"carrier_status={status or 'unknown'} want={main[0].reject_reason or 'rejected'}")
 
     transcript_keys = [k for k in ("transcript_contains", "transcript_excludes") if k in expect]
     if transcript_keys:
-        # Phrases are looked for across all recordings, so execution order does not matter.
         if not recordings:
             heard, reason = None, "no recording captured"
         else:
@@ -361,8 +351,6 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
         or k.startswith("detection_layer")
         or k == "webhook_received"
     ]
-    # An unavailable required check is not evidence of a pass. Preserve a
-    # known failure; otherwise leave the overall grade indeterminate.
     return {
         "passed": summarize_checks(c["passed"] for c in checks),
         "checks": checks,

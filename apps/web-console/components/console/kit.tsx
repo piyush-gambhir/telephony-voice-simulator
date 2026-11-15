@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { VERDICT_LABEL, type Verdict } from "@/lib/results";
 import { cn } from "@/lib/utils";
 
-/* ---------- formatting ---------- */
 
 export const MISSING = "–";
 
@@ -44,7 +43,6 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${Math.floor(seconds / 60)}m ${String(Math.round(seconds % 60)).padStart(2, "0")}s`;
 }
 
-/** Group North American numbers for scanning; leave every other address as written. */
 export function formatAddress(value: string | null | undefined): string {
   if (!value) return MISSING;
   const nanp = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(value);
@@ -55,7 +53,6 @@ export function shortId(value: string): string {
   return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }
 
-/* ---------- page frame ---------- */
 
 export function PageFrame({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -88,7 +85,6 @@ export function PageHeader({
   );
 }
 
-/** "Updated 21:31" with refresh and pause, stamped only after a successful read. */
 export function Freshness() {
   const { lastUpdatedAt, refreshing, refresh, autoRefresh, setAutoRefresh, online, busy } = useConsole();
   return (
@@ -132,7 +128,6 @@ export function Finding({ lead, detail }: { lead: string; detail?: string | null
   );
 }
 
-/** Mutation and read failures stay inline until the next attempt. */
 export function ConsoleErrors() {
   const { error, refreshError, clearError, online } = useConsole();
   const message = error ?? refreshError;
@@ -153,7 +148,6 @@ export function ConsoleErrors() {
   );
 }
 
-/* ---------- surfaces ---------- */
 
 export function Panel({ className, children }: { className?: string; children: ReactNode }) {
   return <section className={cn("rounded-xl bg-card p-4 md:p-5", className)}>{children}</section>;
@@ -206,7 +200,6 @@ export function Field({
   );
 }
 
-/* ---------- status ---------- */
 
 const VERDICT_TONE: Record<Verdict, { pill: string; dot: string }> = {
   passed: { pill: "bg-success-soft text-success", dot: "bg-success" },
@@ -251,7 +244,6 @@ export function TonePill({ tone, children }: { tone: "success" | "warning" | "ne
   return <span className={cn("t-micro inline-flex h-[22px] shrink-0 items-center whitespace-nowrap rounded-full px-2", classes)}>{children}</span>;
 }
 
-/* ---------- tables ---------- */
 
 export function DataTable({ children, className, label }: { children: ReactNode; className?: string; label: string }) {
   return (
@@ -277,7 +269,6 @@ export function Td({ children, className }: { children?: ReactNode; className?: 
   return <td className={cn("h-[var(--h-row)] px-3 first:pl-4 last:pr-4", className)}>{children}</td>;
 }
 
-/** A row that opens its detail: the primary cell holds the link, the whole row is a target. */
 export function LinkRow({ href, children, selected }: { href: string; children: ReactNode; selected?: boolean }) {
   return (
     <tr
@@ -306,7 +297,6 @@ export function RowLink({ href, children, className }: { href: string; children:
   );
 }
 
-/* ---------- confirmation ---------- */
 
 export function useConfirm() {
   const { error, clearError } = useConsole();
@@ -314,9 +304,7 @@ export function useConfirm() {
     title: string;
     body: string;
     confirm: string;
-    /** "primary" for actions that cost money or change live systems but destroy nothing. */
     tone?: "danger" | "primary";
-    /** Return false to stay open, or a message to show inside the dialog. */
     onConfirm: () => Promise<boolean | string | void>;
   } | null>(null);
   const [pending, setPending] = useState(false);
@@ -361,9 +349,7 @@ export function useConfirm() {
   };
 }
 
-/* ---------- segmented radio group ---------- */
 
-/** A radio group with roving focus: Tab enters once, arrows move and select. */
 export function Segmented<T extends string>({
   label,
   value,
@@ -416,7 +402,6 @@ export function Segmented<T extends string>({
   );
 }
 
-/** Mutation errors inside a sheet: the page banner sits behind the modal overlay. */
 export function SheetError() {
   const { error } = useConsole();
   if (!error) return null;

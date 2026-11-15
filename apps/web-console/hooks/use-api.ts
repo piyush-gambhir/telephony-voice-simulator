@@ -2,10 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-/**
- * Load data for one page from the simulator API. `reload` refetches; the loader is
- * aborted when the page unmounts or `deps` change.
- */
 export function useApi<T>(load: (signal: AbortSignal) => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +24,6 @@ export function useApi<T>(load: (signal: AbortSignal) => Promise<T>, deps: unkno
       },
     );
     return () => controller.abort();
-    // The loader reads only what callers list in `deps`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, version]);
 
@@ -40,7 +35,6 @@ export function useApi<T>(load: (signal: AbortSignal) => Promise<T>, deps: unkno
   return { data, error, loading, reload, setData };
 }
 
-/** Run one mutation at a time and keep its error for inline display. */
 export function useAction() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -16,7 +16,6 @@ def norm(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower().replace("\u2019", "'")).strip()
 
 
-# Ordered: first match wins. Each is (bucket, regex).
 RULES = [
     (
         "carrier_vm_stock",

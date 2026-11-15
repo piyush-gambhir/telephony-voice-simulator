@@ -25,10 +25,6 @@ import {
 import { scenarioTitle } from "@/lib/results";
 import { scenariosForProvider } from "@/lib/scenario-compatibility";
 
-/**
- * Starts a run on a line. Local lines play the scenario immediately; carrier lines
- * queue it for the next inbound call, so the result opens in its queued state.
- */
 export function QueueRunSheet({
   open,
   onOpenChange,

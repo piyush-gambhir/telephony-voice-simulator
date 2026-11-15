@@ -66,7 +66,6 @@ def request_is_valid(request: web.Request, form: object) -> bool:
     if not signature or not hasattr(form, "keys") or not hasattr(form, "getall"):
         return False
     payload = public_url(str(request.rel_url))
-    # Twilio sorts both field names and repeated values before signing.
     for key in sorted(set(form.keys())):
         for value in sorted(set(form.getall(key))):
             payload += str(key) + str(value)

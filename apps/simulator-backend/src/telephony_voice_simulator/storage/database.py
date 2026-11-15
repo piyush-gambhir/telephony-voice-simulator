@@ -47,8 +47,6 @@ def _sqlite_path_from_uri(uri: str) -> Path:
     raw_path = unquote(parsed.path)
     if raw_path == "/:memory:":
         return Path(":memory:")
-    # sqlite:///relative.db -> /relative.db from urlparse, while four slashes
-    # intentionally represent an absolute filesystem path.
     if uri.startswith("sqlite:////"):
         return Path(f"/{raw_path.lstrip('/')}")
     return Path(raw_path.lstrip("/"))

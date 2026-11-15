@@ -146,8 +146,6 @@ export function ResultDetail() {
   const message = messages[0] ?? null;
   const others = recordings.filter((recording) => recording !== message && recording.local_path);
   const timingCheck = result.checks.find((check) => (check.check ?? check.name) === "message_start_after");
-  // The grader picks among several messages by execution window, which the API does not expose,
-  // so timing is only drawn when there is exactly one message to draw it on.
   const timing = messages.length <= 1 ? parseTiming(timingCheck?.detail) : null;
   const voicemail = Boolean(message || timingCheck || content.scenarios[result.scenario]?.machine.sequences.some(
     (sequence) => sequence.steps.some((step) => step.kind === "hold"),

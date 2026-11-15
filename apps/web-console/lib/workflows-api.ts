@@ -1,9 +1,3 @@
-/**
- * Client for the simulator's workflow routes: models, the dealer PBX, hosted Twilio,
- * account numbers, agents, benchmarks, UAT, corpus, inbox and operations.
- *
- * Long jobs answer 202 with an Operation; poll it with `operations.get` until it settles.
- */
 import { request } from "@/lib/simulator-api";
 
 type Json = Record<string, unknown>;
@@ -13,7 +7,6 @@ const post = <T>(path: string, body: unknown = {}) =>
 const get = <T>(path: string, signal?: AbortSignal) => request<T>(path, { signal });
 const q = (value: string) => encodeURIComponent(value);
 
-/* ---------- operations ---------- */
 
 export type OperationStatus = "queued" | "running" | "succeeded" | "failed";
 
@@ -37,7 +30,6 @@ export const operations = {
   get: (id: string, signal?: AbortSignal) => get<Operation>(`/api/operations/${q(id)}`, signal),
 };
 
-/* ---------- built-in models ---------- */
 
 export type TimelineStep = {
   index?: number;
@@ -72,7 +64,6 @@ export const models = {
     get<{ extensions: Array<{ id: string; name: string }>; states: string[] }>("/api/models/pbx-extensions", signal),
 };
 
-/* ---------- dealer-group PBX ---------- */
 
 export type DealerSite = {
   id: string;
@@ -134,7 +125,6 @@ export const pbx = {
   },
 };
 
-/* ---------- hosted Twilio callee and account numbers ---------- */
 
 export type AccountNumber = {
   sid: string;
@@ -164,7 +154,6 @@ export const accountNumbers = {
     post<{ number: string; sid: string; restore: Json; applied: boolean }>("/api/account-numbers/revert", body),
 };
 
-/* ---------- agents ---------- */
 
 export const agents = {
   trigger: (body: { scenario?: string; number?: string }) =>
@@ -174,7 +163,6 @@ export const agents = {
   room: (body: { scenario?: string; all?: boolean; filter?: string }) => post<Operation>("/api/agents/rooms", body),
 };
 
-/* ---------- benchmarks ---------- */
 
 export type BenchmarkOptions = {
   suite?: string;
@@ -201,7 +189,6 @@ export const benchmarks = {
   preflight: (id: string) => get<{ healthy: boolean; detail: string }>(`/api/benchmarks/reports/${q(id)}/preflight`),
 };
 
-/* ---------- UAT ---------- */
 
 export const uat = {
   configs: (signal?: AbortSignal) => get<Array<{ name: string }>>("/api/uat/configs", signal),
@@ -211,7 +198,6 @@ export const uat = {
   run: (config: string, scenarios?: string[]) => post<Operation>("/api/uat/runs", { config, scenarios }),
 };
 
-/* ---------- corpus ---------- */
 
 export const CORPUS_SOURCE_TYPES = [
   "official_public",
@@ -232,7 +218,6 @@ export const corpus = {
   renderPrompts: (body: { engine?: string; force?: boolean }) => post<Operation>("/api/corpus/prompts/render", body),
 };
 
-/* ---------- inbox and analysis ---------- */
 
 export type SmsMessage = { message_sid: string; sender: string; recipient: string; body: string; received_at: string };
 
@@ -247,15 +232,11 @@ export type CustomerSession = {
   duration_s: number | null;
   stopped: unknown;
   error_type: string | null;
-  /** ElevenLabs conversation state: "registered" until it is logged, then "processing" or "done". */
   transcript_status: string | null;
-  /** "user" is the agent being tested; "assistant" is the synthetic customer. */
   dialogue: Array<{ role: "user" | "assistant"; content: string }>;
   persona_id: string | null;
   engine: PersonaEngine | null;
-  /** Where the persona came from: a queued entry, or the line's default. */
   persona_source: { queue_id: string; label: string | null } | { line: string } | null;
-  /** The persona agent that held the call, its pinned branch, and the exact version. */
   agent: PersonaAgentPin;
   grade: CustomerGrade | null;
 };
@@ -277,7 +258,6 @@ export type Persona = {
   expectations: string[];
   checks: { must_say: string[]; must_not_say: string[]; max_turns: number | null };
   fidelity: { scenario: string | null; conditions: string[] };
-  /** Background sound the dealership hears; set per agent, so it runs on a variant agent. */
   environment: { background: string; volume: number } | null;
   turn: { eagerness: "patient" | "normal" | "eager" | null; timeout_s: number | null } | null;
 };

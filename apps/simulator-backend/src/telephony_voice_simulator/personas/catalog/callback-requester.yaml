@@ -1,7 +1,7 @@
 id: callback-requester
 description: Caller who cannot talk now and asks to be called back at a set time.
 engine: chained
-voice_id: Gubgw9l4dtIoQA9YZHgx  # Brian, rated high quality on Eleven v4 Turbo
+voice_id: Gubgw9l4dtIoQA9YZHgx
 profile: >-
   Name: Taylor Brooks. Behavior: friendly but busy. Say you are interested in a 2024 Honda
   Civic but cannot talk right now, and ask them to call you back tomorrow at 4 pm. Confirm the

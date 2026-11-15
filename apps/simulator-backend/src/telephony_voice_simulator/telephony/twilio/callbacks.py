@@ -129,8 +129,6 @@ async def handle_status(request: web.Request) -> web.Response:
     terminal = status in finalization.TERMINAL_STATUSES
     queued_persona = request.query.get("persona_queue", "")
     if queued_persona and terminal and persisted is None:
-        # A persona dial that never answered never reached the customer webhook, so
-        # nothing claimed its persona; drop it so the next call on the line is unaffected.
         call_store().cancel_customer_persona(queued_persona)
     duration_s = optional_float(form.get("CallDuration", ""))
     if persisted is not None:

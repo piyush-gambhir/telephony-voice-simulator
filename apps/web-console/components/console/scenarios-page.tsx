@@ -35,7 +35,6 @@ const KINDS: Array<{ id: "all" | Scenario["kind"]; label: string }> = [
   { id: "pbx", label: "PBX" },
 ];
 
-/** Worst first: recent failures, then missing verdicts, then passing, then never run. */
 function attention(row: Coverage): number {
   if (!row.recent.length) return 4;
   if (row.recent.includes("failed")) return (row.passRate ?? 0) - 1;

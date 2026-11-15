@@ -46,7 +46,6 @@ export function InboxPage() {
   );
 }
 
-/* ---------- shared ---------- */
 
 function InlineError({ message }: { message: string | null }) {
   if (!message) return null;
@@ -86,7 +85,6 @@ function AddressList({ values }: { values: string[] }) {
   );
 }
 
-/* ---------- SMS ---------- */
 
 function SmsArea() {
   const status = useApi((signal) => inbox.smsStatus(signal), []);
@@ -142,7 +140,6 @@ function SmsArea() {
   );
 }
 
-/* ---------- synthetic customer ---------- */
 
 function stopReason(session: CustomerSession): string {
   if (session.error_type) return session.error_type.replace(/_/g, " ");
@@ -160,7 +157,6 @@ function CustomerArea() {
   const selected = list.find((session) => session.call_id === selectedId) ?? null;
   const lines = Object.entries(profiles.data?.profiles ?? {});
   const configured = Object.entries(profiles.data?.configured ?? {});
-  // Fetch state is per session: one session's slow or failed fetch never shows on another.
   const [fetching, setFetching] = useState<string | null>(null);
   const [fetchErrors, setFetchErrors] = useState<Record<string, string>>({});
   const { ask, dialog } = useConfirm();
@@ -326,7 +322,6 @@ function turnText(turn: CustomerSession["dialogue"][number]): string {
   return turn.content;
 }
 
-/** The dealership's speech is stored as role "user", the customer's replies as "assistant". */
 function Dialogue({
   session,
   fetching,

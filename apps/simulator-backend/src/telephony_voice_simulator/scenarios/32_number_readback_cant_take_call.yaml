@@ -1,5 +1,3 @@
-# Production regression: STT produced spoken digits plus "can't take your call
-# now" and LiveKit classified it as machine-ivr. It is a voicemail mailbox.
 name: number_readback_cant_take_call
 machine:
   main:

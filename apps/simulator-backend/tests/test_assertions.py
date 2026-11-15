@@ -67,7 +67,7 @@ def test_message_after_tone_passes_and_fails(tmp_path: Path) -> None:
     )
     assert all(c.passed for c in checks), [c.detail for c in checks]
 
-    early = _agent_wav(tmp_path, speech_at=[(3.8, 6.0)], total=10.0)  # talks pre-beep
+    early = _agent_wav(tmp_path, speech_at=[(3.8, 6.0)], total=10.0)
     checks = run_checks(
         {"message_start_after": {"mark": "tone_end", "min": 0.1, "max": 2.0}},
         timeline=timeline,

@@ -1,7 +1,3 @@
-# Disconnected number: SIT tri-tone (the rising three-beep intercept signal)
-# followed by the operator message, then carrier hangup. The agent must not
-# leave a message and the call should close as a machine/dead outcome —
-# never linger to a silence timeout.
 name: number_disconnected_sit
 machine:
   main:
@@ -13,11 +9,8 @@ machine:
     - wait: 1.0
     - hangup: true
 expect:
-  # A carrier SIT tri-tone plus operator recording: no person is reachable.
   callee_class: machine
   webhook_received: true
-  # Tolerant on the reason (the SIT tri-tone can garble STT of the operator
-  # message), but a correctly heard greeting should classify as a dead end.
   ended_reason_any_of:
     - call.ending.voicemail-hangup
     - call.in-progress.customer-ended-call

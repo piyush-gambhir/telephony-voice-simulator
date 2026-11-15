@@ -112,7 +112,6 @@ def test_mysql_call_recording_upserts_and_deletion_tombstone(workspace):
 
 def test_mysql_cancel_and_claim_have_exactly_one_winner(workspace):
     store, _, endpoint = workspace
-    # Repeat with real competing connections to cover both lock-acquisition orders.
     for _ in range(20):
         run = store.create_run(endpoint.id, "mock", "tone_only_voicemail")
         store.update_run(run, status="queued")
@@ -166,9 +165,6 @@ def test_mysql_queue_retries_whole_deadlocked_transactions_only(
             if statement.startswith("DELETE FROM telephony_run_queue") and (
                 always_fail or len(attempts) == 1
             ):
-                # The real DELETE has already executed. Retrying only this
-                # statement, or losing rollback, would leave no assignment to
-                # claim/cancel on the next attempt and fail the assertions.
                 raise store._pymysql.err.OperationalError(error_code, "injected database failure")
             return cursor
 
@@ -274,8 +270,6 @@ def test_mysql_deletion_wins_when_callback_pauses_after_tombstone_check(
             assert checked.wait(timeout=5), "Callback never checked the tombstone"
             deletion = pool.submit(store.delete_incoming_call, call_id)
             try:
-                # A correct lock keeps deletion pending until the callback can
-                # finish. Without it, deletion commits before callback's INSERT.
                 deletion.result(timeout=0.2)
             except TimeoutError:
                 pass

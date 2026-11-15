@@ -72,7 +72,7 @@ export function AudioPlayer({
 }) {
   const ref = React.useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = React.useState(false);
-  const [progress, setProgress] = React.useState(0); // 0..1
+  const [progress, setProgress] = React.useState(0);
   const [duration, setDuration] = React.useState(0);
   const [wave, setWave] = React.useState<WaveBin[]>(placeholderWave);
   const [waveReady, setWaveReady] = React.useState(false);
@@ -127,8 +127,6 @@ export function AudioPlayer({
     const a = ref.current;
     if (!a) return;
     if (a.paused) {
-      // Pausing every OTHER audio on the page first means only one recording
-      // plays at a time (onPlay also enforces this, belt-and-suspenders).
       document.querySelectorAll("audio").forEach((el) => {
         if (el !== a) el.pause();
       });

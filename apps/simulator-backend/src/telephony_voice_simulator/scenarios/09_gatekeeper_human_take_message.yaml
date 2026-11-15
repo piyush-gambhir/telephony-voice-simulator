@@ -1,6 +1,3 @@
-# PRECISION GUARD: a live human uses voicemail-adjacent language while
-# offering to take a message. The agent must keep talking, never mute output,
-# and never leave the canned message.
 name: gatekeeper_human_take_message
 machine:
   main:

@@ -12,8 +12,6 @@ from aiohttp import web
 from ..service import ValidationError, corpus
 from .common import bool_field, json_object, json_response, start, string_field
 
-# Builds and imports both rewrite the shared manifest, so they share one operation
-# kind and the runner lets only one of them run at a time.
 CORPUS_KIND = "corpus"
 
 

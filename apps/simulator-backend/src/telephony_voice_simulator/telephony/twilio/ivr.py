@@ -149,8 +149,6 @@ async def handle_ivr_voice(request: web.Request) -> web.Response:
     is_new_call = process_call is None and persisted_call is None
     call = _live_ivr_call(sid, form)
     if is_new_call:
-        # Install state before the network await so concurrent Twilio retries
-        # cannot start a second full-call recording.
         append_live_ivr_event(call, "answered")
         audit = await start_audit_recording(sid, call["to"])
         call["audit_recording_start"] = audit

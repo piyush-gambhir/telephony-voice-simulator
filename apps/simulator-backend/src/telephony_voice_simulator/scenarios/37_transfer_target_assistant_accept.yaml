@@ -1,6 +1,3 @@
-# TRANSFER TARGET, assistant consult: the agent briefs this person and asks
-# whether they can take the call; the person agrees, then gives the bridge code.
-# Grade together with the customer line as in transfer_target_warm_accept.
 name: transfer_target_assistant_accept
 pstn_only: true
 transfer_target: true

@@ -75,7 +75,6 @@ async def test_dtmf_switch_interrupts_wait(tmp_path: Path) -> None:
     await asyncio.wait_for(task, timeout=2.0)
     assert _events(machine, "dtmf_received")[0]["digit"] == "5"
     assert _events(machine, "sequence_switch")[0]["to"] == "connected"
-    # The 5s wait was interrupted well before its full duration.
     assert machine.timeline[-1].t < 2.0
 
 
@@ -112,10 +111,10 @@ async def test_repeat_from_loops_until_dtmf(tmp_path: Path) -> None:
         tmp_path,
     )
     task = asyncio.create_task(machine.run())
-    await asyncio.sleep(0.2)  # let the prompt loop a few times
+    await asyncio.sleep(0.2)
     machine.on_dtmf("1")
     await asyncio.wait_for(task, timeout=2.0)
-    assert len(_events(machine, "tone_start")) >= 2  # it re-prompted
+    assert len(_events(machine, "tone_start")) >= 2
 
 
 async def test_hangup_sets_event(tmp_path: Path) -> None:
@@ -132,9 +131,6 @@ async def test_unknown_step_raises(tmp_path: Path) -> None:
 
 
 async def test_max_duration_forces_termination(tmp_path: Path) -> None:
-    # A script that would otherwise hang forever (a 1-hour hold) must be
-    # capped: the machine hangs up at max_duration. This is the universal
-    # "no scenario runs infinitely" guarantee.
     machine, _ = _machine(
         {"main": [{"hold": 3600}], "max_duration": 0.05}, tmp_path
     )

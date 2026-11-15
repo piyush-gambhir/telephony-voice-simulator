@@ -56,7 +56,6 @@ async def record(request: web.Request) -> web.Response:
 async def room(request: web.Request) -> web.Response:
     body = await json_object(request)
     scenario = optional_string_field(body, "scenario")
-    # The room runner also resolves files by path for the CLI; the browser names scenarios.
     if scenario is not None and scenario not in service_of(request).catalog.names():
         raise NotFoundError(f"Unknown scenario: {scenario}")
     every = bool_field(body, "all")

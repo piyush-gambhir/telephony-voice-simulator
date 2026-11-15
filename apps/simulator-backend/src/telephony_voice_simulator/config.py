@@ -14,7 +14,6 @@ from .paths import ASSETS_DIR, CORPUS_MANIFEST, SCENARIOS_DIR
 def _parsed_http_url(value: str) -> SplitResult | None:
     try:
         parsed = urlsplit(value)
-        # Accessing ``port`` validates malformed values such as ``:not-a-port``.
         _ = parsed.port
     except ValueError:
         return None

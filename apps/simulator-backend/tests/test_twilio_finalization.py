@@ -96,7 +96,7 @@ async def media(monkeypatch):
             await response.write(audio[44:])
             await response.write_eof()
         except ConnectionResetError:
-            pass  # Shutdown/deletion intentionally cancels the reader.
+            pass
         return response
 
     app = web.Application()
@@ -126,7 +126,6 @@ async def test_finalization_waits_for_media_and_deduplicates_callbacks(workspace
     assert twilio_state.STATE.finalization_tasks[SID] is job
     assert not job.done()
     assert store.get_incoming_call(SID).analysis['finalization']['state'] == 'pending'
-    # Restart/reload must not silently grade against a changed scenario definition.
     twilio_state.STATE.raw_scenarios['test_media']['expect']['agent_spoke'] = False
     release.set()
     await asyncio.wait_for(job, 3)
@@ -527,7 +526,7 @@ async def test_late_binding_during_pending_grading_survives_restart(workspace):
     client, store, _ = workspace
     await answer(client)
     await complete(client)
-    assert twilio_state.STATE.finalization_tasks.get(SID) is not None  # still in its callback grace
+    assert twilio_state.STATE.finalization_tasks.get(SID) is not None
     response = await client.post('/twilio/recording?step=0', data={
         'CallSid': SID, 'RecordingSid': RECORDING, 'RecordingStatus': 'in-progress',
     })

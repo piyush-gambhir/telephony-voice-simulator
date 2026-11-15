@@ -1,7 +1,7 @@
 id: silent-caller
 description: Caller who stays silent after the greeting until the assistant checks in.
 engine: chained
-voice_id: ZoiZ8fuDWInAcwPXaVeq  # Josh, rated high quality on Eleven v4 Turbo
+voice_id: ZoiZ8fuDWInAcwPXaVeq
 turn:
   eagerness: patient
 profile: >-

@@ -1,7 +1,3 @@
-# "Press any key to continue" connect-gate. Distinct from the press-5 gate:
-# it exercises the agent's ANY-KEY parser branch (which requires a
-# connect/continue context and resolves to sending digit "1"), not a specific
-# announced digit. On the keypress the machine connects a human.
 name: dtmf_gate_any_key
 machine:
   main:
@@ -10,7 +6,7 @@ machine:
     - wait: 6.0
     - repeat_from: 1
   on_dtmf:
-    digits: ["1"]          # the agent resolves "press any key" to digit 1
+    digits: ["1"]
     switch: connected
   connected:
     - wait: 1.0
@@ -19,7 +15,7 @@ machine:
 expect:
   webhook_received: true
   dtmf_received: {digit: "1"}
-  detection_layer_prefix_any_of: [livekit-amd]   # ...:dtmf-nav:1
+  detection_layer_prefix_any_of: [livekit-amd]
   ended_reason_not:
     - call.ending.machine-ivr
     - call.ending.voicemail-left-message

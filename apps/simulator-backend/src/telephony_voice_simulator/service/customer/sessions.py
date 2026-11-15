@@ -13,11 +13,8 @@ from ..errors import NotFoundError, ValidationError
 from .agents import base_agent
 from .common import _translated
 
-# Scan before applying the result limit, because ordinary calls share the repository.
 SCAN_LIMIT = 1000
-# ElevenLabs calls the persona "agent" and the voice agent under test "user".
 ROLES = {"user": "user", "agent": "assistant"}
-# Refreshes, webhook deliveries and grade writes for one call share this lock.
 _REFRESH_LOCKS: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
 
 
@@ -80,7 +77,7 @@ def _dialogue(transcript: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if role and text:
             turn_ = {"role": role, "content": text}
             if isinstance(turn.get("time_in_call_secs"), (int, float)):
-                turn_["t"] = turn["time_in_call_secs"]  # seconds into the call, for timings
+                turn_["t"] = turn["time_in_call_secs"]
             dialogue.append(turn_)
     return dialogue
 
@@ -93,7 +90,6 @@ def _save_transcript(
         "conversation_id": conversation_id,
         "status": detail.get("status"),
         "termination_reason": (detail.get("metadata") or {}).get("termination_reason"),
-        # The exact persona agent version that held the call.
         "branch_id": detail.get("branch_id") or meta.get("branch_id"),
         "version_id": detail.get("version_id"),
     })
@@ -124,7 +120,6 @@ def _refresh(store: SimulatorStore, call_id: str) -> Any:
     call = _customer_call(store, call_id)
     meta = call.analysis.get("elevenlabs") or {}
     if meta.get("status") == "done":
-        # A finished transcript never changes; keep it rather than refetching.
         return call
     agent_id = meta.get("agent_id") or base_agent()
     summary = _translated(lambda: elevenlabs.find_conversation(agent_id, call_id))
@@ -141,14 +136,12 @@ def store_conversation(store: SimulatorStore, data: dict[str, Any]) -> dict[str,
     if not isinstance(call_id, str) or not data.get("conversation_id"):
         return None
     with _REFRESH_LOCKS[call_id]:
-        # Read inside the lock, so a grade saved meanwhile is kept rather than overwritten.
         call = store.get_incoming_call(call_id)
         if call is None or "customer_dialogue" not in call.analysis:
             return None
         saved = _save_transcript(store, call, data["conversation_id"], data)
         persona = saved.analysis.get("persona") or {}
         gradable = persona.get("expectations") or any((persona.get("checks") or {}).values())
-        # Duplicate deliveries must not start a second paid grading.
         claim = bool(gradable) and not saved.analysis.get("graded") \
             and not saved.analysis.get("grading")
         if claim:

@@ -86,13 +86,10 @@ def test_compile_voicemail_segments_and_marks(assets: Path, tmp_path: Path) -> N
     out = tmp_path / "compiled"
     compiled = compile_scenario(_vm_scenario(), assets_dir=assets, out_dir=out)
     segments = compiled.sequences["main"]
-    # One segment: pre-rendered audio then <Record>. Continuation past the
-    # last segment hangs up (covered in the server flow test).
     assert len(segments) == 1
     first = segments[0]
     assert first.terminal == "record"
     assert first.record_max_s == 30
-    # tone_end mark: 0.5 wait + 1.0 greeting + 1.0 wait + 0.5 tone = 3.0
     assert abs(first.marks["tone_end"] - 3.0) < 0.05
     assert abs(first.audio_duration - 3.0) < 0.05
     data, rate = sf.read(out / first.audio_file, dtype="int16")
@@ -219,7 +216,6 @@ async def test_voice_webhook_serves_scenario_twiml(pstn_client) -> None:
     )
     assert "<Play>https://sim.example.com/assets/vm-main-0.wav</Play>" in body
     assert '<Record playBeep="false" trim="do-not-trim" maxLength="30"' in body
-    # continuation after the record → next segment (end) → hangup path exists
     body = await _post_form(client, "/twilio/step?seq=main&index=0", {"CallSid": "CA1"})
     assert "<Redirect" in body or "<Hangup/>" in body
 
@@ -273,10 +269,8 @@ async def test_no_answer_scenario_rings_then_rejects(pstn_client, assets, tmp_pa
     body = await _post_form(
         client, "/twilio/voice", {"CallSid": "CA3", "To": "+15550009997", "From": "+12223334444"}
     )
-    # Twilio's Reject knows only busy/rejected; the ring comes from holding the reply.
     assert '<Reject reason="busy"/>' in body
     assert held == [amd.NO_ANSWER_RING_S] and amd.NO_ANSWER_RING_S < 15
-    # A Twilio retry mid-ring waits out the rest of the ring instead of rejecting at once.
     state.calls["CA3"]["answered_at"] -= 5
     retry = await _post_form(
         client, "/twilio/voice", {"CallSid": "CA3", "To": "+15550009997", "From": "+12223334444"}
@@ -367,21 +361,20 @@ async def test_gather_switch_and_ignore(pstn_client) -> None:
     body = await _post_form(
         client, "/twilio/step?seq=main&index=0&gather=1", {"CallSid": "CA2", "Digits": "5"}
     )
-    assert "gate-connected-0.wav" in body  # switched to connected sequence
+    assert "gate-connected-0.wav" in body
     assert state.calls["CA2"]["digits"][0]["digit"] == "5"
 
-    # ignore-mode: digit recorded but machine re-prompts, capped at 3 plays
     _queue_on_line("+1555", "gate_ignore")
     await _post_form(client, "/twilio/voice", {"CallSid": "CA3", "To": "+1555"})
     for _ in range(2):
         body = await _post_form(
             client, "/twilio/step?seq=main&index=0&gather=1", {"CallSid": "CA3", "Digits": "5"}
         )
-    assert "<Gather" in body  # still prompting (3rd play)
+    assert "<Gather" in body
     body = await _post_form(
         client, "/twilio/step?seq=main&index=0&gather=1", {"CallSid": "CA3", "Digits": "5"}
     )
-    assert "<Hangup/>" in body  # cap reached
+    assert "<Hangup/>" in body
     assert len(state.calls["CA3"]["digits"]) == 3
 
 
@@ -488,8 +481,6 @@ async def test_live_ivr_rejects_legacy_non_four_digit_extension(
     client, _ = pstn_client
     assert twilio_state.CALL_STORE is not None
     connection = twilio_state.CALL_STORE.create_connection("twilio", "Legacy IVR")
-    # Store-level insertion represents a database created by a pre-migration
-    # version; the webhook boundary must still reject it.
     twilio_state.CALL_STORE.create_directory_entry(
         connection_id=connection.id,
         extension="12",
@@ -711,7 +702,6 @@ async def test_standalone_runtime_exposes_only_provider_routes(pstn_client) -> N
     )
     assert queued.status == 404
 
-    # Twilio's independently signature-authenticated webhook remains reachable.
     voice = await client.post(
         "/twilio/voice",
         data={"CallSid": "CA-public-webhook", "To": "+1555"},
@@ -1264,7 +1254,6 @@ async def test_pound_gate_captured_and_bridged(pstn_client, monkeypatch, assets,
     state.raw_scenarios["bridge"] = scenario
     _queue_on_line("+1555", "bridge")
     voice = await _post_form(client, "/twilio/voice", {"CallSid": "CA20", "To": "+1555"})
-    # finishOnKey="" is what lets '#' arrive as a Digit instead of terminating.
     assert 'finishOnKey=""' in voice
     body = await _post_form(
         client, "/twilio/step?seq=main&index=0&gather=1", {"CallSid": "CA20", "Digits": "#"}
@@ -1283,11 +1272,9 @@ def test_transcribe_uses_elevenlabs(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
     assert analyze.transcribe_recording(wav) == "eleven"
 
-    # A failed or empty transcription is indeterminate, not a failure.
     monkeypatch.setattr(analyze, "_transcribe_elevenlabs", lambda p, k: "")
     assert analyze.transcribe_recording(wav) is None
 
-    # No key configured is indeterminate too.
     monkeypatch.delenv("ELEVENLABS_API_KEY")
     assert analyze.transcribe_recording(wav) is None
 
@@ -1314,7 +1301,6 @@ async def test_claimed_assignment_survives_crash_before_call_is_saved(pstn_clien
     store.enqueue_provider_run(provider="twilio", address=endpoint.address, scenario="vm", run_id=first_run.id)
     store.enqueue_provider_run(provider="twilio", address=endpoint.address, scenario="gate", run_id=second_run.id)
 
-    # The process claims the first assignment, then dies before saving the call.
     claim = store.dequeue_provider_run("twilio", endpoint.address, "CA-crash")
     assert claim == {"scenario": "vm", "run_id": first_run.id}
     assert store.get_run(first_run.id).status == "in-progress"
@@ -1335,7 +1321,7 @@ async def test_active_call_resumes_saved_execution_after_restart(pstn_client):
     action = _action_path(initial, 'Gather')
     pressed = await _post_form(client, action, {**form, 'Digits': '5'})
 
-    state.calls.clear()  # process restart: only persisted state remains
+    state.calls.clear()
     assert await _post_form(client, action, {**form, 'Digits': '5'}) == pressed
     assert await _post_form(client, '/twilio/voice', form) == initial
     call = state.calls[form['CallSid']]
@@ -1373,7 +1359,6 @@ async def test_legacy_active_row_keeps_its_scenario_without_dequeuing(pstn_clien
     )
     run = store.create_run(endpoint.id, "twilio", "gate")
     store.enqueue_provider_run(provider="twilio", address=endpoint.address, scenario="gate", run_id=run.id)
-    # A call row written before runtime snapshots existed.
     store.upsert_incoming_call(call_id="CA-legacy", to_address=endpoint.address, scenario="vm")
 
     response = await client.post("/twilio/voice", data={"CallSid": "CA-legacy", "To": endpoint.address})
@@ -1397,7 +1382,6 @@ async def test_runtime_saves_keep_the_claim_for_a_concurrent_retry(pstn_client) 
     store.enqueue_provider_run(provider="twilio", address=endpoint.address, scenario="gate", run_id=second_run.id)
 
     await client.post("/twilio/voice", data={"CallSid": "CA-concurrent", "To": endpoint.address})
-    # A second worker that missed the saved call reaches the claim lookup after runtime saves.
     claim = {"scenario": "vm", "run_id": first_run.id}
     assert store.dequeue_provider_run("twilio", endpoint.address, "CA-concurrent") == claim
     assert store.list_provider_queue("twilio", endpoint.address) == [

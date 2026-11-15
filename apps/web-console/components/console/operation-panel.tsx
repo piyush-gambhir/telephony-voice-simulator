@@ -14,10 +14,6 @@ export function isSettled(status: OperationStatus): boolean {
   return status === "succeeded" || status === "failed";
 }
 
-/**
- * Track one operation: start with the 202 response, then poll until it settles.
- * Pass null to clear.
- */
 export function useOperation<R = unknown>(initial: Operation | null) {
   const [polled, setPolled] = useState<Operation<R> | null>(null);
   const id = initial?.id ?? null;
@@ -44,7 +40,6 @@ export function useOperation<R = unknown>(initial: Operation | null) {
     };
   }, [id, settled]);
 
-  // A newer 202 response replaces whatever was polled for the previous operation.
   return polled && polled.id === id ? polled : (initial as Operation<R> | null);
 }
 
@@ -80,7 +75,6 @@ function elapsed(operation: Operation): string | null {
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-/** Log lines, newest at the bottom, following new output unless the reader scrolled up. */
 export function OperationLog({ lines, className }: { lines: string[]; className?: string }) {
   const ref = useRef<HTMLPreElement>(null);
   const follow = useRef(true);
@@ -103,10 +97,6 @@ export function OperationLog({ lines, className }: { lines: string[]; className?
   );
 }
 
-/**
- * One operation: status, elapsed time, live log, then the error or the rendered result.
- * `renderResult` receives the result once the operation succeeds.
- */
 export function OperationPanel<R>({
   operation,
   renderResult,

@@ -80,7 +80,7 @@ async def test_rejects_other_destinations_accounts_and_unsupported_payloads(inbo
 
 async def test_list_messages_reads_newest_first_and_survives_missing_inbox(inbox, monkeypatch):
     client, _path = inbox
-    assert sms_receiver.list_messages(10) == []  # no file yet
+    assert sms_receiver.list_messages(10) == []
     assert (await post(client, MessageSid='SM' + '1' * 32, Body='first')).status == 200
     assert (await post(client, MessageSid='SM' + '2' * 32, Body='second')).status == 200
     messages = sms_receiver.list_messages(10)

@@ -1,8 +1,3 @@
-# Voice screening that uses a TONE: "please say your name after the tone"
-# (Google Voice-style caller announcement). "after the tone" is a
-# tone-adjacent VOICEMAIL phrase — the trap is leaving the canned voicemail
-# message as your "name". The agent must treat it as a screener (say who it
-# is), never drop the voicemail message.
 name: record_name_screen
 machine:
   main:
@@ -10,13 +5,12 @@ machine:
     - play: record_name_screen.wav
     - wait: 0.5
     - tone: {freq: 440, duration: 0.3, amplitude: 10000}
-    - wait: 7.0                        # agent says its name/reason
+    - wait: 7.0
     - play: screen_connecting_thanks.wav
     - wait: 1.0
     - play: human_hello.wav
     - hold: 40
 expect:
-  # A record-name gate answers first, then connects the owner.
   callee_class: screener
   webhook_received: true
   ended_reason_not:

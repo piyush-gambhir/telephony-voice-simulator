@@ -1,7 +1,3 @@
-# Carrier voicemail that reads the dialed number back digit-by-digit before
-# the unavailable prompt. The spoken digits look like an IVR menu, but there
-# is no menu: the agent must still recognize voicemail, leave the message, and
-# never try to press a key.
 name: number_readback_vm
 machine:
   main:

@@ -63,7 +63,6 @@ class RunsStoreMixin:
                 "SELECT * FROM simulation_runs WHERE id = ?", (run_id,)
             ).fetchone()
             if row is None or row["status"] != "queued" or row["completed_at"] is not None:
-                # Raising rolls back the assignment deletion as well.
                 raise StoreConflictError("Only queued runs can be cancelled")
             result = json.loads(row["result_json"])
             result.update({"graded": False, "summary": "Cancelled before an incoming call arrived."})

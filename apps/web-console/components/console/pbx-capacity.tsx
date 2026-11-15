@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useApi } from "@/hooks/use-api";
 import { pbx, type DealerMap } from "@/lib/workflows-api";
 
-/** `capacity_report` from domains/pbx/dealer/capacity.py. */
 type CapacityReport = {
   site: string;
   platform: string;

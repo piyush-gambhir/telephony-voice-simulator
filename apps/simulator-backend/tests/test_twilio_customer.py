@@ -151,7 +151,6 @@ async def test_concurrent_calls_are_capped(client, registrations, monkeypatch):
 
 
 async def test_persona_line_can_place_the_call(client, registrations):
-    # Placed by the simulator: the persona line is From, the dealership is To.
     r = await signed_post(client, '/twilio/customer', Direction='outbound-api',
                           From='+15555550100', To='+15555550101')
     assert await r.text() == CONNECT

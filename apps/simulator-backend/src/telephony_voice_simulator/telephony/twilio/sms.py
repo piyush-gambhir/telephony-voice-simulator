@@ -24,7 +24,6 @@ def list_messages(limit: int = 50) -> list[dict[str, str]]:
     path = os.environ.get("PSTN_SMS_DB", "")
     if not path or not Path(path).is_file():
         return []
-    # Read-only so inspecting the inbox can never create or alter it.
     uri = Path(path).resolve().as_uri() + "?mode=ro"
     try:
         with closing(sqlite3.connect(uri, uri=True)) as db:
@@ -34,7 +33,6 @@ def list_messages(limit: int = 50) -> list[dict[str, str]]:
                 "ORDER BY received_at DESC, rowid DESC LIMIT ?", (limit,),
             ).fetchall()
     except sqlite3.OperationalError:
-        # The file exists but the table does not until the first delivery.
         return []
     return [dict(row) for row in rows]
 
@@ -60,7 +58,6 @@ async def handle_sms(request: web.Request) -> web.Response:
         raise web.HTTPUnsupportedMediaType()
     database = Path(path)
     database.parent.mkdir(parents=True, exist_ok=True)
-    # A SQLite transaction context commits or rolls back, but does not close.
     with closing(sqlite3.connect(database)) as db, db:
         database.chmod(0o600)
         db.execute("""CREATE TABLE IF NOT EXISTS sms_messages (

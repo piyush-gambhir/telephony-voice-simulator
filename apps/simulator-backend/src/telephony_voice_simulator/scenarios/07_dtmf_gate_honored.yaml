@@ -1,7 +1,3 @@
-# Carrier call-screening gate that WORKS: prompt announces "press five", and
-# on receiving DTMF 5 the machine connects a human. The agent must press
-# within the loop, must not hang up as machine-ivr, and the call becomes a
-# live conversation.
 name: dtmf_gate_honored
 machine:
   main:
@@ -19,7 +15,7 @@ machine:
 expect:
   webhook_received: true
   dtmf_received: {digit: "5"}
-  detection_layer_prefix_any_of: [livekit-amd]   # ...:dtmf-nav:5
+  detection_layer_prefix_any_of: [livekit-amd]
   ended_reason_not:
     - call.ending.machine-ivr
     - call.ending.voicemail-left-message

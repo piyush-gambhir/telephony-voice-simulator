@@ -111,7 +111,6 @@ def queue_scenario(client: httpx.Client, number: str, scenario: str) -> list[str
         resp = client.get(f"{SYNC}/Documents/{name}")
         if resp.status_code == 200:
             doc = resp.json()
-            # Keep the machine's call claims; a revision check rejects a concurrent answer's pop.
             data = dict(doc.get("data") or {})
             data["queue"] = [*data.get("queue", []), scenario]
             resp = client.post(
@@ -138,17 +137,12 @@ def _caller_twiml(scenario: dict) -> str:
         digit = "5"
         if isinstance(on_dtmf, dict) and on_dtmf.get("digits"):
             digit = str(on_dtmf["digits"][0])
-        # Wait into the prompt, press, wait for the connect, say hello, linger.
         return (
             "<Response><Pause length='8'/>"
             f"<Play digits='{digit}'/>"
             "<Pause length='4'/><Say>Hello, can you hear me? This is a test caller.</Say>"
             "<Pause length='15'/><Hangup/></Response>"
         )
-    # Voicemail-ish: wait until just past the machine's audio (greeting+beep),
-    # then leave the "message". Use the COMPILED audio duration — an estimate
-    # overshoots the beep and grades as late-message even though the machine
-    # behaved perfectly.
     try:
         import tempfile
 
@@ -169,8 +163,6 @@ def _caller_twiml(scenario: dict) -> str:
             for s in machine.get("main", [])
         )
     pause = min(30, math.ceil(total_audio) + 1)
-    # Speak the scenario's expected message so the content check grades the
-    # smoke exactly like an agent call; fall back to a generic line.
     expected = (scenario.get("expect", {}).get("message_content") or {}).get("expected")
     message = escape(
         expected
@@ -227,7 +219,6 @@ def smoke_call(
             break
     log("waiting 20s for recording availability")
     time.sleep(20)
-    # The INBOUND leg at the sim number is the one the machine handled.
     inbound = inbound_legs(client, account, number, 5)
     if not inbound:
         raise LookupError("no inbound leg found at the sim number")
@@ -243,7 +234,7 @@ def _compiled(raw: dict, log: Log = _no_log) -> CompiledScenario | None:
     try:
         with tempfile.TemporaryDirectory() as scratch:
             return compile_scenario(raw, assets_dir=ASSETS_DIR, out_dir=Path(scratch))
-    except Exception as exc:  # grading still runs; timing checks then stay indeterminate
+    except Exception as exc:
         log(f"could not compile {raw.get('name')}: {exc}")
         return None
 
@@ -299,8 +290,6 @@ def grade_call_detail(
         "scenario": call_state.get("scenario"),
         "digits": call_state.get("digits", []),
         "recording_files": files,
-        # Only post-beep/post-prompt <Record> audio is valid for timing and
-        # message-content grading. Full-call recordings are audit evidence.
         "analysis_recording_files": mailbox_files,
         "recordings": recording_metadata,
     }
@@ -317,7 +306,6 @@ def grade_call_detail(
         raw["expect"].pop("message_content", None)
     analysis = analyze_call(call, raw, compiled=_compiled(raw, log))
     if not mailbox_files:
-        # No <Record> audio was downloaded, so media checks have no evidence either way.
         for check in analysis["checks"]:
             if check["check"] in {"agent_spoke", "message_start_after", "message_content"}:
                 check.update(passed=None, detail="no message recording downloaded")

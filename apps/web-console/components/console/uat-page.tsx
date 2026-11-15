@@ -21,11 +21,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAction, useApi } from "@/hooks/use-api";
 import { uat, type Operation } from "@/lib/workflows-api";
 
-/** `POST /api/uat/check` (evaluation/uat.py check_config). */
 type Check = { valid: boolean; config: string; scenarios: string[]; steps: string[] };
 type PlannedCase = { scenario: string; steps: Array<{ name: string; action: string }> };
 
-/** evaluation/uat.py run_matrix and _run_workflow. */
 type StepReport = {
   name: string;
   run_if: string;

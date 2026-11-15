@@ -18,7 +18,6 @@ from ..storage.sqlite import SimulatorStore
 from .errors import ConflictError, NotFoundError, ValidationError
 
 Log = Callable[[str], None]
-# Fits the MySQL column with room to spare.
 TITLE_LIMIT = 200
 Job = Callable[[Log], Any]
 
@@ -52,8 +51,6 @@ class OperationRunner:
         log_lock = threading.Lock()
 
         def log(line: str) -> None:
-            # Jobs may log from several threads (benchmark lanes); appends rewrite the
-            # stored log, so they run one at a time.
             with log_lock:
                 self.store.append_operation_log(operation_id, [str(line)])
 
@@ -64,7 +61,7 @@ class OperationRunner:
                 result = asyncio.run(_awaited(result))
         except (ValidationError, NotFoundError, ConflictError) as exc:
             self.store.finish_operation(operation_id, error=str(exc))
-        except Exception as exc:  # every failure belongs in the operation record
+        except Exception as exc:
             self.store.finish_operation(operation_id, error=f"{type(exc).__name__}: {exc}")
         else:
             self.store.finish_operation(operation_id, result=result)
@@ -86,7 +83,6 @@ class OperationsMixin:
 
     @property
     def operations(self) -> OperationRunner:
-        # Built on first use: CLI commands run jobs inline and never need threads.
         if self._runner is None:
             self._runner = OperationRunner(self.store)
         return self._runner

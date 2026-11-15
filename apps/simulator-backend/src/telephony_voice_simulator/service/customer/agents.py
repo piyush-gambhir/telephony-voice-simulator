@@ -18,11 +18,9 @@ from .catalog import _catalog
 from .common import _translated
 
 ROUTING_TTL_SECONDS = 300.0
-# Dashboard changes can invalidate agent IDs, so routing entries expire.
 _BASE_AGENTS: dict[str, tuple[float, str]] = {}
 _VARIANT_AGENTS: dict[str, tuple[float, str]] = {}
 _PINNED_BRANCHES: dict[str, tuple[float, str]] = {}
-# The thread lock and file lock serialize provisioning within and across processes.
 _PROVISION_LOCK = threading.Lock()
 
 
@@ -152,7 +150,6 @@ def _sync_variant(variant: dict[str, Any]) -> dict[str, Any]:
     if voice:
         settings["conversation_config"]["tts"]["voice_id"] = voice
     synced = _sync_one(agent_id, settings)
-    # Cached only once configured and pinned, so calls never reach a half-made copy.
     _VARIANT_AGENTS[name] = (time.monotonic() + ROUTING_TTL_SECONDS, agent_id)
     return {"name": name, **synced}
 

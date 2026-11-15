@@ -39,7 +39,6 @@ ALL_SERVICE_BUSY = {"1200": "busy", "1201": "busy", "1202": "busy", "1220": "bus
 ALL_BDC_BUSY = {"1900": "busy", "1901": "busy", "1902": "busy", "1120": "busy"}
 
 
-# ------------------------------------------------------------------ suite --- #
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.id)
@@ -56,10 +55,8 @@ def test_suite_reports_every_case() -> None:
     assert all(item["passed"] for item in results)
 
 
-# ------------------------------------------------------------ config sanity - #
 
 
-# --------------------------------------------------------------- routing ---- #
 
 
 def test_routing_is_deterministic() -> None:
@@ -132,7 +129,6 @@ def test_loop_guard_stops_a_redirect_cycle() -> None:
     assert result.outcome == "loop_detected"
 
 
-# --------------------------------------------------------------- capacity --- #
 
 
 def test_forwarding_costs_two_carrier_channels_and_peering_costs_one() -> None:
@@ -184,16 +180,11 @@ def test_capacity_report_halves_concurrency_under_forwarding() -> None:
 def test_dial_plan_membership_is_what_makes_the_handoff_free() -> None:
     """Two independent rules, and they are what the recommendation turns on."""
     for cost in COSTS:
-        # Only a party inside the dial plan can hand a caller back for nothing.
         assert cost.handoff_channels == (0 if cost.inside_dial_plan else 1)
-        # Being inside the dial plan also means exactly one carrier leg inbound.
         if cost.inside_dial_plan:
             assert cost.inbound_channels == 1
-    # Forwarding is the only pattern that pays twice on the way in, because the
-    # switch holds the inbound leg and re-originates a second one alongside it.
     assert cost_for("forwarded_with_diversion").inbound_channels == 2
     assert cost_for("sip_trunk_peer").inbound_channels == 1
-    # Carrier-routed never touches the dealership's switch on the way in.
     assert cost_for("carrier_routed").inbound_channels == 0
 
 
@@ -203,7 +194,6 @@ def test_carrier_routed_is_not_limited_by_the_dealership_trunk() -> None:
     assert rows["carrier_routed"]["concurrent_agent_calls"] is None
     assert rows["carrier_routed"]["limited_by"] == "agent platform"
     assert rows["forwarded_with_diversion"]["limited_by"] == "dealership trunk"
-    # It still costs a channel to hand the caller back, since we are outside.
     assert rows["carrier_routed"]["channels_per_call_with_handoff"] == 1
 
 
@@ -212,7 +202,6 @@ def test_every_configured_agent_has_a_known_channel_cost() -> None:
         assert cost_for(agent.ingress) is not None
 
 
-# -------------------------------------------------------------- transfers --- #
 
 
 def test_transfer_matrix_reflects_platform_limits() -> None:
@@ -369,7 +358,7 @@ def test_external_transfer_is_blocked_by_class_of_restriction() -> None:
 
 
 def test_replaced_group_uses_its_own_index():
-    assert GROUP.extension("1200") is not None  # populate the original cache
+    assert GROUP.extension("1200") is not None
     changed = replace(
         GROUP,
         extensions=tuple(

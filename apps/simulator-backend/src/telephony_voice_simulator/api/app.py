@@ -55,9 +55,6 @@ def build_app(
     include_twilio: bool = False,
     include_ivr: bool = False,
 ) -> web.Application:
-    # CORS is outermost so validation/error responses remain readable by the
-    # browser console as well as successful responses.
-    # Transcript analysis posts up to 50,000 rows; aiohttp otherwise caps bodies at 1 MiB.
     app = web.Application(middlewares=[cors, errors], client_max_size=MAX_REQUEST_BYTES)
     app[SERVICE_KEY] = service or SimulatorService()
     for module in ROUTE_MODULES:
@@ -66,8 +63,6 @@ def build_app(
     if include_twilio or include_ivr:
         from ..telephony.twilio import state, webhooks
 
-        # The live IVR and the console must resolve the exact same directory,
-        # including when callers inject a non-default store in tests or embeds.
         state.CALL_STORE = app[SERVICE_KEY].store
         app[CALL_EVICTOR_KEY] = state.evict_call
         if include_twilio and not state.STATE.scenarios:

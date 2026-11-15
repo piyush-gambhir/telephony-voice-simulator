@@ -13,7 +13,6 @@ import { useAction } from "@/hooks/use-api";
 import type { Scenario } from "@/lib/simulator-api";
 import { agents, type Operation } from "@/lib/workflows-api";
 
-/** integrations/livekit/runner.py run_scenarios. */
 type RoomSummary = {
   total: number;
   passed: number;
@@ -52,7 +51,6 @@ export function ScenarioSelect({
   );
 }
 
-/** Dispatch the LiveKit agent into rooms with the simulated callee; pstn_only scenarios cannot run there. */
 export function AgentRooms({ scenarios, loading }: { scenarios: Scenario[]; loading: boolean }) {
   const roomable = scenarios.filter((scenario) => !scenario.pstn_only);
   const [mode, setMode] = useState<Mode>("one");

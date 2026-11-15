@@ -34,7 +34,6 @@ export function ModelsPage() {
   const runs = useApi(() => models.simulate({ kind }).then(asList), [kind]);
   const extensions = useApi((signal) => models.pbxExtensions(signal), []);
   const rerun = useAction();
-  // Bumped on every kind switch, so a PBX rerun that returns late never lands on IVR.
   const generation = useRef(0);
 
   const list = runs.data ?? [];

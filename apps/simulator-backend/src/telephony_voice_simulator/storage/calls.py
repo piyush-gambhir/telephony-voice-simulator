@@ -14,7 +14,6 @@ from .common import _now
 
 
 class CallsStoreMixin:
-    # Keep the outcome while removing deleted call content from linked runs.
     _RUN_FIELDS_KEPT = ("mode", "call_id", "passed", "graded", "summary", "carrier_status",
                         "duration_seconds")
 
@@ -78,8 +77,6 @@ class CallsStoreMixin:
         timestamp = _now()
         started = started_at or timestamp
         with self._connect() as db:
-            # Serialize the tombstone check with all call writes. This prevents
-            # a late callback racing a deletion in another server process.
             db.execute("BEGIN IMMEDIATE")
             if self._call_is_deleted_for_write(db, call_id):
                 return None

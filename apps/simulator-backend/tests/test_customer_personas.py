@@ -98,7 +98,6 @@ async def client(store, monkeypatch, registrations):
     monkeypatch.setattr(twilio_state, 'CALL_STORE', store)
     app = web.Application()
     customer.register_routes(app)
-    # Persona dials report their outcome to the shared status route.
     app.router.add_post('/twilio/status', callbacks.handle_status)
     async with TestClient(TestServer(app)) as session:
         yield session
@@ -133,7 +132,6 @@ async def test_queued_persona_drives_the_next_call(client, store, registrations)
 
 async def test_line_default_persona_runs_on_its_synced_variant(client, store, registrations,
                                                                fake_agents, monkeypatch):
-    # busy-recall-owner needs office noise and eager turns: a variant, not the base agent.
     r = await signed_post(client, '/twilio/customer')
     assert '<Reject' in await r.text()
     assert store.get_incoming_call(SID).analysis['stopped'] == 'customer_persona_error'
@@ -190,11 +188,9 @@ def test_sync_agent_configures_bases_variants_and_pinned_branches(store, fake_ag
     variants = {v['personas'][0]: v for v in result['variants']}
     assert set(variants) == {'busy-recall-owner', 'interrupting-caller', 'silent-caller',
                              'spanish-speaking-owner', 'staff-assistant-accept'}
-    # Every staff persona shares one staff variant, with the employee prompt.
     staff = variants['staff-assistant-accept']
     assert len(staff['personas']) == 4 and 'staff' in staff['name']
     assert sent[staff['agent_id']]['agent']['prompt']['prompt'] == customer.STAFF_PROMPT
-    # Every persona agent can hang up, or two bridged personas loop on goodbyes.
     for config in sent.values():
         tool = config['agent']['prompt']['built_in_tools']['end_call']
         assert tool['params']['system_tool_type'] == 'end_call'
@@ -208,7 +204,6 @@ def test_sync_agent_configures_bases_variants_and_pinned_branches(store, fake_ag
     assert variants['busy-recall-owner']['name'] == (
         'TVS persona variant: chained office1 0.2 eager (telephony-voice-simulator)')
 
-    # A second sync reuses the agents and branches it created.
     again = service.sync_agent()
     assert {v['agent_id'] for v in again['variants']} == {v['agent_id'] for v in result['variants']}
     assert again['agents']['chained']['version_id'] == 'ver_branch_agent_chained'
@@ -242,7 +237,6 @@ def test_strip_tags_and_chat_history():
         {'role': 'user', 'message': DIALOGUE[0]['content'], 'time_in_call_secs': 0},
         {'role': 'agent', 'message': DIALOGUE[1]['content'], 'time_in_call_secs': 1},
     ]
-    # A longer call keeps its first MAX_HISTORY turns (the tail is goodbyes).
     long = judge.chat_history(DIALOGUE * 100)
     assert len(long) == judge.MAX_HISTORY and long[0]['message'] == DIALOGUE[0]['content']
 
@@ -472,7 +466,6 @@ def test_dial_places_a_persona_call_to_an_allowed_number(store, monkeypatch):
                        'send_digits': ''}]
     assert result['call_id'] == 'CA' + '9' * 32
     assert [q['persona']['id'] for q in service.list_queue(store, LINE)] == ['transfer-to-sales']
-    # A second dial would claim the first persona, so it is refused.
     with pytest.raises(ConflictError, match='already queued'):
         service.dial(store, LINE, '+15555550101', persona_id='transfer-to-sales')
 
@@ -522,7 +515,7 @@ async def test_unanswered_dial_drops_its_queued_persona(client, store):
 
 async def test_answered_dial_keeps_status_handling(client, store, registrations):
     queued = service.queue_persona(store, LINE, persona_id='transfer-to-sales')
-    await signed_post(client, '/twilio/customer')  # the persona is claimed on answer
+    await signed_post(client, '/twilio/customer')
     r = await signed_post(client, f"/twilio/status?persona_queue={queued['id']}", CallStatus='completed')
     assert r.status == 200
     assert store.get_incoming_call(SID).status == 'completed'

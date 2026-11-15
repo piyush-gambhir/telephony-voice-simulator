@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Preflight one call, then run a full benchmark suite with `telephony-voice-sim benchmark`.
-#
-#   AGENT_API_AUTHORIZATION="Bearer <token>" \
-#     scripts/run_benchmark.sh config/<profile>.local.env config/<suite>.local.yaml
-#
-# The agent token is read from the environment and is never written to disk:
-# a value exported by the caller overrides whatever the profile file says, so
-# a profile can ship with the field blank. Everything else (endpoints, body
-# template, line pool) comes from the profile and the suite.
-#
-# The preflight places ONE real call before committing to the whole suite. A
-# suite is dozens of carrier calls; an expired token or a bad mapping id
-# should cost one of them, not all of them.
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
@@ -35,7 +22,6 @@ for required in "$profile" "$suite"; do
   [[ -f "$required" ]] || { echo "missing: $required" >&2; exit 66; }
 done
 
-# Preserve a caller-supplied token across the profile sourcing below.
 token="${AGENT_API_AUTHORIZATION:-}"
 
 set -a
@@ -56,7 +42,6 @@ echo "profile : $profile"
 echo "suite   : $suite"
 echo "sim api : ${SIMULATOR_API_URL:-http://127.0.0.1:8978}"
 
-# `plan` takes only the selection flags; run-only flags are dropped for it.
 plan_args=()
 skip_next=0
 for argument in "$@"; do
@@ -71,7 +56,6 @@ done
 
 run_args=()
 for argument in "$@"; do
-  # A wrapper dry run must never reach the paid preflight call.
   if [[ "$argument" == "--dry-run" ]]; then
     exec "$sim" benchmark plan --suite "$suite" ${plan_args[@]+"${plan_args[@]}"}
   fi
@@ -97,9 +81,6 @@ if [[ "$skip_preflight" -eq 0 ]]; then
   echo "=== preflight: one call ==="
   mkdir -p results/benchmark
   preflight_dir="$(mktemp -d results/benchmark/preflight.XXXXXX)"
-  # The call's own exit code reflects whether the AGENT passed the scenario,
-  # which is not what a preflight is asking. Gate on pipeline health instead:
-  # a genuinely failing agent is the result we came for, 93 times over.
   "$sim" benchmark run \
     --suite "$suite" --scenario stock_voicemail_beep_1000 --repeat 1 \
     "${preflight_numbers[@]}" \

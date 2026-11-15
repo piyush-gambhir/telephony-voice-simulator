@@ -26,10 +26,8 @@ export function EnginePill({ engine }: { engine: Persona["engine"] }) {
   return <TonePill tone={engine === "realtime" ? "accent" : "neutral"}>{engine === "realtime" ? "Realtime" : "Chained"}</TonePill>;
 }
 
-/** The persona catalog with its queue: queue a persona for a line's next call, or check it. */
 export function PersonaCatalog({ lines, refreshKey }: { lines: string[]; refreshKey: number }) {
   const personas = useApi((signal) => inbox.personas(signal), [refreshKey]);
-  // Calls consume queued personas, so the page's Refresh reloads the queue too.
   const queue = useApi((signal) => inbox.queue(signal), [refreshKey]);
   const [line, setLine] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -166,7 +164,6 @@ function Verdict({ passed, children }: { passed: boolean; children: ReactNode })
   );
 }
 
-/** A call's grade: one verdict per expectation with the evaluator's reasons, then each check. */
 export function GradeView({ grade }: { grade: CustomerGrade }) {
   return (
     <div className="grid gap-3">
@@ -195,7 +192,6 @@ export function GradeView({ grade }: { grade: CustomerGrade }) {
   );
 }
 
-/** Grade a finished call (an operation of a few ElevenLabs test runs), then show the result. */
 export function GradeSection({
   callId,
   grade,
@@ -214,7 +210,6 @@ export function GradeSection({
 
   useEffect(() => {
     if (result) onGraded(result);
-    // Report each finished grading once; onGraded is a fresh closure every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 

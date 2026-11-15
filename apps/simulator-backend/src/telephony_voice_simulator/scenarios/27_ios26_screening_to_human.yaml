@@ -1,5 +1,3 @@
-# iOS call-screening interaction shape where the device accepts the caller
-# after the agent identifies itself: capture identity, wait, then reach human.
 name: ios26_screening_to_human
 machine:
   main:

@@ -1,5 +1,3 @@
-# TRANSFER TARGET, cold: the caller is bridged the moment this line answers,
-# so no briefing may reach it. Only the customer should speak here.
 name: transfer_target_cold_accept
 pstn_only: true
 transfer_target: true

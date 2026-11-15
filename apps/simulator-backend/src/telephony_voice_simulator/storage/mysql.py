@@ -47,9 +47,6 @@ class _MySQLConnection:
 
     def execute(self, statement: str, parameters: tuple[object, ...] = ()) -> Any:
         if statement.strip().upper() == "BEGIN IMMEDIATE":
-            # Tombstone locking reads must protect an absent row's gap as well
-            # as an existing marker. READ COMMITTED disables that protection;
-            # set the isolation level for this transaction before BEGIN.
             self.cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
             self.raw.begin()
             return self.cursor
@@ -286,7 +283,6 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
         )
 
     def fail_provider_queue(self, provider: str, address: str, reason: str) -> int:
-        # Retry if InnoDB picks this transaction as a deadlock victim.
         fail = super().fail_provider_queue
         return self._retry_deadlocked_transaction(lambda: fail(provider, address, reason))
 
@@ -299,9 +295,6 @@ class MySQLSimulatorStore(SQLiteSimulatorStore):
         return self._retry_deadlocked_transaction(lambda: claim(number))
 
     def _call_is_deleted_for_write(self, db: _MySQLConnection, call_id: str) -> bool:
-        # A current locking read prevents a late callback from using an old
-        # snapshot after a deletion commits. BEGIN IMMEDIATE guarantees the
-        # repeatable-read gap lock when the tombstone does not exist yet.
         return db.execute(
             "SELECT 1 FROM deleted_incoming_calls WHERE id = ? FOR UPDATE", (call_id,)
         ).fetchone() is not None

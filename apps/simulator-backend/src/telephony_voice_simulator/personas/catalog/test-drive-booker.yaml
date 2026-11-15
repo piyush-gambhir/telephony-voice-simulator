@@ -1,7 +1,7 @@
 id: test-drive-booker
 description: Caller who wants to book a test drive and takes the first time offered.
 engine: chained
-voice_id: EST9Ui6982FZPSi7gCHi  # Elise, rated high quality on Eleven v4 Turbo
+voice_id: EST9Ui6982FZPSi7gCHi
 profile: >-
   Name: Taylor Brooks. Behavior: friendly, answers in one or two sentences. Say you would
   like to book a test drive of a small SUV this week. If they do not have the exact vehicle,

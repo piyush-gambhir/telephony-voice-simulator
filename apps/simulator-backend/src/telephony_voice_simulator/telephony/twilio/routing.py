@@ -153,8 +153,6 @@ def finish_simulation_run(call: dict, analysis: dict | None = None) -> None:
             "PSTN call reached a terminal carrier status after the runtime restarted; "
             "recording analysis was unavailable."
         )
-    # A late recording may replace an indeterminate grade without replaying the
-    # call-completed event or changing its original completion timestamp.
     run = call_store().get_run(run_id)
     if (run is not None and run.completed_at is not None and analysis is not None
             and run.result.get("call_id") == call["call_sid"]
@@ -163,7 +161,6 @@ def finish_simulation_run(call: dict, analysis: dict | None = None) -> None:
         return
     update_simulation_run(
         run_id,
-        # A reject scenario passes on a call that never answered (busy, no-answer).
         status=(
             "completed"
             if carrier_status == "completed" or (analysis or {}).get("passed") is True

@@ -39,9 +39,6 @@ class ChannelCost:
         return self.inbound_channels + self.handoff_channels
 
 
-#: ``handoff_channels`` assumes a bridged handoff, the only mechanism that works
-#: on every switch. A successful REFER releases the agent's leg and costs one
-#: fewer channel, but REFER is rejected outright on most hardened deployments.
 COSTS: tuple[ChannelCost, ...] = (
     ChannelCost(
         "carrier_routed",

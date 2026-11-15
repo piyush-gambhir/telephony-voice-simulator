@@ -23,7 +23,6 @@ from ..paths import IVR_PROMPTS_CONFIG, IVR_PROMPTS_OUTPUT_DIR
 DEFAULT_ELEVENLABS_MODEL_ID = "eleven_v3"
 DEFAULT_ELEVENLABS_SEED = 42
 DEFAULT_ELEVENLABS_VOICE_SETTINGS: dict[str, float | bool] = {
-    # ElevenLabs' Robust v3 preset: prioritize repeatable, neutral delivery.
     "stability": 1.0,
     "similarity_boost": 0.75,
     "style": 0.0,
@@ -353,8 +352,6 @@ def render_prompts(
 
     manifest = {
         "generated_at": dt.datetime.now(dt.UTC).isoformat(),
-        # Do not leak a developer's absolute workstation path into a deployed
-        # Serverless asset. The digest still makes the source reproducible.
         "source": config_file.name,
         "source_sha256": hashlib.sha256(config_file.read_bytes()).hexdigest(),
         "license_note": str(config.get("license_note") or ""),

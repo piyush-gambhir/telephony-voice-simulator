@@ -1,6 +1,3 @@
-# Google Voice / Google Fi voicemail interaction shape, modeled with
-# simulator-authored prompt copy and a standard tone-adjacent tail. The agent
-# must detect it and leave the configured message after the beep.
 name: google_voice_voicemail
 machine:
   main:
@@ -8,8 +5,8 @@ machine:
     - play: google_voice_voicemail.wav
     - wait: 0.8
     - tone: {freq: 1000, duration: 0.6, amplitude: 12000}
-    - hold: 45            # mailbox record window
-    - hangup: true        # mailbox max-record timeout: it ends the call itself
+    - hold: 45
+    - hangup: true
 config_overrides:
   voicemail_detection: {beep_detection: true}
 expect:

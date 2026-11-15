@@ -43,7 +43,6 @@ function hrefFor(id: string): string {
 
 function OperationDetail({ id }: { id: string }) {
   const loaded = useApi((signal) => operations.get(id, signal), [id]);
-  // Polls until the operation settles, so a running job's log stays live.
   const operation = useOperation(loaded.data);
 
   if (loaded.error) {
@@ -143,7 +142,6 @@ export function OperationsPage() {
   const active = all.some((item) => !isSettled(item.status));
   const { reload, setData } = list;
 
-  // Poll quietly while anything is queued or running; each new list re-arms the timer.
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();

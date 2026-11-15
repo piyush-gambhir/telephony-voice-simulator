@@ -44,10 +44,6 @@ from .validation import asset_path, validate_machine
 
 SAMPLE_RATE = 48000
 
-# Hard ceiling (seconds) on any single machine run — the universal
-# guarantee that a simulated call always terminates. Covers the longest
-# greeting (~20s) + a full mailbox record window (~45s) + a screener
-# transfer, with headroom. Scenario ``max_duration`` overrides it.
 DEFAULT_MAX_DURATION = 100.0
 
 
@@ -104,15 +100,8 @@ class SimulatedMachine:
         self._interrupt = asyncio.Event()
         self._started_at: float | None = None
         self._dtmf_spec = machine_spec.get("on_dtmf")
-        # Hard ceiling on how long this machine can stay on the line, so NO
-        # scenario can ever hang forever (a real mailbox / gate / screener all
-        # end the call on their own). Scenario-overridable via ``max_duration``;
-        # the default is generous enough for the longest greeting + record
-        # window + a transfer. When it fires the machine hangs up, exactly as a
-        # carrier would after its own max-call / max-record timeout.
         self._max_duration = float(machine_spec.get("max_duration", DEFAULT_MAX_DURATION))
 
-    # ------------------------------------------------------------------ events
 
     def now(self) -> float:
         return 0.0 if self._started_at is None else time.monotonic() - self._started_at
@@ -144,7 +133,6 @@ class SimulatedMachine:
             self._switch_to = str(target)
             self._interrupt.set()
 
-    # ------------------------------------------------------------------- steps
 
     def _load_asset(self, name: str) -> np.ndarray:
         import soundfile as sf
@@ -161,8 +149,6 @@ class SimulatedMachine:
         if not samples.size:
             raise ValueError(f"corpus asset {name!r} contains no audio")
         if rate != SAMPLE_RATE:
-            # Linear resample — corpus assets are built at 48k, this is a
-            # convenience for ad-hoc/imported files only.
             duration = samples.shape[0] / float(rate)
             target_n = max(1, int(duration * SAMPLE_RATE))
             x_old = np.linspace(0.0, duration, samples.shape[0])
@@ -187,7 +173,7 @@ class SimulatedMachine:
                 (playback, interrupted), return_when=asyncio.FIRST_COMPLETED
             )
             if playback in done:
-                await playback  # propagate transport failures
+                await playback
                 return True
             return False
         finally:
@@ -233,14 +219,12 @@ class SimulatedMachine:
             self.mark("tone_end" if completed else "tone_interrupted", freq=freq)
             return None
         if "repeat_from" in step:
-            # Yield even when the preceding steps complete synchronously, so
-            # cancellation and the hard deadline can always run.
             await asyncio.sleep(0)
             return int(step["repeat_from"])
         if "hangup" in step:
             self.mark("machine_hangup")
             self.hangup_requested.set()
-            return -1  # sentinel: stop the sequence
+            return -1
         raise ValueError(f"unknown machine step at index {index}: {step!r}")
 
     async def _run_sequence(self, name: str) -> None:
@@ -269,7 +253,7 @@ class SimulatedMachine:
                 return
             if self._switch_to:
                 continue
-            return  # main ran to completion with no switch
+            return
 
     async def run(self) -> None:
         """Execute the scenario, bounded by the hard ``max_duration`` cap.

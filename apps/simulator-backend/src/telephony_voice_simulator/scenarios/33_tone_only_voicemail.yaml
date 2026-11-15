@@ -1,7 +1,3 @@
-# Some answering devices and damaged carrier paths expose only the record
-# tone: the greeting was disabled, clipped, or lost before media connected.
-# The agent must use acoustic evidence, wait through the tone, and leave one
-# complete message instead of treating the line as a silent human.
 name: tone_only_voicemail
 machine:
   main:

@@ -15,9 +15,6 @@ REPO = Path(__file__).resolve().parent.parent
 NOTICES = REPO / "THIRD_PARTY_NOTICES.md"
 PROJECTS = {
     "web": (REPO / "apps" / "web-console", ("dependencies",)),
-    # twilio-run is a deployment tool, so its devDependency graph is shipped
-    # operational functionality and is scanned even though it is not bundled
-    # into the deployed Function.
     "twilio": (REPO / "deploy" / "twilio-ivr", ("dependencies", "devDependencies")),
 }
 PROHIBITED = re.compile(
@@ -114,9 +111,6 @@ def _scan_project(
             errors.append(f"{project_name}:{name}@{version}: missing license metadata")
         elif PROHIBITED.search(license_name):
             if name.startswith("@img/sharp-libvips-") and license_name == "LGPL-3.0-or-later":
-                # Platform libvips binaries are used only by Next's build-time
-                # image tooling. The final static nginx image contains neither
-                # node_modules nor libvips; keep this exception explicit.
                 exceptions.add(f"{name}@{version}: {license_name} (build-only)")
             else:
                 errors.append(

@@ -44,13 +44,9 @@ class TransferAttempt:
     method: TransferMethod
     target: str
     call: CallRequest
-    #: False models a redirect before the agent has answered the caller.
     answered: bool = True
-    #: Agents that omit Referred-By are rejected by most hardened SBCs.
     send_referred_by: bool = True
-    #: Announce the caller to the human before completing (attended only).
     consult_first: bool = True
-    #: Transfers already performed on this call, before this attempt.
     previous_transfers: int = 0
 
     def __post_init__(self) -> None:
@@ -244,7 +240,6 @@ def attempt_transfer(group: DealerGroup, attempt: TransferAttempt) -> TransferRe
     return _classify(attempt, builder, target_result, recoverable)
 
 
-# ------------------------------------------------------------------- gates --- #
 
 
 def _gate_302(group, site, agent, attempt, builder, border) -> TransferResult | None:
@@ -493,7 +488,6 @@ def _gate_dtmf(group, site, agent, attempt, builder, border) -> TransferResult |
     return None
 
 
-# ------------------------------------------------------------- second leg --- #
 
 
 def _route_target(

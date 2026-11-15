@@ -36,7 +36,6 @@ import { useAction, useApi } from "@/hooks/use-api";
 import { simulatorApi } from "@/lib/simulator-api";
 import { benchmarks, type BenchmarkOptions, type Operation } from "@/lib/workflows-api";
 
-/** `POST /api/benchmarks/plan` (service/benchmarks.py plan). */
 type Plan = {
   name: string;
   scenarios: string[];
@@ -50,7 +49,6 @@ type Plan = {
   expected_classes: Record<string, string>;
 };
 
-/** The operation result of a benchmark run (service/benchmarks.py run). */
 type RunResult = {
   report_id: string;
   report_dir: string;
@@ -62,7 +60,6 @@ type RunResult = {
 
 type Source = "suite" | "scenarios";
 
-/** Blank means "use the suite default"; otherwise a whole number of at least `min`. */
 function wholeNumber(value: string, min: number): number | null | undefined {
   if (!value.trim()) return undefined;
   const parsed = Number(value);

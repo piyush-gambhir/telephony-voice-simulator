@@ -126,7 +126,6 @@ def test_public_amd_mode_requires_acknowledgement_and_release_approval(
     with pytest.raises(SystemExit, match="not approved for public exposure"):
         validate_serve_configuration("0.0.0.0", include_amd=True)
 
-    # IVR-only exposes no /assets route and therefore needs no audio approval.
     validate_serve_configuration("0.0.0.0", include_amd=False)
 
 

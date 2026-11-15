@@ -24,9 +24,6 @@ from aiohttp import web
 from ... import personas
 from ...integrations import elevenlabs
 
-# The persona agent's prompt, in ElevenLabs' recommended sections. ElevenLabs fills
-# {{customer_profile}} per call; the profile sets who the caller is, what they want and any
-# exact lines to say.
 PERSONA_PROMPT = """# Role
 You are a real person on a phone call with a car dealership, as described in your profile.
 You are the customer, never the dealership. You may have called them, or they may have called
@@ -71,7 +68,6 @@ AI. Call end_call and skip_turn silently: never say a tool's name, its reason or
 
 # Your profile
 {{customer_profile}}"""
-# A staff persona answers a transfer target line as a dealership employee instead.
 STAFF_PROMPT = """# Role
 You are a dealership employee answering your work phone, as described in your profile. You
 are never the customer and never an AI assistant. This is a controlled UAT test. Everything
@@ -98,44 +94,24 @@ its arguments.
 
 # Your profile
 {{customer_profile}}"""
-# The chained persona's LLM (override with ELEVENLABS_PERSONA_LLM) and its reasoning effort.
-# High: at lower effort the persona spoke "skip turn" or narrated its waiting aloud
-# ("The service representative is checking...") instead of calling the tool, which padded
-# turn counts: about 14% of calls at low, 12% at medium, 7% at high (UAT, 2026-11-04).
 PERSONA_LLM = "gpt-6.1-terra"
 PERSONA_REASONING_EFFORT = "high"
-# TTS for every persona. Voices are rated high quality on Eleven v4 Turbo and differ from
-# the UAT test-team agents' voices, so customer, employee and agent are easy to tell apart.
 PERSONA_TTS_MODEL = "eleven_v4_turbo"
-CUSTOMER_VOICE_ID = "1SM7GgM6IMuvQlz2BwM3"  # Mark: casual, relaxed, American male
-STAFF_VOICE_ID = "kdmDKE6EkgrWrrykO9Qt"  # Alexandra: conversational, natural, American female
-# The agent's backchannels and fillers do not interrupt the persona. Otherwise a "Mm-hmm" in a
-# mid-sentence pause made it restart its whole line, three times in UAT 01a1a62e-fb59, and the
-# extra turns hit the case's turn cap. A real caller keeps talking through them.
+CUSTOMER_VOICE_ID = "1SM7GgM6IMuvQlz2BwM3"
+STAFF_VOICE_ID = "kdmDKE6EkgrWrrykO9Qt"
 BACKCHANNELS = ["mm-hmm", "mhm", "uh-huh", "hmm", "okay", "alright", "sure", "got it", "right",
                 "one moment", "just a second", "just a moment", "go ahead"]
 MAX_ACTIVE = 20
 MAX_SECONDS = 240
-# A staff persona only takes a briefing and a short handover; the cap ends any goodbye loop
-# between two personas long before the customer's own limit.
 MAX_STAFF_SECONDS = 90
-# Twilio retries the answer webhook; a registered call keeps its TwiML this long.
 RETENTION_SECONDS = MAX_SECONDS + 60
-# Wait before the customer re-engages a silent dealership. Longer than ElevenLabs' 7 s
-# default so a backend lookup or a transfer's ring does not draw "are you still there?".
 DEFAULT_TURN_TIMEOUT = 10.0
-# The branch every persona agent runs calls and tests on. Only ``customer sync-agent``
-# moves it, so dashboard edits on main reach tests at the next sync, not mid-run.
 PINNED_BRANCH = "telephony-voice-simulator"
-# Speech-to-speech model for the Realtime persona agent.
 REALTIME_MODEL = "eleven_realtime_v1_mini"
-# Persona fields a call may override, mapped to the agent setting they replace.
 OVERRIDES = {"first_message": ("agent", "first_message"), "language": ("agent", "language"),
              "voice_id": ("tts", "voice_id")}
-# Post-call webhooks older than this are refused as replays.
 WEBHOOK_TOLERANCE_SECONDS = 30 * 60
 
-# CallSid -> (registered at, TwiML), for concurrency limits and webhook retries.
 ACTIVE: dict[str, tuple[float, str]] = {}
 
 
@@ -156,15 +132,11 @@ def agent_settings(engine: str, variant: dict[str, Any] | None = None) -> dict[s
     staff = (variant or {}).get("role") == "staff"
     prompt: dict[str, Any] = {
         "prompt": STAFF_PROMPT if staff else PERSONA_PROMPT,
-        # Without it two personas on one call (a customer bridged to a staff persona) never
-        # hang up, and loop on goodbyes until the call's time limit.
         "built_in_tools": {"end_call": {
             "type": "system", "name": "end_call",
             "description": "Hang up. Call it right after you say goodbye, or as soon as the other "
                            "side says goodbye; never keep exchanging goodbyes.",
             "params": {"system_tool_type": "end_call"}},
-            # A chained LLM always writes a reply; skip_turn is how the persona stays silent on
-            # hold, while the other side checks something, or when its profile says to.
             "skip_turn": {
                 "type": "system", "name": "skip_turn",
                 "description": "Say nothing this turn: on hold, while the other side is checking "
@@ -266,8 +238,6 @@ async def handle_customer(request: web.Request) -> web.Response:
         return rejected
     prune_calls()
     sid, number, caller = (str(form.get(k, "")) for k in ("CallSid", "To", "From"))
-    # A call the simulator places from a persona line (a customer calling the dealership back)
-    # arrives as outbound-api: the persona is the From line and the dealership is the To side.
     outbound = str(form.get("Direction", "")).startswith("outbound")
     if outbound:
         number, caller = caller, number
@@ -282,13 +252,11 @@ async def handle_customer(request: web.Request) -> web.Response:
         return twiml.twiml("<Reject/>")
     if sid in ACTIVE:
         cached = ACTIVE[sid][1]
-        # A retry while registration is still in flight gets a pause, then Twilio retries.
         return web.Response(text=cached, content_type="text/xml") if cached else twiml.twiml(
             f'<Pause length="2"/><Redirect method="POST">{escape(twiml.public_url("/twilio/customer"))}</Redirect>'
         )
     if len(ACTIVE) >= MAX_ACTIVE or state.call_store().get_incoming_call(sid) is not None:
         return twiml.twiml("<Hangup/>")
-    # Reserve the slot before awaiting ElevenLabs, so concurrent retries cannot register twice.
     ACTIVE[sid] = (time.monotonic(), "")
     direction = "outbound" if outbound else "inbound"
     record = {"call_id": sid, "from_address": str(form.get("From", "")),
@@ -299,7 +267,6 @@ async def handle_customer(request: web.Request) -> web.Response:
     try:
         queued = state.call_store().claim_customer_persona(number)
         persona = queued["persona"] if queued else personas.for_line(allowed[number])
-        # Finding a variant agent or the pinned branch may take ElevenLabs lookups.
         agent_id, branch_id = await asyncio.to_thread(service.resolve_agent, persona)
     except (personas.PersonaError, ValueError, ConflictError) as exc:
         ACTIVE.pop(sid, None)
@@ -332,7 +299,6 @@ async def handle_customer(request: web.Request) -> web.Response:
         )
     except (elevenlabs.ElevenLabsError, ValueError) as exc:
         ACTIVE.pop(sid, None)
-        # The agent or branch may have been deleted or recreated; look them up again.
         service.forget_routing()
         if not state.call_is_deleted(sid):
             state.call_store().upsert_incoming_call(
@@ -351,9 +317,6 @@ async def handle_customer(request: web.Request) -> web.Response:
     if record_personas():
         from .recordings import recording_status, start_audit_recording
 
-        # Started while answering, so the recording's clock matches the call's. A call
-        # this line answers is not in progress until the reply is sent, so that start fails;
-        # retry just after answering and keep how late the recording began.
         recording = recording_status(await start_audit_recording(sid, force=True))
         if recording == "failed":
             recording = "recording"
@@ -395,17 +358,14 @@ async def handle_post_call(request: web.Request) -> web.Response:
         return web.json_response({"ignored": event.get("type")})
     data = event.get("data") or {}
     store = state.call_store()
-    # Storing waits on the call's refresh lock, which a refresh holds across HTTP requests.
     saved = await asyncio.to_thread(service.store_conversation, store, data)
     if saved and saved.get("grade_pending"):
-        # Grading takes a minute of ElevenLabs test runs; answer the webhook first.
         task = asyncio.create_task(asyncio.to_thread(service.grade_quietly, store, saved["call_id"]))
         _GRADING.add(task)
         task.add_done_callback(_GRADING.discard)
     return web.json_response({"stored": bool(saved)})
 
 
-# Background grading tasks, held so they are not garbage collected mid-run.
 _GRADING: set[Any] = set()
 
 

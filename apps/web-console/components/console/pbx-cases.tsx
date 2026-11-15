@@ -19,7 +19,6 @@ export function PbxCases() {
   const [run, setRun] = useState<DealerCaseRun | null>(null);
   const [suite, setSuite] = useState<Suite | null>(null);
   const caseAction = useAction();
-  // Only the most recently clicked case may show its result.
   const latest = useRef<string | null>(null);
   const suiteAction = useAction();
 

@@ -460,5 +460,4 @@ def simulate_directory_call(
     return tuple(steps), outcome
 
 
-# Lower-case fixture name retained for scripts importing the old package.
 scenarios = SCENARIOS

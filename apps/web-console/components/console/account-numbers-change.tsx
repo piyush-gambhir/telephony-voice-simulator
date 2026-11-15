@@ -14,14 +14,12 @@ import { accountNumbers, type AccountNumber } from "@/lib/workflows-api";
 type Ask = ReturnType<typeof useConfirm>["ask"];
 type Backup = { name: string; modified: number };
 
-/** Same rule as the API: HTTPS, or a local URL for development. */
 const WEBHOOK_URL = /^(https:\/\/\S+|http:\/\/(localhost|127\.0\.0\.1):\S+)$/;
 
 function text(value: unknown): string {
   return typeof value === "string" && value ? value : MISSING;
 }
 
-/** Old and new value side by side; unchanged rows are muted. */
 function ChangeRow({ label, before, after }: { label: string; before: string; after: string }) {
   const changed = before !== after;
   return (
@@ -48,7 +46,6 @@ function Plan({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/* ---------- point ---------- */
 
 type PointPlan = Awaited<ReturnType<typeof accountNumbers.point>>;
 
@@ -59,11 +56,9 @@ export function PointForm({ number, ask, onApplied, onClose }: { number: Account
   const [voiceUrl, setVoiceUrl] = useState("");
   const [statusCallback, setStatusCallback] = useState("");
   const [plan, setPlan] = useState<PointPlan | null>(null);
-  // The exact request the plan previewed: Apply sends this, never the live form.
   const [planRequest, setPlanRequest] = useState<ReturnType<typeof body> | null>(null);
   const [applied, setApplied] = useState<PointPlan | null>(null);
   const action = useAction();
-  // Bumped on every edit, so a dry run that returns after an edit is discarded.
   const generation = useRef(0);
 
   const valid = (mode === "route" ? baseUrl === "" || WEBHOOK_URL.test(baseUrl) : WEBHOOK_URL.test(voiceUrl))
@@ -203,7 +198,6 @@ export function PointForm({ number, ask, onApplied, onClose }: { number: Account
   );
 }
 
-/* ---------- revert ---------- */
 
 type RevertPlan = Awaited<ReturnType<typeof accountNumbers.revert>>;
 
@@ -220,12 +214,10 @@ export function RevertForm({
   onApplied: () => void;
   onClose: () => void;
 }) {
-  // Point names its backup after the number SID; fall back to every backup when none match.
   const matching = backups.filter((item) => item.name.includes(number.sid));
   const options = [...(matching.length ? matching : backups)].sort((a, b) => b.modified - a.modified);
   const [backup, setBackup] = useState(options[0]?.name ?? "");
   const [plan, setPlan] = useState<RevertPlan | null>(null);
-  // The backup the plan previewed: Restore applies this one, never the live selection.
   const [planBackup, setPlanBackup] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
   const generation = useRef(0);

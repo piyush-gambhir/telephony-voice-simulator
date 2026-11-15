@@ -439,7 +439,6 @@ def build_timeline(
             extension_state=direct_state,
         )
         if not _reception_available(states):
-            # Reception's own overflow is voicemail; never invent an answer.
             steps.extend(
                 (
                     fallback,
@@ -663,7 +662,6 @@ def definitions() -> tuple[ScenarioDefinition, ...]:
     return tuple(result)
 
 
-# Original fixture names retained for simple imports and scripts.
 departments = DEPARTMENTS
 extensions = EXTENSIONS
 scenarios = SCENARIOS

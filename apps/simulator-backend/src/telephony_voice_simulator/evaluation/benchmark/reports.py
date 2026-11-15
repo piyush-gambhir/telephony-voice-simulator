@@ -32,9 +32,6 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"- detection delay: median {delay['median']}s, p90 {delay['p90']}s, max {delay['max']}s"
         )
 
-    # Every class is both an expected and an observed outcome, so the matrix
-    # must carry a screener COLUMN too: dropping it silently reassigns
-    # correctly-navigated screeners to whatever columns remain.
     classes = ("machine", "screener", "human", "unknown")
     lines += [
         "",
@@ -120,8 +117,6 @@ def render_comparison(reports: list[tuple[str, dict[str, Any]]]) -> str:
             )
         row(name, cells)
 
-    # A scenario that passes in one environment and fails in another is the
-    # only thing a comparison can tell you that two separate reports cannot.
     diverged = []
     for name in scenarios:
         rates = [s["per_scenario"].get(name, {}).get("pass_rate") for s in summaries]

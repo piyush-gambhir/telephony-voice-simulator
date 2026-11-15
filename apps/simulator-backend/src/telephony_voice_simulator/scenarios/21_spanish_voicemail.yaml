@@ -1,7 +1,3 @@
-# Spanish carrier voicemail ("...deje su mensaje despues del tono"). The
-# English phrase list won't match — detection must come from the AMD
-# classifier or the semantic layer. The message is still left in English
-# (the configured dealership message).
 name: spanish_voicemail
 machine:
   main:
@@ -9,8 +5,8 @@ machine:
     - play: spanish_voicemail.wav
     - wait: 1.0
     - tone: {freq: 1000, duration: 0.6, amplitude: 12000}
-    - hold: 45            # mailbox record window
-    - hangup: true        # mailbox max-record timeout: it ends the call itself
+    - hold: 45
+    - hangup: true
 config_overrides:
   voicemail_detection: {beep_detection: true, semantic_detection: true}
 expect:

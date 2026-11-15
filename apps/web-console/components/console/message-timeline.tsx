@@ -20,11 +20,6 @@ function niceStep(span: number): number {
   return [0.5, 1, 2, 5, 10, 15, 30, 60].find((step) => span / step <= 8) ?? 120;
 }
 
-/**
- * The message recording on its own time axis. The shaded band is when the agent was
- * allowed to start speaking, the mark is when the grader heard it start. Audio loads
- * only on request, and the waveform is decoded from the real file.
- */
 export function MessageTimeline({
   recording,
   timing,
@@ -34,7 +29,6 @@ export function MessageTimeline({
   recording: CallRecording | null;
   timing: Timing | null;
   passed: boolean | null;
-  /** The call's overall recording status, to explain a missing message. */
   recordingStatus?: string;
 }) {
   const [source, setSource] = useState<string | null>(null);
@@ -86,7 +80,6 @@ export function MessageTimeline({
           await context.close();
         }
       } catch {
-        // Playback still works through the audio element when decoding is unsupported.
       }
     } catch (cause) {
       setError(controller.signal.aborted

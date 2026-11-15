@@ -1,6 +1,3 @@
-# Truecaller Assistant: a conversational assistant answers, asks name/reason,
-# then passes through. Phrasing avoids the word "screening" entirely — tests
-# that screener detection isn't keyed only on "screening service".
 name: truecaller_assistant
 machine:
   main:
@@ -12,7 +9,6 @@ machine:
     - play: human_hello.wav
     - hold: 40
 expect:
-  # An assistant answers first, then hands the call to the owner.
   callee_class: screener
   webhook_received: true
   ended_reason_not:

@@ -1,5 +1,3 @@
-# Public Twilio IVR overlay. Unlike compose.pstn.yaml, this mode does not load
-# the private AMD audio corpus.
 services:
   simulator-backend:
     command:

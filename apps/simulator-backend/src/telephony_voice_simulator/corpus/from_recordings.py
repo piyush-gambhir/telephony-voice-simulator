@@ -104,8 +104,6 @@ def import_from_recording(
     key = audio_keys[0]
 
     with tempfile.TemporaryDirectory() as tmp:
-        # Never incorporate an object key into a local path. S3 keys can contain
-        # absolute paths, parent traversals, whitespace, and control characters.
         local = Path(tmp) / f"source{Path(key).suffix.lower()}"
         subprocess.run(
             ["aws", "s3", "cp", f"s3://{bucket}/{key}", str(local)],

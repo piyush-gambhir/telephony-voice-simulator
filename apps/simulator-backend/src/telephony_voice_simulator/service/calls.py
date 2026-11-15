@@ -80,9 +80,6 @@ class CallsMixin:
                     continue
                 owned_recording_files.add(resolved)
 
-            # Persist the tombstone and remove call/recording rows before
-            # touching files. Late callbacks in this or another process now
-            # fail closed, and a cleanup failure can be retried idempotently.
             if not self.store.delete_incoming_call(call_id):
                 raise NotFoundError(f"Unknown incoming call: {call_id}")
 
