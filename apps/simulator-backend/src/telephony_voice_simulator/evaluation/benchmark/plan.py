@@ -46,8 +46,6 @@ def resolve_plan(
 
     selected = scenarios or suite_file.get("scenarios") or "all"
     if isinstance(selected, str):
-        # Transfer targets answer a transfer leg, not the agent's first call, so
-        # they have no AMD class and stay out of "all".
         selected = (
             [name for name, raw in catalog.items() if not raw.get("transfer_target")]
             if selected == "all" else [selected]
@@ -76,8 +74,6 @@ def resolve_plan(
         raise ValidationError("simulator numbers must be unique; duplicate lanes would race")
     default_name = Path(suite).stem if suite else "ad-hoc"
     attempts = repeat if repeat is not None else suite_file.get("repeat", 1)
-    # One lane per line: the scenario queue is per-number, so two concurrent
-    # calls to the same line would race for it and mislabel each other.
     lanes = (
         concurrency if concurrency is not None else suite_file.get("concurrency", len(lines) or 1)
     )

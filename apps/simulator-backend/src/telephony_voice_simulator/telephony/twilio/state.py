@@ -27,13 +27,10 @@ class SimState:
         self.scenarios: dict[str, CompiledScenario] = {}
         self.raw_scenarios: dict[str, dict] = {}
         self.compiled_assets: set[str] = set()
-        # Answers numbers that no endpoint manages.
         self.default_scenario = os.environ.get("PSTN_DEFAULT_SCENARIO", "")
-        self.calls: dict[str, dict] = {}  # CallSid -> record
+        self.calls: dict[str, dict] = {}
         self.recording_tasks: dict[str, dict[str, asyncio.Task]] = {}
         self.finalization_tasks: dict[str, asyncio.Task] = {}
-        # A deleted Twilio CallSid must not be resurrected by a late recording
-        # or status callback. Twilio CallSids are globally unique.
         self.deleted_call_ids: set[str] = set()
 
     def load_scenarios(self) -> None:

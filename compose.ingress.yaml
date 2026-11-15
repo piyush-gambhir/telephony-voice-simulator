@@ -1,7 +1,5 @@
 name: telephony-voice-simulator
 
-# Narrow public edge for local carrier testing. Point ngrok at port 8980, not
-# directly at the private control API on 8978.
 services:
   public-ingress:
     image: nginx:1.31-alpine

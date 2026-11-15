@@ -48,9 +48,6 @@ from .model import (
 
 ANSWERING_SERVICE = "+14155550900"
 
-# --------------------------------------------------------------------------- #
-# Schedules
-# --------------------------------------------------------------------------- #
 
 _SALES = (minutes("09:00"), minutes("20:00"))
 _SALES_SAT = (minutes("09:00"), minutes("19:00"))
@@ -171,9 +168,6 @@ TIME_CONDITIONS = (
     ),
 )
 
-# --------------------------------------------------------------------------- #
-# Border elements and trunks
-# --------------------------------------------------------------------------- #
 
 BORDER_ELEMENTS = (
     BorderElement(
@@ -271,9 +265,6 @@ TRUNKS = (
     ),
 )
 
-# --------------------------------------------------------------------------- #
-# Class of restriction
-# --------------------------------------------------------------------------- #
 
 CORS = (
     ClassOfRestriction(
@@ -306,9 +297,6 @@ CORS = (
     ),
 )
 
-# --------------------------------------------------------------------------- #
-# Coverage paths
-# --------------------------------------------------------------------------- #
 
 COVERAGE_PATHS = (
     CoveragePath(
@@ -352,9 +340,6 @@ COVERAGE_PATHS = (
     ),
 )
 
-# --------------------------------------------------------------------------- #
-# Stations
-# --------------------------------------------------------------------------- #
 
 
 def _ext(
@@ -387,7 +372,6 @@ def _ext(
 
 
 EXTENSIONS = (
-    # --- Valley Ford -------------------------------------------------------- #
     _ext("1000", "Front desk", "Attendant", "ford", "reception", "attendant console",
          coverage="cp-standard"),
     _ext("1001", "Reception 2", "Receptionist", "ford", "reception", "desk phone",
@@ -423,15 +407,12 @@ EXTENSIONS = (
     _ext("1700", "General manager", "GM", "ford", "management", "desk phone",
          cor="cor-manager", coverage="cp-manager", did="+14155550110", state="offline"),
     _ext("1800", "Loaner desk", "Rental clerk", "ford", "service", "desk phone"),
-    # Group BDC lives at the Ford rooftop but serves all three stores.
     _ext("1900", "BDC agent 1", "BDC agent", "ford", "bdc", "headset"),
     _ext("1901", "BDC agent 2", "BDC agent", "ford", "bdc", "headset", state="busy"),
     _ext("1902", "BDC agent 3", "BDC agent", "ford", "bdc", "headset", state="busy"),
     _ext("1910", "BDC manager", "BDC manager", "ford", "bdc", "desk phone", cor="cor-manager"),
-    # Registered voice-agent station.
     _ext("1999", "Voice agent (BDC overflow)", "Virtual agent", "ford", "bdc", "sip registration",
          cor="cor-manager", coverage=None),
-    # --- Valley Honda ------------------------------------------------------- #
     _ext("2000", "Front desk", "Attendant", "honda", "reception", "attendant console"),
     _ext("2100", "Sales floor phone", "Shared", "honda", "sales", "shared phone"),
     _ext("2101", "Sales consultant A", "Sales consultant", "honda", "sales", "desk phone",
@@ -449,7 +430,6 @@ EXTENSIONS = (
          cor="cor-manager"),
     _ext("2700", "General manager", "GM", "honda", "management", "desk phone",
          cor="cor-manager", state="offline"),
-    # --- Valley Used Car Center --------------------------------------------- #
     _ext("3000", "Lot office", "Attendant", "used", "reception", "desk phone",
          coverage=None),
     _ext("3100", "Sales floor phone", "Shared", "used", "sales", "shared phone",
@@ -462,9 +442,6 @@ EXTENSIONS = (
          coverage="cp-used-standard"),
 )
 
-# --------------------------------------------------------------------------- #
-# Hunt groups, queues, menus, mailboxes
-# --------------------------------------------------------------------------- #
 
 HUNT_GROUPS = (
     HuntGroup(
@@ -657,9 +634,6 @@ MAILBOXES = (
     Mailbox("honda-service", "Honda service mailbox", "honda", notifies="crm"),
 )
 
-# --------------------------------------------------------------------------- #
-# Sites
-# --------------------------------------------------------------------------- #
 
 SITES = (
     Site(
@@ -747,9 +721,6 @@ SITES = (
     ),
 )
 
-# --------------------------------------------------------------------------- #
-# DID inventory
-# --------------------------------------------------------------------------- #
 
 DIDS = (
     Did("+14155550100", "Valley Ford main", "ford", "time:ford-main-hours"),
@@ -792,9 +763,6 @@ DIDS = (
     ),
 )
 
-# --------------------------------------------------------------------------- #
-# Voice-agent integrations
-# --------------------------------------------------------------------------- #
 
 AGENTS = (
     AgentIntegration(

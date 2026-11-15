@@ -20,7 +20,4 @@ class LocalTwilioRuntime:
         from . import state
 
         loaded = state.STATE.scenarios
-        # Only the serving process compiles scenarios. Any other process (the CLI)
-        # queues into the shared store, and the serving runtime rejects a scenario
-        # it cannot play when the call arrives.
         return not loaded or scenario_name in loaded

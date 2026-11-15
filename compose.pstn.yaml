@@ -1,6 +1,3 @@
-# Add this overlay only when the backend is behind public HTTPS and all required
-# Twilio/operator secrets and a rights-reviewed private AMD corpus are present:
-# docker compose -f compose.yaml -f compose.pstn.yaml up --build
 services:
   simulator-backend:
     command:

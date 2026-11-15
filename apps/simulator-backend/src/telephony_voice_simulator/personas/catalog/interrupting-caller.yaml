@@ -1,7 +1,7 @@
 id: interrupting-caller
 description: Impatient caller who cuts in while the assistant is still talking.
 engine: chained
-voice_id: c6SfcYrb2t09NHXiT80T  # Jarnathan, rated high quality on Eleven v4 Turbo
+voice_id: c6SfcYrb2t09NHXiT80T
 turn:
   eagerness: eager
 profile: >-

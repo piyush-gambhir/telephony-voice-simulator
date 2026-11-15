@@ -23,7 +23,6 @@ def test_claims_a_free_persona_line_and_the_target_line():
     lines = lanes.Lines(pace=60, clock=Clock())
     first = lines.claim(_case("a", target="+15550100009"), SUITE)
     assert first == {"target": "+15550100009", "lane": "+15550100001"}
-    # The target line is held, so a second case for it waits even with a lane free.
     assert lines.claim(_case("b", target="+15550100009"), SUITE) is None
     assert lines.claim(_case("c"), SUITE) == {"lane": "+15550100002"}
     assert lines.claim(_case("d"), SUITE) is None
@@ -63,7 +62,6 @@ def test_run_overlaps_cases_without_sharing_a_line_and_keeps_case_order():
     def run_one(case, view):
         lane = view["persona_line"]
         with lock:
-            # Never two calls on one persona line, and only one on the shared target line.
             assert lane not in active and not ({"T"} & active and case.get("target"))
             active.add(lane)
             if case.get("target"):

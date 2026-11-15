@@ -159,7 +159,7 @@ def _get_or_create(client: httpx.Client, url: str, name: str) -> str:
 def _upload_version(
     client: httpx.Client,
     service_sid: str,
-    kind: str,  # "Functions" | "Assets"
+    kind: str,
     item_sid: str,
     path: str,
     content: bytes,
@@ -222,7 +222,6 @@ def deploy(
     service_sid = _get_or_create_service(client)
     log(f"service: {service_sid}")
 
-    # Function
     function_sid = _get_or_create(client, f"{API}/Services/{service_sid}/Functions", "machine")
     function_version = _upload_version(
         client, service_sid, "Functions", function_sid, "/machine",
@@ -230,7 +229,6 @@ def deploy(
     )
     log(f"function version: {function_version}")
 
-    # Assets: programs.json (private) + every compiled wav referenced (public)
     asset_versions: list[str] = []
     programs_asset = _get_or_create(client, f"{API}/Services/{service_sid}/Assets", "programs")
     asset_versions.append(
@@ -260,8 +258,6 @@ def deploy(
         )
         log(f"asset: {filename}")
 
-    # Build (dict with list values → repeated form keys; httpx treats a
-    # list-of-tuples ``data`` as raw content, not form fields)
     data = {
         "FunctionVersions": function_version,
         "AssetVersions": asset_versions,
@@ -278,7 +274,6 @@ def deploy(
     _wait_for_build(client, service_sid, build_sid, log=log)
     log("build completed")
 
-    # Environment + deployment
     resp = client.get(f"{API}/Services/{service_sid}/Environments")
     resp.raise_for_status()
     env = next(

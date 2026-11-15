@@ -9,9 +9,6 @@ BACKEND_ROOT = PACKAGE_ROOT.parents[1]
 CORPUS_DIR = PACKAGE_ROOT / "corpus"
 TEMPLATES_DIR = PACKAGE_ROOT / "templates"
 
-# An editable source checkout keeps its traditional data/results folders. An
-# installed wheel must never try to write into site-packages, so it falls back
-# to a working-directory state folder unless the operator selects a path.
 _source_checkout = (BACKEND_ROOT / "pyproject.toml").is_file()
 _default_runtime_root = (
     BACKEND_ROOT if _source_checkout else Path.cwd() / ".telephony-voice-simulator"
@@ -45,8 +42,6 @@ COMPILED_ASSETS_DIR = _configured_path(
     DATA_DIR / "compiled-assets",
 )
 
-# The IVR prompt source ships next to the backend in a checkout. A packaged
-# install has no such file, so callers must pass an explicit config path there.
 IVR_PROMPTS_CONFIG = _configured_path(
     "SIMULATOR_IVR_PROMPTS_CONFIG", BACKEND_ROOT / "config" / "ivr_prompts.yaml"
 )
@@ -58,5 +53,4 @@ IVR_PROMPTS_OUTPUT_DIR = _configured_path(
         else RUNTIME_ROOT / "ivr-prompts"
     ),
 )
-# UAT workflow configs live next to the prompt source in a checkout.
 UAT_CONFIG_DIR = _configured_path("SIMULATOR_UAT_CONFIG_DIR", BACKEND_ROOT / "config")

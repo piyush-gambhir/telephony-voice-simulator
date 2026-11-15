@@ -79,7 +79,6 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
     [data.runs, data.calls, data.endpoints, data.scenarios],
   );
 
-  /** Every mutation pauses polling, reports failures inline and never throws. */
   const run = useCallback(async <T,>(fallback: string, task: () => Promise<T>): Promise<T | null> => {
     setBusy(true);
     setError(null);
@@ -107,7 +106,6 @@ export function ConsoleProvider({ children }: { children: ReactNode }) {
           simulatorApi.createRun({ endpoint_id: endpointId, scenario }));
         if (!created) return null;
         updateData("runs", (current) => [created, ...current]);
-        // Managed numbers count their own pending runs; refresh them so Lines stays accurate.
         if (data.amdNumbers.some((number) => number.endpoint_id === endpointId)) {
           void simulatorApi.amdNumbers().then((numbers) => updateData("amdNumbers", numbers)).catch(() => {});
         }

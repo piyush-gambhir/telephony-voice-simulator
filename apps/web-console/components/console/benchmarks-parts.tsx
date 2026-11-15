@@ -5,9 +5,7 @@ import type { ReactNode } from "react";
 import { MISSING } from "@/components/console/kit";
 import { cn } from "@/lib/utils";
 
-/* Small pieces shared by the Benchmarks, UAT and Agents pages. */
 
-/** A multi-select as toggle buttons: each option is pressed or not. */
 export function ToggleChips({
   label,
   options,
@@ -43,7 +41,6 @@ export function ToggleChips({
   );
 }
 
-/** Toggle membership of `id` in a set, returning a new set. */
 export function toggled(set: ReadonlySet<string>, id: string): Set<string> {
   const next = new Set(set);
   if (next.has(id)) next.delete(id);
@@ -60,7 +57,6 @@ export function InlineError({ message, className }: { message: string | null | u
   );
 }
 
-/** One headline number. */
 export function Metric({ label, value, detail }: { label: string; value: ReactNode; detail?: ReactNode }) {
   return (
     <div className="min-w-0 rounded-lg bg-surface-1 px-3.5 py-3">
@@ -75,7 +71,6 @@ export function MetricGrid({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">{children}</div>;
 }
 
-/** Key/value facts in a compact two-column list. */
 export function Facts({ items }: { items: Array<[string, ReactNode]> }) {
   return (
     <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13px]">
@@ -89,7 +84,6 @@ export function Facts({ items }: { items: Array<[string, ReactNode]> }) {
   );
 }
 
-/** Long text output (markdown reports, step output) kept as written. */
 export function Preformatted({ text, label, className }: { text: string; label: string; className?: string }) {
   return (
     <pre
@@ -117,12 +111,10 @@ export function seconds(value: unknown): string {
   return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value * 100) / 100}s` : MISSING;
 }
 
-/** Phone numbers or SIP addresses typed one per line or separated by commas. */
 export function parseList(value: string): string[] {
   return value.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean);
 }
 
-/** A tri-state verdict: true passed, false failed, null undecided. */
 export function verdictTone(passed: boolean | null | undefined): "success" | "danger" | "neutral" {
   return passed === true ? "success" : passed === false ? "danger" : "neutral";
 }

@@ -422,7 +422,6 @@ DISPLAY_DESCRIPTIONS = {
     ),
 }
 
-# Why this scenario earns its place, the value, in one or two sentences.
 WHY = {
     "stock_voicemail_beep_1000": "The everyday case. If the agent can't leave a clean message here, nothing else matters.",
     "stock_voicemail_beep_1400_late": "A blind fixed delay speaks over a late beep or into dead air. Only real beep alignment lands the message on carriers whose tone drifts seconds late and off 1 kHz.",

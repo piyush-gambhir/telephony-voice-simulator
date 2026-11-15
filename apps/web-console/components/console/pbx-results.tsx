@@ -3,7 +3,6 @@
 import { formatDuration, MISSING } from "@/components/console/kit";
 import { Facts, humanize, OutcomePill, StepList, type ModelStep } from "@/components/console/models-timeline";
 
-/** `CallResult.as_dict()` from domains/pbx/dealer/router.py. */
 export type DealerCall = {
   outcome: string;
   answered_by: string | null;
@@ -16,7 +15,6 @@ export type DealerCall = {
   timeline: ModelStep[];
 };
 
-/** `TransferResult.as_dict()` from domains/pbx/dealer/transfer.py. */
 export type DealerTransfer = {
   outcome: string;
   accepted: boolean;
@@ -30,7 +28,6 @@ export type DealerTransfer = {
   target_leg: DealerCall | null;
 };
 
-/** `run_case` from domains/pbx/dealer/cases.py. */
 export type DealerCaseRun = {
   id: string;
   title: string;

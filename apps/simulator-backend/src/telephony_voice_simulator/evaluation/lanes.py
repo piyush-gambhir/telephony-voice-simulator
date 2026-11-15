@@ -126,13 +126,11 @@ def run(cases: list[dict[str, Any]], suite: dict[str, Any], *, lanes: int, pace:
                         break
                 if not running:
                     if hopeless := [i for i in pending if not _needed(cases[i], suite)]:
-                        # A case with no line to call from can never start.
                         for index in hopeless:
                             rows[index] = failed(cases[index], "no line available for this case")
                             on_row(index, rows[index])
                             pending.remove(index)
                         continue
-                    # Every needed line is pacing: wait for the first one to come back.
                     time.sleep(min(poll, lines.next_ready()) or poll / 5)
                     continue
                 done, _ = wait(list(running), timeout=poll, return_when=FIRST_COMPLETED)
@@ -141,7 +139,7 @@ def run(cases: list[dict[str, Any]], suite: dict[str, Any], *, lanes: int, pace:
                     lines.release(held)
                     try:
                         rows[index] = {**future.result(), "lane": held["lane"]}
-                    except Exception as exc:  # one broken case must not lose the others
+                    except Exception as exc:
                         rows[index] = failed(cases[index], f"{type(exc).__name__}: {exc}")
                     on_row(index, rows[index])
         if after and (error := hook(after)):

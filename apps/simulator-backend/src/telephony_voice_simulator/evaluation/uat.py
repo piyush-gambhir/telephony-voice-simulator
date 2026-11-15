@@ -79,8 +79,6 @@ def _secret(value: Any) -> str:
     return resolved
 
 
-# Adapters keep output up to RAW_LIMIT so captures can parse whole JSON documents; reports
-# show at most REPORT_LIMIT of it.
 RAW_LIMIT = 2_000_000
 REPORT_LIMIT = 12_000
 
@@ -159,8 +157,6 @@ class CommandAdapter:
                 check=False,
             )
         except OSError as exc:
-            # A missing executable or working directory is a failed step, so retries,
-            # "always" cleanup steps and the report still run.
             return StepResult(
                 "command",
                 False,
@@ -409,13 +405,10 @@ def _report_result(step: WorkflowStep, result: StepResult) -> dict[str, Any]:
     reported = asdict(result)
     reported["output_redacted"] = not step.report_output
     if not step.report_output:
-        # Bodies, process output, rendered URLs, and arguments can contain
-        # customer data even when credentials came only from the environment.
         reported["detail"] = ""
         reported["stdout"] = ""
         reported["stderr"] = ""
     else:
-        # Rendered arguments and URLs can carry large captured values too.
         reported["detail"] = _bounded(result.detail, REPORT_LIMIT)
         reported["stdout"] = _bounded(result.stdout, REPORT_LIMIT)
         reported["stderr"] = _bounded(result.stderr, REPORT_LIMIT)

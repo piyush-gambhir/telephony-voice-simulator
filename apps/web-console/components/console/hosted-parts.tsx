@@ -8,10 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import type { CallAnalysis, Scenario } from "@/lib/simulator-api";
 
-/** E.164 as Twilio stores it. */
 export const E164 = /^\+[1-9]\d{6,14}$/;
 
-/** A call graded by the hosted callee (`telephony/twilio/hosted/grade.py`). */
 export type GradedCall = {
   call_sid: string;
   scenario: string | null;
@@ -28,7 +26,6 @@ export function ActionError({ message }: { message: string | null }) {
   return <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-xs leading-5 text-danger">{message}</p>;
 }
 
-/** AMD scenarios from the catalog; a free-text input when the catalog has not loaded. */
 export function ScenarioSelect({
   id,
   value,
@@ -91,7 +88,6 @@ function CheckPill({ passed }: { passed: boolean | null | undefined }) {
   return <TonePill tone="neutral">No evidence</TonePill>;
 }
 
-/** One graded call: verdict, scenario, digits, then every check with its detail. */
 export function GradedCallView({ call }: { call: GradedCall }) {
   const checks = call.analysis?.checks ?? [];
   return (

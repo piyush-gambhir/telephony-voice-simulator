@@ -89,7 +89,6 @@ function SideSheet({
   );
 }
 
-/* ---------- providers ---------- */
 
 function AddProviderForm({ onDone }: { onDone: () => void }) {
   const { data, actions } = useConsole();
@@ -278,7 +277,6 @@ export function ProvidersPage() {
   );
 }
 
-/* ---------- directory ---------- */
 
 function AddExtensionForm({ onDone }: { onDone: () => void }) {
   const { data, actions } = useConsole();

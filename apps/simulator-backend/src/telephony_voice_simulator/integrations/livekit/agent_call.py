@@ -72,8 +72,6 @@ async def trigger(scenario: str, queue: bool, log: Log = _no_log) -> dict:
         config_overrides=None,
     )
     metadata["phone_number"] = sim_number
-    # Most SIP trunks require an account-owned caller ID; without it the INVITE
-    # is typically rejected and the call dies before it connects.
     caller_id = os.environ.get("SIM_CALLER_ID")
     if caller_id:
         metadata["agent_phone"] = caller_id
@@ -115,4 +113,3 @@ def wait_for_inbound_leg(
             if fresh and fresh[0]["status"] in ("completed", "no-answer", "busy", "failed"):
                 return fresh[0]["sid"]
     return None
-

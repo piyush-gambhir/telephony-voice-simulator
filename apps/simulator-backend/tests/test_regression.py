@@ -118,7 +118,6 @@ def test_metrics_time_the_transfer_from_the_agent_timeline_and_the_target_leg():
     assert m["hold_s"] == 21.0 and m["briefing_s"] == 6.5
     assert m["turn_p95_ms"] == 1500.0 and m["target_caller_id"] == "+15550100001"
     assert regression._metrics(None, {}, None, None)["transfer_setup_s"] is None
-    # Epoch seconds and offset-less ISO times (read as UTC) work too.
     assert regression._seconds_between(1793534400, "2026-11-01T12:00:05") == 5.0
     assert regression._seconds_between("not a time", 5) is None
 

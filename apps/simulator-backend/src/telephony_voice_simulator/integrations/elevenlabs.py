@@ -14,7 +14,6 @@ import httpx
 
 API_URL = "https://api.elevenlabs.io"
 TIMEOUT_SECONDS = 10.0
-# Accepted by ElevenLabs for simulations as of 2026-10; gpt-6-sol and gpt-5.5 are not.
 DEFAULT_EVALUATION_MODEL = "gpt-6-luna"
 
 
@@ -42,7 +41,6 @@ def _checked(response: httpx.Response) -> Any:
     if response.status_code >= 400:
         detail = response.text[:300]
         raise ElevenLabsError(f"ElevenLabs returned {response.status_code}: {detail}")
-    # Some actions (creating a branch) can answer 200 with no body.
     return response.json() if response.content else None
 
 
@@ -90,7 +88,6 @@ async def register_call(
             await client.aclose()
     if response.status_code >= 400:
         _checked(response)
-    # The endpoint answers with the TwiML itself (text/xml), or with that TwiML as a JSON string.
     try:
         twiml = response.json()
     except ValueError:

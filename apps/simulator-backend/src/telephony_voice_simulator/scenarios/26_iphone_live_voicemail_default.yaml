@@ -1,6 +1,3 @@
-# iPhone / Live Voicemail-style stock prompt: short "forwarded to voicemail"
-# opening, then "not available", then "at the tone". This regression-locks
-# agent speech leaking into the greeting while AMD is still deciding.
 name: iphone_live_voicemail_default
 machine:
   main:

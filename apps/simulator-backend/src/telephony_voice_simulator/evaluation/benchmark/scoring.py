@@ -6,7 +6,6 @@ import math
 import statistics
 from typing import Any
 
-# End reasons that mean "the agent concluded it was talking to a machine".
 MACHINE_ENDED_PREFIXES = ("call.ending.voicemail", "call.ending.machine")
 UNCONNECTED_STATUSES = {"failed", "no-answer", "no_answer", "busy", "canceled", "cancelled"}
 
@@ -39,9 +38,6 @@ def expected_class(scenario: dict[str, Any]) -> str:
         str(r).startswith(MACHINE_ENDED_PREFIXES) for r in expect.get("ended_reason_not") or []
     )
     if banned_machine:
-        # Forbidding every machine ending means the call has to end in
-        # conversation. Whether something machine-like answered FIRST is what
-        # separates a screener from a plain human pickup.
         return "screener" if expect.get("detection_layer_prefix_any_of") else "human"
     return "unknown"
 
@@ -166,9 +162,6 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ]
     decided = [r for r in rows if r.get("passed") is not None]
     machine_rows = [r for r in rows if r.get("expected_class") == "machine"]
-    # A screener misread as a mailbox is the same production failure as a
-    # human misread as one: the agent talks to a recording and hangs up on a
-    # reachable person, so both belong in the false-machine rate.
     live_rows = [r for r in rows if r.get("expected_class") in ("human", "screener")]
     return {
         "calls": len(rows),
@@ -179,8 +172,6 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if decided
         else None,
         "confusion_matrix": matrix,
-        # The two errors that cost money in production: leaving a voicemail
-        # into a live conversation, and conversing with a mailbox.
         "false_human_rate": _rate(machine_rows, {"human", "screener"}),
         "false_machine_rate": _rate(live_rows, {"machine"}),
         "classification_coverage": round(

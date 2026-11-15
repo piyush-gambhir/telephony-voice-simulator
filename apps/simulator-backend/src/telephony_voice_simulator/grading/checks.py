@@ -36,9 +36,6 @@ import numpy as np
 
 from ..domains.amd.validation import validate_expectations
 
-# Simple energy VAD over the agent's recorded track. The agent's TTS is loud
-# and clean (it is the room's direct audio, not a mic), so a fixed int16 RMS
-# threshold is reliable; ambience tracks stay far below it.
 VAD_FRAME_S = 0.02
 VAD_RMS_THRESHOLD = 700.0
 VAD_MERGE_GAP_S = 0.35
@@ -47,7 +44,7 @@ VAD_MIN_SEGMENT_S = 0.25
 
 @dataclass
 class SpeechSegment:
-    start: float  # machine-timeline seconds
+    start: float
     end: float
 
     @property
@@ -222,9 +219,6 @@ def run_checks(
         absent = not layer
         add("detection_layer_absent", call_ended is not None and absent == expect["detection_layer_absent"], f"got={layer or '(none)'} webhook={'yes' if call_ended is not None else 'MISSING'}")
 
-    # callee_class labels benchmark ground truth, rather than an assertion.
-    # Room mode has no isolated mailbox transcript; keep the requested
-    # content check visible instead of silently treating it as successful.
     if "message_content" in expect:
         add("message_content", None, "Message content requires PSTN recording/transcription grading")
     for key in ("transcript_contains", "transcript_excludes"):

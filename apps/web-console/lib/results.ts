@@ -30,7 +30,6 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
   ran: "Ran",
 };
 
-/** One row of evidence: a run, its call, or a call that arrived without a queued run. */
 export type Result = {
   id: string;
   run: SimulationRun | null;
@@ -67,7 +66,6 @@ function checkName(check: CheckResult, index: number): string {
   return check.check ?? check.name ?? `check ${index + 1}`;
 }
 
-/** Turn the grader's terse detail into a sentence, keeping unknown formats verbatim. */
 export function describeCheck(detail: string | undefined): string {
   if (!detail) return "";
   const timing = parseTiming(detail);
@@ -88,11 +86,9 @@ export type Timing = {
   min: number;
   max: number;
   basis: "recording" | "mark";
-  /** Seconds from the mark to the start of the recording, when the grader reported it. */
   offset: number | null;
 };
 
-/** Window and start on the recording's own axis, or null when they cannot be placed. */
 export function onRecordingAxis(timing: Timing | null): { start: number; min: number; max: number } | null {
   if (!timing) return null;
   if (timing.basis === "recording") return timing;
@@ -100,7 +96,6 @@ export function onRecordingAxis(timing: Timing | null): { start: number; min: nu
   return { start: timing.start - timing.offset, min: timing.min - timing.offset, max: timing.max - timing.offset };
 }
 
-/** Timing evidence written by pstn/analyze.py for message_start_after. */
 export function parseTiming(detail: string | undefined): Timing | null {
   if (!detail) return null;
   const match = /(leading_silence|delay_after_mark)=(-?[\d.]+)s window=\[(-?[\d.]+),(-?[\d.]+)\]/.exec(detail);
@@ -148,10 +143,6 @@ function reasonFor(verdict: Verdict, checks: CheckResult[], run: SimulationRun |
   };
 }
 
-/**
- * The checks that decide a call: AMD checks on the call, or a synthetic-customer grade
- * (each persona expectation and transcript check becomes one check), or the run's copy.
- */
 function evidenceFor(run: SimulationRun | null, call: IncomingCall | null): CallAnalysis | undefined {
   if (call?.analysis?.checks) return call.analysis;
   const grade = call?.analysis?.grade;
@@ -176,7 +167,6 @@ function verdictFor(run: SimulationRun | null, call: IncomingCall | null): Verdi
   if (call && ACTIVE_CALL.has(call.status)) return "running";
   if (run && !call && !run.completed_at && !["completed", "failed"].includes(run.status)) return "running";
   const analysis = evidenceFor(run, call);
-  // Checks decide whenever they exist, whether or not the call is still in the loaded window.
   const keptVerdict = run?.result.call_deleted && run.result.passed != null;
   if (analysis?.checks?.length || run?.result.graded || keptVerdict) {
     const passed = analysis?.passed ?? run?.result.passed ?? null;
@@ -184,7 +174,6 @@ function verdictFor(run: SimulationRun | null, call: IncomingCall | null): Verdi
   }
   if (run?.status === "failed") return "error";
   if (call) return call.status === "completed" ? "no_verdict" : "error";
-  // A completed carrier run without checks is waiting on, or lost, its evidence.
   if (run?.result.mode === "pstn" && run.status === "completed") return "no_verdict";
   return "ran";
 }
@@ -196,7 +185,6 @@ export function buildResults(
   scenarios: Scenario[],
 ): Result[] {
   const callsById = new Map(calls.map((call) => [call.id, call]));
-  // The backend links in both directions; either side may land first while a call is claimed.
   const callsByRun = new Map(
     calls.filter((call) => call.analysis?.run_id).map((call) => [call.analysis.run_id as string, call]),
   );
@@ -243,7 +231,6 @@ export function buildResults(
     if (call) usedCalls.add(call.id);
     results.push(make(run, call));
   }
-  // Calls answered with a line's default scenario have no queued run; keep them as evidence too.
   for (const call of calls) {
     if (!usedCalls.has(call.id)) results.push(make(null, call));
   }
@@ -254,7 +241,6 @@ export function findResult(results: Result[], id: string): Result | undefined {
   return results.find((result) => result.id === id || result.call?.id === id || result.run?.id === id);
 }
 
-/** One sentence about the visible rows, or null when there is nothing worth saying. */
 export function findingLine(results: Result[]): { lead: string; detail: string | null } | null {
   const failed = results.filter((result) => result.verdict === "failed");
   const queued = results.filter((result) => result.verdict === "queued").length;

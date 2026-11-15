@@ -49,8 +49,6 @@ class TrackAudioOut:
                     samples_per_channel=chunk.shape[0],
                 )
                 await self._source.capture_frame(frame)
-            # capture_frame queues audio. Timing marks must follow actual
-            # playout, otherwise beep/greeting timing can be a second early.
             await self._source.wait_for_playout()
         except BaseException:
             self._source.clear_queue()
@@ -60,7 +58,7 @@ class TrackAudioOut:
 @dataclass
 class BotResult:
     timeline: list[dict]
-    recordings: dict[str, Path]  # track label -> wav path
+    recordings: dict[str, Path]
     joined_at_monotonic: float
 
 
@@ -116,10 +114,6 @@ class CalleeBot:
 
         @room.on("participant_disconnected")
         def _on_participant_left(participant) -> None:
-            # The agent tearing down (SIP BYE analog: it just leaves/deletes).
-            # Only when NO remote participants remain — duplicate job offers
-            # can briefly add/remove a second agent participant, and treating
-            # that as "agent hung up" made the bot abandon the call mid-script.
             if not room.remote_participants:
                 agent_left.set()
             else:
@@ -137,7 +131,6 @@ class CalleeBot:
 
         @room.on("local_track_subscribed")
         def _on_local_subscribed(*_a) -> None:
-            # The agent subscribed to OUR audio — the greeting can now be heard.
             subscribed.set()
 
         self._machine.start_clock()
@@ -153,8 +146,6 @@ class CalleeBot:
             )
             self._machine.bind_audio(TrackAudioOut(source))
 
-            # Wait for the agent to hear the greeting. All recordings and
-            # marks, including pre-greeting speech, already share one clock.
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(subscribed.wait(), timeout=5.0)
             await asyncio.sleep(0.5)
@@ -177,8 +168,6 @@ class CalleeBot:
             elif not done:
                 self._machine.mark("bot_leaving", reason="call_timeout")
             else:
-                # Give the agent a grace window to finish teardown after the
-                # machine script completed (e.g. it is speaking the message).
                 with contextlib.suppress(asyncio.TimeoutError):
                     await asyncio.wait_for(agent_left.wait(), timeout=30.0)
         finally:

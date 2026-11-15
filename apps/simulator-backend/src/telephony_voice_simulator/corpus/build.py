@@ -37,7 +37,6 @@ SAMPLE_RATE = 48000
 DEFAULT_ELEVENLABS_MODEL_ID = "eleven_v3"
 DEFAULT_ELEVENLABS_SEED = 42
 DEFAULT_ELEVENLABS_VOICE_SETTINGS: dict[str, float | bool] = {
-    # ElevenLabs' Robust v3 preset: prioritize repeatable, neutral delivery.
     "stability": 1.0,
     "similarity_boost": 0.75,
     "style": 0.0,
@@ -46,7 +45,6 @@ DEFAULT_ELEVENLABS_VOICE_SETTINGS: dict[str, float | bool] = {
 }
 V3_VOICE_SETTING_KEYS = {"stability", "style", "speed"}
 
-# name -> (voice_hint, text). Keep names stable: scenario YAMLs reference them.
 CORPUS: dict[str, tuple[str, str]] = {
     "greeting_stock_carrier.wav": (
         "female",
@@ -113,9 +111,6 @@ CORPUS: dict[str, tuple[str, str]] = {
         "Good morning, Northstar Service Center. This is Jordan. "
         "How may I direct your call?",
     ),
-    # --- Device screeners (the modern AMD landscape) -------------------------
-    # Clean-room copy modeling Pixel Call Screen's interaction shape. It is
-    # intentionally not a transcript of a vendor prompt.
     "pixel_call_screen.wav": (
         "female",
         "This call is being screened, and the recipient will receive your "
@@ -139,20 +134,16 @@ CORPUS: dict[str, tuple[str, str]] = {
         "An automated assistant is screening this call. State your name and "
         "the reason you are calling.",
     ),
-    # Voice-based screen that uses a TONE — the "after the tone" phrasing is a
-    # voicemail-phrase trap on a call that is NOT a voicemail.
     "record_name_screen.wav": (
         "female",
         "To connect your call, please say your name after the tone.",
     ),
     "screen_connecting_thanks.wav": ("female", "Thank you. Connecting you now."),
-    # iOS 17+ Live Voicemail: the human can pick up MID-MESSAGE.
     "live_vm_pickup.wav": (
         "male",
         "Oh hey, sorry, I'm here. I just picked up while you were leaving the "
         "message. Who's this?",
     ),
-    # --- Carrier edge machines ----------------------------------------------
     "att_mailbox_not_setup.wav": (
         "female",
         "The wireless customer you are calling is not available. "
@@ -163,8 +154,6 @@ CORPUS: dict[str, tuple[str, str]] = {
         "We're sorry. The number you have dialed is not in service, or has "
         "been disconnected. Please check the number and dial again.",
     ),
-    # Verizon-style: post-message key options INSIDE a genuine voicemail — the
-    # agent must leave the message and must NOT press anything.
     "verizon_vm_options.wav": (
         "female",
         "At the tone, please record your message. When you have finished "
@@ -176,16 +165,11 @@ CORPUS: dict[str, tuple[str, str]] = {
         "voz. La persona a la que llama no esta disponible. Por favor, deje su "
         "mensaje despues del tono.",
     ),
-    # Clean-room copy modeling the Google Voice / Fi voicemail flow without
-    # reproducing its branded opening.
     "google_voice_voicemail.wav": (
         "female",
         "The recipient cannot answer this call. After the signal, record your "
         "message. When you are finished, you may hang up.",
     ),
-    # Number-readback patterns use only the NANP-reserved 555-0100–0199 range.
-    # Digits in the greeting are an AMD trap: they resemble an IVR, but there
-    # is no menu.
     "number_readback_vm.wav": (
         "female",
         "The number you have dialed, two zero two, five five five, zero one "
@@ -206,9 +190,6 @@ CORPUS: dict[str, tuple[str, str]] = {
         "Two zero two five five five zero one zero three can't take your "
         "call now.",
     ),
-    # Clean-room PBX voicemail fragments. These deliberately model the timing
-    # shape of a segmented enterprise PBX greeting without copying a vendor's
-    # recordings, transcript, voice, or beep asset.
     "pbx_extension_announcement.wav": (
         "female",
         "The person at extension two zero one",
@@ -221,8 +202,6 @@ CORPUS: dict[str, tuple[str, str]] = {
         "female",
         "After the signal, please leave a message.",
     ),
-    # AI voice-to-text screener that stays on the line and asks who's calling.
-    # This is a screener, not voicemail: hanging up drops a reachable human.
     "robo_transcription_screener.wav": (
         "female",
         "Hi, I'm a virtual assistant. I'll convert your voice to text so the "
@@ -234,10 +213,6 @@ CORPUS: dict[str, tuple[str, str]] = {
         "Sorry, I didn't catch that. Could you say who you are and why you're "
         "calling?",
     ),
-    # --- Transfer targets (the human a voice agent hands a caller to) --------
-    # Played on the line the agent transfers to. The bridge code is a word the
-    # agent never hears before the bridge, so finding it in the customer's
-    # transcript proves the customer reached this line.
     "transfer_target_greeting.wav": ("male", "Hey, this is Sam in sales."),
     "transfer_target_accept.wav": (
         "male",
@@ -451,8 +426,6 @@ def _generated_manifest_row(
         **metadata,
         "generated_at": dt.datetime.now(dt.UTC).date().isoformat(),
         "sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
-        # Public release is controlled by the explicit release allowlist.
-        # A local generation command must never grant that permission itself.
         "commit_allowed": False,
     }
 

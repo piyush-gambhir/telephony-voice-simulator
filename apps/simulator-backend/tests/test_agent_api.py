@@ -32,7 +32,6 @@ def test_render_substitutes_through_nested_structures() -> None:
         "meta": {"scenario": "mailbox_full", "tags": ["run:r1", "static"]},
         "count": 3,
     }
-    # The template itself must be reusable across attempts.
     assert template["to"] == "{sim_number}"
 
 
@@ -56,7 +55,6 @@ def test_record_headers_inherit_unless_explicitly_suppressed() -> None:
     overrides = _config(authorization="Bearer t", record_authorization="Basic x")
     assert overrides.record_headers == {"Authorization": "Basic x"}
 
-    # Read paths are often unauthenticated while the write path is not.
     suppressed = _config(authorization="Bearer t", record_authorization="none")
     assert suppressed.record_headers == {}
 
@@ -136,7 +134,6 @@ def test_layer_is_never_synthesized_for_a_human_verdict() -> None:
     }
     assert agent_api.extract_outcome(_config(), machine)["detection_layer"] == "livekit-amd:llm"
 
-    # An explicit layer always wins, machine or not.
     explicit = {
         "status": "completed",
         "providerMetadata": {

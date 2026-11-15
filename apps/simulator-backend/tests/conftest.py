@@ -9,13 +9,13 @@ class FakeAgents:
     """ElevenLabs agents and branches in memory: what sync-agent and call routing touch."""
 
     def __init__(self):
-        self.names = {       # agent name -> agent id; base agents already exist
+        self.names = {
             personas.base_name('chained'): 'agent_chained',
             personas.base_name('realtime'): 'agent_realtime',
         }
-        self.created = []    # (name, body) of agents created from scratch
-        self.branches = {}   # agent id -> pinned branch id
-        self.updates = []    # (agent id, body, enable_versioning)
+        self.created = []
+        self.branches = {}
+        self.updates = []
         self.voice = 'voice_base'
 
     def update_agent(self, agent_id, body, enable_versioning=False):

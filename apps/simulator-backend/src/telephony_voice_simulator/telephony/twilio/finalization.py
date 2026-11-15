@@ -40,7 +40,6 @@ def restore(sid: str) -> dict | None:
     if sid in state.STATE.calls:
         return state.STATE.calls[sid]
     saved = state.call_store().get_incoming_call(sid)
-    # Prefer the grading snapshot; an active call only has its execution snapshot.
     data = (saved.analysis.get("finalization", {}).get("runtime")
             or saved.analysis.get("runtime")) if saved else None
     if not isinstance(data, dict) or not isinstance(data.get("grading_spec"), dict):
@@ -89,7 +88,6 @@ def media_state(call: dict) -> tuple[list, list[str], bool, dict]:
         evidence["message_recording_window"] = first_segment
         if first is None:
             incomplete = True
-    # Every emitted record window needs its own callback; a missing later window is not evidence.
     bound = {windows.get(r.id) for r in messages}
     if len(messages) < len(emitted) or (windows and any(step not in bound for step, _ in emitted)):
         incomplete = True
@@ -104,7 +102,6 @@ def schedule(call: dict) -> None:
         return
     active = state.STATE.finalization_tasks.get(sid)
     if active and not active.done():
-        # Keep late callback bindings (recording windows) recoverable across a restart.
         pending = call.get("analysis", {}).get("finalization", {})
         if pending.get("state") == "pending":
             analysis = {**call["analysis"], "finalization": {**pending, "runtime": snapshot(call)}}
@@ -133,7 +130,7 @@ def schedule(call: dict) -> None:
         if live.finalization_tasks.get(sid) is done:
             live.finalization_tasks.pop(sid, None)
         if not done.cancelled():
-            done.exception()  # finalize persists errors; consume unexpected task failures too.
+            done.exception()
 
     task.add_done_callback(finished)
 
@@ -168,7 +165,6 @@ def start_download(call: dict, url: str, recording_sid: str, kind: str) -> None:
 async def finalize(call: dict) -> None:
     sid = call["call_sid"]
     try:
-        # Allow callbacks to arrive, then await actual downloads rather than guessing their duration.
         await asyncio.sleep(CALLBACK_GRACE_SECONDS)
         while not state.call_is_deleted(sid):
             tasks = list(state.STATE.recording_tasks.get(sid, {}).values())

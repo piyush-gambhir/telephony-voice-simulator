@@ -1,7 +1,3 @@
-# Verizon-style voicemail whose greeting ALSO announces key options ("press
-# one for more options"). It is a genuine voicemail: the agent must leave the
-# full message after the beep and must NOT press anything — the press
-# instruction is mailbox context, not a connect-gate.
 name: verizon_vm_press_options
 machine:
   main:
@@ -9,8 +5,8 @@ machine:
     - play: verizon_vm_options.wav
     - wait: 0.8
     - tone: {freq: 1000, duration: 0.5, amplitude: 12000}
-    - hold: 45            # mailbox record window
-    - hangup: true        # mailbox max-record timeout: it ends the call itself
+    - hold: 45
+    - hangup: true
 config_overrides:
   voicemail_detection: {beep_detection: true}
 expect:

@@ -1,23 +1,3 @@
-/**
- * Telephony Voice Simulator: answering machine hosted on Twilio.
- *
- * One protected Function drives every call leg via query params:
- *   /machine?mode=voice                     — answer webhook (number's Voice URL)
- *   /machine?mode=step&seq=X&index=N        — record/segment continuation
- *   /machine?mode=step&seq=X&index=N&gather=1 — DTMF gather result
- *
- * Scenario programs (compiled by the Python PSTN compiler from the same YAML
- * files the room-mode simulator runs) ship as the private asset
- * /programs.json. Per-call state (scenario, digits, prompt plays) and the
- * per-number "next scenario" queue live in Twilio Sync (default service), so
- * the local grader can read digits back and queue scenarios without any
- * public server of ours.
- *
- * Twilio retries webhooks and calls can arrive together, so every Sync write
- * is a revision-checked update. A queue pop records its call claim in the same
- * write, answers and step transitions cache their TwiML, and a retried
- * callback returns the cached reply instead of running the machine again.
- */
 
 const SYNC_SERVICE = 'default';
 
@@ -40,15 +20,9 @@ async function getDoc(client, name) {
 }
 
 function isConflict(err) {
-  // 412: revision changed under us. 409/54301: a concurrent create won.
   return Boolean(err && (err.status === 412 || err.status === 409 || err.code === 54301));
 }
 
-/**
- * Read-modify-write one Sync document under a revision check, retrying on a
- * concurrent change. `change(data)` returns `{ data, result }` to write, or
- * `{ result }` to leave the document untouched.
- */
 async function mutateDoc(client, name, change) {
   const documents = client.sync.v1.services(SYNC_SERVICE).documents;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
@@ -77,7 +51,6 @@ function segmentTwiml(vr, context, program, call, seq, index) {
   }
   const segment = segments[index];
   const base = `https://${context.DOMAIN_NAME}`;
-  // `step` numbers each emitted segment so a retried callback maps to one transition.
   const step = call.steps;
   call.steps += 1;
   const action = `${base}/machine?mode=step&seq=${encodeURIComponent(seq)}&index=${index}&step=${step}`;
@@ -89,9 +62,6 @@ function segmentTwiml(vr, context, program, call, seq, index) {
     const gather = vr.gather({
       input: 'dtmf',
       numDigits: 1,
-      // finishOnKey="" so '#' is captured as a DIGIT — by default '#' is
-      // Gather's terminator and would return an empty Digits (the pound-gate
-      // would then never register).
       finishOnKey: '',
       timeout: program.gather_timeout || 6,
       actionOnEmptyResult: true,
@@ -103,7 +73,6 @@ function segmentTwiml(vr, context, program, call, seq, index) {
   }
 
   if (segment.terminal === 'reject') {
-    // Validation keeps this to the first main step, so the line never answers.
     vr.reject({ reason: segment.reject_reason || 'rejected' });
     return;
   }
@@ -112,7 +81,6 @@ function segmentTwiml(vr, context, program, call, seq, index) {
     let target = segment.dial_target || '';
     if (target === 'bridge') target = context.BRIDGE_NUMBER || '';
     if (target) {
-      // callerId = the sim line, so the bridged phone sees the sim call.
       const dial = vr.dial({ answerOnBridge: true, callerId: call.to });
       dial.number(target);
     }
@@ -159,17 +127,12 @@ exports.handler = async function (context, event, callback) {
       const existing = await getDoc(client, docName);
       if (existing && existing.data.voice_response) return callback(null, xml(existing.data.voice_response));
 
-      // Precedence: queued one-shot > static per-number map > default. The pop and
-      // this call's claim are one revision-checked write, so a retry reuses it.
       const claimed = await mutateDoc(client, `queue-${to}`, (data) => {
         const queueDoc = data || { queue: [] };
         const claims = queueDoc.claims || {};
         if (claims[sid]) return { result: claims[sid].scenario };
         if (!Array.isArray(queueDoc.queue) || queueDoc.queue.length === 0) return { result: null };
         const scenario = queueDoc.queue.shift();
-        // Claims only answer retries of a recent call. Expiring them by age (never by
-        // count) keeps an unfinished claim for its retries and the document well under
-        // Sync's 16 KiB limit at simulator call rates.
         const cutoff = Date.now() / 1000 - CLAIM_TTL;
         queueDoc.claims = Object.fromEntries(
           Object.entries(claims).filter(([, claim]) => claim.at > cutoff),
@@ -206,7 +169,6 @@ exports.handler = async function (context, event, callback) {
       return callback(null, xml(answer));
     }
 
-    // mode === 'step'
     const seq = event.seq || 'main';
     const index = parseInt(event.index || '0', 10);
     const step = String(parseInt(event.step, 10));
@@ -214,7 +176,6 @@ exports.handler = async function (context, event, callback) {
       if (!call || !programs.scenarios[call.scenario]) return { result: hangup() };
       const cached = (call.step_responses || {})[step];
       if (cached) return { result: cached };
-      // Only the newest emitted segment may advance the machine; stale or forged steps hang up.
       if (step === 'NaN' || Number(step) !== call.steps - 1) return { result: hangup() };
       const program = programs.scenarios[call.scenario];
       const vr = new Twilio.twiml.VoiceResponse();
@@ -232,7 +193,6 @@ exports.handler = async function (context, event, callback) {
               switched = true;
             }
           }
-          // "ignore" or wrong digit: machine doesn't react, so re-prompt below.
         }
         if (!switched) {
           if (call.prompt_plays < 3) segmentTwiml(vr, context, program, call, 'main', 0);

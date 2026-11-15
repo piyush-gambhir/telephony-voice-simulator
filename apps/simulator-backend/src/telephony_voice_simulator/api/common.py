@@ -78,7 +78,6 @@ def json_response(value: Any, status: int = 200) -> web.Response:
 
 
 def _bare_name(name: str, label: str) -> str:
-    # Browser input never names server paths: only files in one known directory.
     if not name or "/" in name or "\\" in name or name.startswith("."):
         raise ValidationError(f"{label} must be a file name, not a path")
     return name

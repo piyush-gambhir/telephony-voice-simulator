@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-api";
 import { benchmarks } from "@/lib/workflows-api";
 
-/** Side-by-side markdown for two or more finished reports, each optionally labelled. */
 export function BenchmarkCompare({
   reports,
   loading,
@@ -26,7 +25,6 @@ export function BenchmarkCompare({
   const [result, setResult] = useState<{ labels: string[]; markdown: string } | null>(null);
   const action = useAction();
 
-  // Keep the order the reports are listed in, newest first.
   const chosen = reports.filter((report) => selected.has(report.report_id));
   const badLabel = chosen.some((report) => (labels[report.report_id] ?? "").includes("="));
   const valid = chosen.length >= 2 && !badLabel;

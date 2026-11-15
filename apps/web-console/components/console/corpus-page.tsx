@@ -71,7 +71,6 @@ export function CorpusPage() {
 
 type Ask = ReturnType<typeof useConfirm>["ask"];
 
-/* ---------- shared bits ---------- */
 
 function InlineError({ message }: { message: string | null }) {
   if (!message) return null;
@@ -126,7 +125,6 @@ function SwitchRow({ id, label, help, checked, onChange, disabled }: {
   );
 }
 
-/* ---------- build ---------- */
 
 function BuildSection({ ask }: { ask: Ask }) {
   const [only, setOnly] = useState("");
@@ -213,7 +211,6 @@ function BuildSection({ ask }: { ask: Ask }) {
   );
 }
 
-/* ---------- import ---------- */
 
 type ImportMode = "source" | "recording";
 
@@ -367,7 +364,6 @@ function ImportSection() {
   );
 }
 
-/* ---------- IVR prompts ---------- */
 
 function PromptsSection({ ask }: { ask: Ask }) {
   const check = useApi((signal) => corpus.prompts(signal), []);
@@ -472,7 +468,6 @@ function PromptsSection({ ask }: { ask: Ask }) {
   );
 }
 
-/* ---------- public audio ---------- */
 
 function PublicSection() {
   const [allowlist, setAllowlist] = useState("");

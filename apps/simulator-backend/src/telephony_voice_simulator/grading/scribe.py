@@ -14,7 +14,6 @@ import statistics
 from pathlib import Path
 from typing import Any
 
-# Words further apart than this start a new utterance.
 UTTERANCE_GAP_S = 0.8
 REMOTE, LOCAL = 0, 1
 
@@ -76,7 +75,6 @@ def summarize(channels: list[dict[str, Any]], offset: float = 0.0) -> dict[str, 
     gaps = []
     for said in local:
         reply = next((u for u in remote if u["start"] >= said["end"]), None)
-        # Only a reply that came before this side spoke again answers this utterance.
         if reply and not any(said["end"] < u["start"] < reply["start"] for u in local):
             gaps.append(round(reply["start"] - said["end"], 2))
     return {
@@ -84,7 +82,6 @@ def summarize(channels: list[dict[str, Any]], offset: float = 0.0) -> dict[str, 
         "local_text": " ".join(u["text"] for u in local),
         "turns": sorted(remote + local, key=lambda u: u["start"]),
         "ttfw_s": round(remote[0]["start"] + offset, 2) if remote else None,
-        # Time to first word measures the agent only when it spoke first.
         "caller_spoke_first": bool(local and (not remote or local[0]["start"] < remote[0]["start"])),
         "recording_offset_s": offset,
         "response_gap_p50_s": round(statistics.median(gaps), 2) if gaps else None,

@@ -1,6 +1,3 @@
-# iOS call screening path where the device collects the agent's identity, then
-# rejects/forwards to voicemail. This is the state transition that plain AMD
-# often misreads because both the screener and the mailbox look "machine-like".
 name: ios26_screening_to_voicemail
 machine:
   main:

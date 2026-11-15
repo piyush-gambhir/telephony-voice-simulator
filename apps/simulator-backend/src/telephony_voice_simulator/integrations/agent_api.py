@@ -162,9 +162,6 @@ class AgentApiConfig:
 
     @property
     def record_headers(self) -> dict[str, str]:
-        # An empty record authorization inherits the trigger's, which is the
-        # common case. Read paths are often unauthenticated while the write
-        # path is not, so "none" explicitly suppresses the header instead.
         if self.record_authorization.lower() == "none":
             return {}
         auth = self.record_authorization or self.authorization
@@ -276,8 +273,6 @@ def trigger_call(
         timeout=config.timeout,
     )
     if not response.is_success:
-        # The body frequently carries the actionable reason (bad mapping id,
-        # expired token, unroutable number); a bare status code does not.
         failure = TriggerRejected if 400 <= response.status_code < 500 else RuntimeError
         raise failure(f"trigger failed {response.status_code}: {response.text[:400]}")
     payload = response.json()
@@ -301,7 +296,7 @@ def _command_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | No
     try:
         out = subprocess.run(argv, capture_output=True, text=True, timeout=config.timeout * 3)
     except subprocess.TimeoutExpired:
-        return None  # a slow read is retried by the poll loop like a 5xx
+        return None
     if out.returncode != 0:
         raise RecordCommandFailed(f"record command failed ({out.returncode}): {out.stderr.strip()[-300:]}")
     if not out.stdout.strip():
@@ -325,9 +320,6 @@ def fetch_record(config: AgentApiConfig, call_id: str) -> dict[str, Any] | None:
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("agent call record must be a JSON object")
-    # Control planes commonly wrap the resource in {data: ...}; unwrap only
-    # when the envelope has no status of its own, so a genuine `data` field on
-    # the record itself is never mistaken for an envelope.
     if (
         isinstance(payload, dict)
         and isinstance(payload.get("data"), dict)
@@ -379,15 +371,10 @@ def wait_for_terminal(
         except httpx.TransportError:
             pass
         except RecordCommandFailed as exc:
-            # A record command usually wraps a remote query; one failed read is retried,
-            # but a command that keeps failing must say why rather than time out silently.
             if str(exc) != last_error:
                 last_error = str(exc)
                 (log or print)(f"{label or '   '} {last_error}")
         status = str(dotted(record, config.status_path) or "").strip().lower()
-        # Only on CHANGE: a repeated status carries no information, and with
-        # several lanes polling at once the repeats interleave into a wall of
-        # text that buries the actual results.
         if progress and status != previous:
             prefix = f"{label} " if label else "    "
             line = f"{prefix}{status or '(pending)':9} call_id={call_id}"
@@ -421,14 +408,6 @@ def extract_outcome(config: AgentApiConfig, record: dict[str, Any] | None) -> di
     amd = _first_dotted(record, config.amd_paths)
     layer = _first_dotted(record, config.detection_layer_paths) or ""
     if not layer and isinstance(amd, dict) and amd.get("is_machine") is True:
-        # Platforms that don't publish a single layer string usually expose the
-        # detector and its reason separately; "<detector>:<reason>" reproduces
-        # the prefix shape the scenario expectations match on.
-        #
-        # Only ever synthesized for a MACHINE verdict. A detector that ran and
-        # concluded "human" has no detection layer, and inventing one from its
-        # reason string fails every `detection_layer_absent` precision guard —
-        # reporting the agent's correct answer as a miss.
         detector = str(amd.get("detector") or "")
         reason = str(amd.get("reason") or "")
         layer = f"{detector}-amd:{reason}" if detector and reason else detector

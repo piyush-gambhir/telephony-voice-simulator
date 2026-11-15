@@ -1,5 +1,3 @@
-# Production regression: Spanish voicemail reads the destination number, then
-# asks for a message. This was ending in silence_timeout with AMD=uncertain.
 name: spanish_number_readback_vm
 machine:
   main:

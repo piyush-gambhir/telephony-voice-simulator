@@ -12,7 +12,6 @@ from .common import action, emit, group, pairs, service
 
 
 def _list(args: argparse.Namespace) -> int:
-    # The catalog alone: listing scenarios needs no database.
     scenarios = ScenarioCatalog().list()
     if args.kind:
         scenarios = [item for item in scenarios if item.get("kind") == args.kind]

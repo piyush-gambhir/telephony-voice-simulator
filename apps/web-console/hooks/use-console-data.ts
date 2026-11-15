@@ -41,7 +41,6 @@ const RESOURCES = [
   ["calls", "Calls", simulatorApi.calls],
 ] as const;
 
-/** Keeps successful resources usable when a different API resource fails. */
 export function useConsoleData({ paused }: { paused: boolean }) {
   const [data, setData] = useState<ConsoleData>(INITIAL_DATA);
   const [loading, setLoading] = useState(true);
@@ -57,7 +56,6 @@ export function useConsoleData({ paused }: { paused: boolean }) {
     key: K,
     value: SetStateAction<ConsoleData[K]>,
   ) => {
-    // A read started before a mutation must never overwrite its result.
     revision.current += 1;
     setData((current) => ({
       ...current,

@@ -1,6 +1,3 @@
-# The same gate with a BROKEN keypress path (machine ignores DTMF, keeps
-# re-prompting). The post-press watchdog must re-press at most once more and
-# then hang up as machine-ivr — never strand into a silence-timeout tail.
 name: dtmf_gate_ignored
 machine:
   main:

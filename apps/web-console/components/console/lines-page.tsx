@@ -312,7 +312,6 @@ export function LinesPage() {
           <tbody>
             {data.endpoints.map((item) => {
               const number = managedByEndpoint.get(item.id);
-              // Managed numbers report every pending run; others count queued results in the window.
               const queued = number?.pending_runs ?? queuedByEndpoint.get(item.id) ?? 0;
               return (
                 <tr key={item.id} className="relative transition-colors even:bg-control/40 hover:bg-control-hover">

@@ -12,8 +12,6 @@ from pathlib import Path
 from typing import Any
 
 STEP_KEYS = {"wait", "hold", "play", "tone", "repeat_from", "hangup", "dial", "reject"}
-# Carrier responses a ``reject`` step can give instead of answering.
-# no_answer rings (Twilio waits on the webhook) and then rejects, so the caller times out.
 REJECT_REASONS = ("busy", "rejected", "no_answer")
 MACHINE_OPTIONS = {"on_dtmf", "max_duration"}
 EXPECT_KEYS = {

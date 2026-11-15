@@ -19,9 +19,7 @@ from .sessions import _REFRESH_LOCKS, _refresh, _update_analysis
 
 log = logging.getLogger(__name__)
 
-# Recordings arrive after the transcript; give downloads time to finish.
 SCRIBE_WAIT_SECONDS = 90
-# Judge tests reuse named slots, so serialize their updates within this process.
 _JUDGE_LOCK = threading.Lock()
 JUDGE_SLOT_NAME = "TVS judge slot {} (telephony-voice-simulator)"
 FIDELITY_NAME = "TVS persona {} (telephony-voice-simulator)"
@@ -115,7 +113,6 @@ def grade_session(
     meta = call.analysis.get("elevenlabs") or {}
     grade: dict[str, Any] = {
         "persona_id": persona["id"],
-        # The persona agent version that held the call, so drifting personas show up.
         "agent": {k: meta.get(k) for k in ("agent_id", "branch_id", "version_id")},
         "checks": checks,
     }
@@ -139,7 +136,6 @@ def _scribe(store: SimulatorStore, call: Any, progress: Progress) -> dict[str, A
     """
     if "scribe" in call.analysis:
         return call.analysis["scribe"]
-    # Only a call whose recording started (or already landed) has one to wait for.
     if call.recording_status not in ("recording", "completed") and not call.recordings:
         return None
     deadline = time.monotonic() + SCRIBE_WAIT_SECONDS
@@ -181,8 +177,6 @@ def _judge(
         )
         progress(f"judging {len(test_ids)} expectation(s) ({invocation_id})")
         invocation = _wait_for_invocation(invocation_id, JUDGE_TIMEOUT_SECONDS, progress)
-    # Slots are shared by every process grading in this workspace; the lock only covers
-    # this one. Each run records the test as it ran, so check it judged our transcript.
     if not judge.ran_as_saved(invocation, dict(zip(test_ids, bodies, strict=True))):
         raise ConflictError("Another grading rewrote the judge tests mid-run; grade again")
     by_test = {run["test_id"]: run for run in judge.run_results(invocation)}

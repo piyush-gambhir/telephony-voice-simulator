@@ -43,17 +43,12 @@ DEFAULT_GATHER_TIMEOUT = 6
 class Segment:
     """One TwiML round-trip: optional audio, then one terminal verb."""
 
-    audio_file: str | None  # compiled wav name (served via /assets)
+    audio_file: str | None
     audio_duration: float
-    terminal: str  # "record" | "hangup" | "pause" | "end" | "dial" | "reject"
+    terminal: str
     record_max_s: int = 0
-    # For terminal="dial": E.164 target, or the literal "bridge" resolved at
-    # runtime from the BRIDGE_NUMBER env (so personal numbers stay out of git).
     dial_target: str = ""
-    # Offsets of interesting marks INSIDE audio_file (ground truth for
-    # analysis): e.g. tone_end -> seconds from file start.
     marks: dict[str, float] = field(default_factory=dict)
-    # For terminal="reject": "busy" or "rejected".
     reject_reason: str = ""
 
 
@@ -61,7 +56,7 @@ class Segment:
 class CompiledScenario:
     name: str
     sequences: dict[str, list[Segment]]
-    on_dtmf: Any  # None | "ignore" | {"digits": [...], "switch": seq}
+    on_dtmf: Any
     gather_timeout: int = DEFAULT_GATHER_TIMEOUT
 
     @classmethod
@@ -170,9 +165,6 @@ def compile_scenario(
             elif "hold" in step:
                 _flush("record", record_max_s=max(1, int(float(step["hold"]))))
             elif "dial" in step:
-                # PSTN-only: bridge the caller to a real phone ("bridge" =
-                # resolve BRIDGE_NUMBER at runtime — a human tester becomes
-                # the person behind the gate/screener).
                 _flush("dial", dial_target=str(step["dial"]))
                 break
             elif "hangup" in step:
@@ -182,8 +174,6 @@ def compile_scenario(
                 _flush("reject", reject_reason=str(step["reject"]))
                 break
             elif "repeat_from" in step:
-                # PSTN re-prompting is handled by the Gather timeout loop in
-                # the server (up to MAX_PROMPT_REPEATS), not by this step.
                 continue
             else:
                 raise ValueError(f"{name}/{seq_name}: unsupported PSTN step {step!r}")

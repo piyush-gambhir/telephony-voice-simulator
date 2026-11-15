@@ -46,7 +46,6 @@ def _call(to: str, **kwargs: Any) -> CallRequest:
 
 
 CASES: tuple[PbxCase, ...] = (
-    # --------------------------------------------------------- inbound routing #
     PbxCase(
         "service-direct-open",
         "Service DID during service hours",
@@ -116,7 +115,6 @@ CASES: tuple[PbxCase, ...] = (
         _call(_GM, day="tue", time="14:00", intent="escalation"),
         "voicemail",
     ),
-    # ------------------------------------------------------------ time of day #
     PbxCase(
         "after-hours-service-mailbox-full",
         "Service line after hours with a full mailbox",
@@ -149,7 +147,6 @@ CASES: tuple[PbxCase, ...] = (
         _call(_USED_MAIN, day="tue", time="21:30", intent="is the Civic still available?"),
         "answering_service",
     ),
-    # ------------------------------------------------------------- capacity   #
     PbxCase(
         "used-lot-pri-congestion",
         "Weekend sale saturates the used lot PRI",
@@ -187,7 +184,6 @@ CASES: tuple[PbxCase, ...] = (
         _call("+14155559999", intent="old printed number"),
         "unassigned_number",
     ),
-    # ---------------------------------------------------------- tie trunk lore #
     PbxCase(
         "tandem-through-ford",
         "Honda caller asks for a used-lot salesperson",
@@ -227,7 +223,6 @@ CASES: tuple[PbxCase, ...] = (
         ),
         "congestion",
     ),
-    # --------------------------------------------------------------- the agent #
     PbxCase(
         "agent-answers-forwarded-call",
         "Ford service line forwards to the agent's own DID",

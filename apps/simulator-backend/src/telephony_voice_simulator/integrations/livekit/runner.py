@@ -47,7 +47,7 @@ def load_scenario(path: Path) -> dict[str, Any]:
 
 
 class _NullAudio:
-    async def play(self, samples, sample_rate) -> None:  # replaced by the bot
+    async def play(self, samples, sample_rate) -> None:
         raise RuntimeError("machine ran before the bot bound its audio track")
 
 
@@ -71,8 +71,6 @@ async def run_scenario(
         webhook_url=webhook_url,
         config_overrides=scenario.get("config_overrides"),
     )
-    # The agent derives the callee identity as ``phone-<phone_number>``
-    # (call_handlers/outbound.py) — the bot must join with exactly that.
     phone = str(metadata.get("phone_number", "+15550100001"))
     identity = f"phone-{phone}"
     (results_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
@@ -98,8 +96,6 @@ async def run_scenario(
         room_name=room_name,
         metadata=metadata,
     )
-    # Small head start so the agent's session/AMD pipeline is up before the
-    # "callee answers" (mirrors dial+ring time on a real call).
     await asyncio.sleep(float(scenario.get("answer_delay", 2.0)))
 
     bot_result = await bot.run(call_timeout=float(scenario.get("call_timeout", 180)))

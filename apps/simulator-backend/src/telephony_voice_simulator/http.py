@@ -37,7 +37,6 @@ async def cors(
     if request.method == "OPTIONS":
         response: web.StreamResponse = web.Response(status=204)
     elif origin is not None and not allowed and request.method not in {"GET", "HEAD"}:
-        # CORS only hides responses; refuse cross-site writes (simple POSTs skip preflight).
         response = web.json_response({"error": "Origin not allowed"}, status=403)
     else:
         response = await handler(request)

@@ -1,7 +1,7 @@
 id: spanish-sales-shopper
 description: Spanish-speaking shopper asking about a Civic and accepting a visit.
 engine: chained
-voice_id: 3liN8q8YoeB9Hk6AboKe  # Lauren, rated high quality on Eleven v4 Turbo
+voice_id: 3liN8q8YoeB9Hk6AboKe
 language: es
 first_message: "Hola, buenas tardes."
 profile: >-

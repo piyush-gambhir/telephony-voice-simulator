@@ -10,7 +10,6 @@ from ..telephony.twilio.management import (
     TwilioManagementError,
 )
 from .errors import NotFoundError, ValidationError
-# The same sentinel update_endpoint checks, so an omitted scenario stays omitted.
 from .resources import _UNSET
 
 
@@ -117,8 +116,6 @@ class NumbersMixin:
         twilio_connections = {
             item.id for item in self.store.list_connections() if item.provider == "twilio"
         }
-        # A number already added as a line on any Twilio connection is adopted, not duplicated:
-        # inbound routing looks lines up by number, so two would route unpredictably.
         endpoints = [
             item for item in self.store.list_endpoints()
             if item.connection_id in twilio_connections
@@ -184,7 +181,6 @@ class NumbersMixin:
         )
         if endpoint is None:
             raise ValidationError("The AMD number is not linked to an endpoint.")
-        # Validate the whole update before changing anything at the carrier.
         if routing_mode is not None and routing_mode not in {"fixed", "queued"}:
             raise ValidationError("Routing mode must be fixed or queued")
         for label, value in (("enabled", enabled), ("record_full_calls", record_full_calls)):

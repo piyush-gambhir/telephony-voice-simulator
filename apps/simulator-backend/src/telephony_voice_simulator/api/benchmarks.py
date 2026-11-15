@@ -46,7 +46,6 @@ async def run(request: web.Request) -> web.Response:
     body = await json_object(request)
     options = _plan_options(body)
     audio = bool_field(body, "audio", True)
-    # Validate the plan before queueing, so a bad request fails here and not in the log.
     benchmarks.plan(**options)
     return start(
         request,
@@ -69,7 +68,6 @@ async def get_report(request: web.Request) -> web.Response:
 
 
 def _report(report_id: str) -> str:
-    # The service also takes paths for the CLI; browser input resolves by id alone.
     return str(benchmarks.report_path(report_id))
 
 

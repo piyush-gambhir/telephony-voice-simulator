@@ -1,8 +1,3 @@
-# PSTN-only: the connect-gate that actually CONNECTS — pressing POUND (#)
-# bridges the caller to a real phone (BRIDGE_NUMBER Twilio env var), so a
-# human tester can BE the person behind the gate. '#' is deliberately chosen:
-# it is Twilio Gather's default finish key, so this also regression-tests the
-# finishOnKey="" handling; and the agent's dtmf parser must map "pound" → #.
 name: dtmf_gate_to_human
 pstn_only: true
 machine:
@@ -17,6 +12,5 @@ machine:
   connected:
     - dial: bridge
 expect:
-  # A DTMF gate answers first, then connects a person.
   callee_class: screener
   dtmf_received: {digit: "#"}

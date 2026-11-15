@@ -23,9 +23,6 @@ Weekday = Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 WEEKDAYS: tuple[Weekday, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
-#: Presence of a station. ``with_customer`` is the dealership-specific one: the
-#: advisor is physically at a car with a customer, so the phone rings out rather
-#: than returning busy. It is the single most common reason a dealer call fails.
 PresenceState = Literal[
     "available",
     "busy",
@@ -36,7 +33,6 @@ PresenceState = Literal[
 
 ScheduleState = Literal["open", "closed", "holiday"]
 
-#: Terminal states a call can reach. Everything the router does ends in one of these.
 CallOutcome = Literal[
     "answered_human",
     "answered_agent",
@@ -55,24 +51,16 @@ CallOutcome = Literal[
 
 TrunkKind = Literal["pri", "sip", "tie_em", "analog"]
 
-#: ``em_wink_start`` and ``em_immediate_start`` are the analog tie-trunk handshakes.
-#: Wink start makes the far end confirm its digit receiver is ready; immediate start
-#: blasts digits after a fixed guard time and loses them if the far end is slow.
 Signaling = Literal["q931", "sip", "em_wink_start", "em_immediate_start"]
 
 DtmfMode = Literal["rfc2833", "sip_info", "inband", "q931_keypad"]
 
-#: How the border element treats an inbound REFER from an external party.
-#: ``reject`` is the common hardened-SBC default and is why blind transfer fails.
-#: ``consume`` means the SBC performs the transfer itself as a B2BUA.
 ReferHandling = Literal["reject", "passthrough", "consume"]
 
 CoverageTrigger = Literal["busy", "no_answer", "all"]
 
 HuntType = Literal["linear", "circular", "ucd", "ddc", "simultaneous"]
 
-#: How a voice agent is wired into the group. This decides which transfer methods
-#: are even theoretically available to the agent later.
 IngressMode = Literal[
     "carrier_routed",
     "pstn_owned_did",
@@ -155,12 +143,7 @@ class Trunk:
     dtmf_mode: DtmfMode
     direction: Literal["in", "out", "both"] = "both"
     peer_site: str | None = None
-    #: Analog tie trunks with no directional assignment collide when both ends
-    #: seize at once. Modeled so the collision can actually be tested.
     glare_prone: bool = False
-    #: Guard time before digits may be sent. Immediate-start trunks use a fixed
-    #: value and lose digits if the far end is not ready; wink start waits for the
-    #: far end to answer, so it is slower but safe.
     digit_guard_ms: int = 70
 
 
@@ -174,10 +157,7 @@ class BorderElement:
     allows_replaces: bool
     media_mode: Literal["relay", "passthrough"]
     normalizes_dtmf_to: DtmfMode | None = None
-    #: Whether the border element will route ``sip:<extension>@site`` from an
-    #: external peer. Almost always false on hardened legacy deployments.
     routes_bare_extensions: bool = False
-    #: Rejects a transfer whose ``Referred-By`` is absent or untrusted.
     requires_referred_by: bool = True
 
 
@@ -220,8 +200,6 @@ class Extension:
     state: PresenceState = "available"
     coverage: str | None = None
     did: str | None = None
-    #: Lines that also appear on this station (Avaya bridged appearance). A call
-    #: to the principal alerts here too, which is how dealer GM/assistant pairs work.
     bridged_appearances: tuple[str, ...] = ()
 
 
@@ -272,7 +250,6 @@ class Mailbox:
     id: str
     label: str
     site: str
-    #: A full mailbox is a real and frequent dealership condition.
     full: bool = False
     greeting_seconds: int = 14
     notifies: str | None = None
@@ -317,8 +294,6 @@ class Did:
     label: str
     site: str
     target: str
-    #: Marketing/tracking numbers are everywhere in automotive and matter because
-    #: they change the attribution attached to the call, not the routing.
     tracking_source: str | None = None
 
 
@@ -330,9 +305,7 @@ class AgentIntegration:
     label: str
     site: str
     ingress: IngressMode
-    #: Extension number when registered, DID when we own the number.
     address: str
-    #: Where the agent is reached from in the dial plan, if anywhere.
     reached_via: str
     receives_diversion: bool = False
     notes: str = ""

@@ -31,7 +31,6 @@ def _call_scenario(call: dict) -> CompiledScenario:
 
 NO_ANSWER_RING_S = float(os.environ.get("PSTN_NO_ANSWER_RING_S", "13"))
 if not 0 < NO_ANSWER_RING_S < 15:
-    # Past Twilio's 15 s webhook timeout the call would be answered with an error message.
     raise RuntimeError("PSTN_NO_ANSWER_RING_S must be between 0 and 15 seconds")
 
 
@@ -91,19 +90,14 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
         call["prompt_plays"] += 1
         inner = play(segment.audio_file) if segment.audio_file else ""
         timeout = int(compiled.gather_timeout or DEFAULT_GATHER_TIMEOUT)
-        # finishOnKey="" so '#' is captured as a DIGIT rather than treated as
-        # Gather's default terminator (which returns an empty Digits).
         verbs.append(
             f'<Gather input="dtmf" numDigits="1" finishOnKey="" timeout="{timeout}" '
             f'actionOnEmptyResult="true" action="{escape(action + "&gather=1")}" '
             f'method="POST">{inner}</Gather>'
         )
-        # Gather always posts to action (actionOnEmptyResult) — no fallthrough.
         return verbs
 
     if segment.terminal == "reject":
-        # Validation keeps this to the first main step, so the line never answers.
-        # no_answer is held in handle_voice first; Twilio's Reject only knows busy/rejected.
         reason = "busy" if segment.reject_reason == "no_answer" else segment.reject_reason
         return [f'<Reject reason="{escape(reason or "rejected")}"/>']
     if segment.audio_file:
@@ -113,7 +107,6 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
         if target == "bridge":
             target = os.environ.get("BRIDGE_NUMBER", "")
         if target:
-            # callerId = the sim line, so the bridged phone sees the sim call.
             verbs.append(
                 f'<Dial answerOnBridge="true" callerId="{escape(call["to"])}">'
                 f"<Number>{escape(target)}</Number></Dial>"
@@ -128,7 +121,7 @@ def _segment_twiml(call: dict, seq: str, index: int) -> list[str]:
         )
     elif segment.terminal == "hangup":
         verbs.append("<Hangup/>")
-    else:  # "end" — advance to the next segment (or hang up at sequence end)
+    else:
         verbs.append(f'<Redirect method="POST">{escape(action)}</Redirect>')
     return verbs
 
@@ -141,13 +134,11 @@ def _runtime_analysis(call: dict) -> dict:
     if call.get("run_id"):
         analysis["run_id"] = call["run_id"]
     if call.get("queue_claim"):
-        # Every analysis write keeps the claim, so a concurrent retry never dequeues again.
         analysis["queue_claim"] = call["queue_claim"]
     return analysis
 
 
 def persist_runtime(call: dict) -> None:
-    # Terminal calls belong to finalization, which owns the analysis field from then on.
     if call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
         return
     call_store().upsert_incoming_call(call_id=call["call_sid"], analysis=_runtime_analysis(call))
@@ -173,8 +164,6 @@ async def handle_voice(request: web.Request) -> web.Response:
         to_address=to_number,
     ):
         return rejection
-    # Twilio retries voice webhooks. Reuse the already-assigned scenario for
-    # the same call SID so a timeout cannot consume another one-shot queue item.
     existing = state.STATE.calls.get(sid)
     if existing is not None:
         if existing.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
@@ -182,7 +171,6 @@ async def handle_voice(request: web.Request) -> web.Response:
         if "voice_response" not in existing:
             existing["voice_response"] = twiml(*_segment_twiml(existing, "main", 0)).text
         if _rejects_without_answer(existing):
-            # A retry during the ring must not turn the caller away early.
             await asyncio.sleep(max(0.0, existing["answered_at"] + NO_ANSWER_RING_S - time.time()))
         return web.Response(text=existing["voice_response"], content_type="application/xml")
     persisted = call_store().get_incoming_call(sid)
@@ -191,14 +179,11 @@ async def handle_voice(request: web.Request) -> web.Response:
             return twiml("<Hangup/>")
         from .finalization import restore
 
-        # Resume the saved execution (frozen program, digits, cached replies). A row
-        # holding only a queue claim falls through and reuses that claim below.
         restored = restore(sid)
         if restored is not None and "voice_response" in restored:
             return web.Response(text=restored["voice_response"], content_type="application/xml")
         if (restored is None and "queue_claim" not in persisted.analysis
                 and persisted.scenario in state.STATE.scenarios):
-            # Rows saved before runtime snapshots existed keep their original scenario.
             restored = {
                 "call_sid": sid,
                 "to": persisted.to_address or to_number,
@@ -259,10 +244,7 @@ async def handle_voice(request: web.Request) -> web.Response:
     from .finalization import capture_scenario
 
     capture_scenario(call)
-    # Prepare the initial reply before awaiting the recording API so retries
-    # cannot advance the scenario while that request is in flight.
     call["voice_response"] = twiml(*_segment_twiml(call, "main", 0)).text
-    # A rejected call is never answered, so there is nothing to record.
     rejects = compiled_rejects(call)
     call_store().upsert_incoming_call(
         call_id=sid,
@@ -286,8 +268,6 @@ async def handle_voice(request: web.Request) -> web.Response:
     if rejects:
         print(f"[voice] {sid} to={to_number} from={call['from']} scenario={scenario} rejected")
         if _rejects_without_answer(call):
-            # The caller hears ringback while Twilio waits for this reply. Stay under
-            # Twilio's 15 s webhook timeout, after which it would answer with an error.
             await asyncio.sleep(NO_ANSWER_RING_S)
         return web.Response(text=call["voice_response"], content_type="application/xml")
     call["audit_recording_start"] = await start_audit_recording(sid, to_number)
@@ -367,12 +347,10 @@ async def handle_step(request: web.Request) -> web.Response:
                 accepted = [str(d) for d in (spec.get("digits") or [])]
                 if not accepted or digits in accepted:
                     return transition(_segment_twiml(call, str(spec["switch"]), 0))
-            # "ignore" (or wrong digit): machine doesn't react — re-prompt.
         if call["prompt_plays"] < MAX_PROMPT_REPEATS:
             return transition(_segment_twiml(call, "main", 0))
         return transition(["<Hangup/>"])
 
-    # Record/segment continuation: move to the next segment in this sequence.
     return transition(_segment_twiml(call, seq, index + 1))
 
 

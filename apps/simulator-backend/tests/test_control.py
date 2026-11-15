@@ -1242,7 +1242,6 @@ async def test_amd_number_inventory_is_persisted_configured_and_queued(
     assert renamed["endpoint"]["name"] == "Telephony Voice Simulator · AMD 01"
     assert renamed["endpoint"]["default_scenario"] == "google_voice_voicemail"
     assert renamed["configuration"]["record_full_calls"] is True
-    # A partial update (the console's Enable/Disable) keeps the scenario it did not send.
     disabled = await service.update_amd_number(number["id"], enabled=False)
     assert disabled["endpoint"]["enabled"] is False
     assert disabled["endpoint"]["default_scenario"] == "google_voice_voicemail"

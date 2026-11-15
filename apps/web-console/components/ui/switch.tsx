@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils"
 
-/** An on/off switch; label it with `label` or an associated <Label htmlFor>. */
 export function Switch({
   id,
   checked,

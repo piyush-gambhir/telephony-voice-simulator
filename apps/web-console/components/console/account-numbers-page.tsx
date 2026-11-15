@@ -11,7 +11,6 @@ import { useApi } from "@/hooks/use-api";
 import { accountNumbers } from "@/lib/workflows-api";
 import { cn } from "@/lib/utils";
 
-/** A webhook URL without its scheme, truncated; the full URL is in the title. */
 function UrlCell({ url }: { url: string }) {
   if (!url) return <span className="text-subtle-foreground">{MISSING}</span>;
   return (

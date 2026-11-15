@@ -1,5 +1,3 @@
-# The bread-and-butter case: stock carrier greeting, 1s gap, 1 kHz record beep.
-# The agent must leave the configured message shortly AFTER the beep ends.
 name: stock_voicemail_beep_1000
 machine:
   main:
@@ -7,8 +5,8 @@ machine:
     - play: greeting_stock_carrier.wav
     - wait: 1.0
     - tone: {freq: 1000, duration: 0.6, amplitude: 12000}
-    - hold: 45            # mailbox record window — captures the agent's message
-    - hangup: true        # mailbox max-record timeout: it ends the call itself
+    - hold: 45
+    - hangup: true
 config_overrides:
   voicemail_detection: {beep_detection: true}
 expect:

@@ -60,7 +60,6 @@ def dial(
         raise ValidationError("send_digits takes up to 32 of 0-9, *, # and w (half-second pause)")
     queued = None
     if persona_id or inline is not None:
-        # The call claims the oldest queued persona, so an earlier one would take its place.
         if waiting := store.list_customer_persona_queue(number):
             raise ConflictError(f"{len(waiting)} persona(s) already queued on {number}")
         queued = queue_persona(store, number, persona_id=persona_id, inline=inline, label=label)
@@ -72,7 +71,6 @@ def dial(
         ))
     except TwilioManagementError as exc:
         if queued:
-            # Nothing will claim the persona, so it must not wait for the next real call.
             store.cancel_customer_persona(queued["id"])
         raise ConflictError(str(exc)) from exc
     return {"call_id": call.get("sid"), "from": number, "to": to, "queued": queued}

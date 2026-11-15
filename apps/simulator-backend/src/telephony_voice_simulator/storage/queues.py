@@ -119,7 +119,6 @@ class QueuesStoreMixin:
                  timestamp, timestamp),
             )
             if claim["run_id"]:
-                # A claimed run can no longer be cancelled, so stop showing it as queued.
                 db.execute(
                     """UPDATE simulation_runs SET status = 'in-progress'
                        WHERE id = ? AND status = 'queued' AND completed_at IS NULL""",
@@ -153,8 +152,6 @@ class QueuesStoreMixin:
         timestamp = _now()
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            # Lock queue rows before runs, like a claim, so a concurrent claim either
-            # finishes first (its run is no longer queued here) or waits for this.
             db.execute(
                 "SELECT id FROM telephony_run_queue WHERE provider = ? AND address = ?"
                 + self._LOCKING_READ,

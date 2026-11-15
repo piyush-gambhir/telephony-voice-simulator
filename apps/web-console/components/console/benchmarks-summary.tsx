@@ -3,7 +3,6 @@
 import { MISSING } from "@/components/console/kit";
 import { count, Metric, MetricGrid, percent, seconds } from "@/components/console/benchmarks-parts";
 
-/** One row of `GET /api/benchmarks/reports` (service/benchmarks.py list_reports). */
 export type ReportListing = {
   report_id: string;
   run_id: string | null;
@@ -20,7 +19,6 @@ export type ReportListing = {
 
 type DelayStats = { n: number; min: number; median: number; p90: number; max: number } | null;
 
-/** evaluation/benchmark/scoring.py summarize. */
 export type BenchmarkSummary = {
   calls: number;
   passed: number;

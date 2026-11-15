@@ -108,8 +108,6 @@ async def point_number(
     if status_callback_url:
         change["StatusCallback"] = status_callback_url
         change["StatusCallbackMethod"] = "POST"
-    # Each point keeps its own backup: overwriting would lose the configuration from
-    # before the first point when a number is pointed again (say, at a new tunnel).
     stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%S%fZ")
     backup_path = backup or RESULTS_DIR / "twilio" / f"{record['sid']}-{stamp}.json"
     if backup is not None and backup.exists() and not dry_run:

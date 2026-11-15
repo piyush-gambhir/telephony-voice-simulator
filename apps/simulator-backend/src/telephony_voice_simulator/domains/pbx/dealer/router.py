@@ -76,13 +76,9 @@ class CallRequest:
     digits: tuple[str, ...] = ()
     intent: str = ""
     caller_label: str = "Caller"
-    #: Seconds the caller is willing to hold before hanging up.
     patience_seconds: int = 600
-    #: Station presence overrides, keyed by extension number.
     presence: dict[str, PresenceState] = field(default_factory=dict)
-    #: Occupied B-channels / sessions per trunk id, to force congestion.
     occupied_channels: dict[str, int] = field(default_factory=dict)
-    #: Tie trunks that collide on seize for this call.
     glare_trunks: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -148,13 +144,9 @@ class CallRouter:
         self._digits = list(request.digits)
         self._trunks_used: list[str] = []
         self._answer_at: int | None = None
-        #: Channels this call is itself holding, per trunk. A forwarded call holds
-        #: two on the same carrier trunk group: the inbound leg and the leg the
-        #: switch re-originates towards the forwarding target.
         self._channel_usage: dict[str, int] = {}
         self.carrier_channels_used = 0
 
-    # ----------------------------------------------------------------- utils #
 
     def _event(
         self,
@@ -241,7 +233,6 @@ class CallRouter:
             cdr=cdr,
         )
 
-    # ------------------------------------------------------------------ entry #
 
     def run(self) -> CallResult:
         request = self.request
@@ -370,7 +361,6 @@ class CallRouter:
             )
         return None
 
-    # -------------------------------------------------------------- resolution #
 
     def resolve(self, ref: str) -> CallResult:
         self.hops += 1
@@ -428,7 +418,6 @@ class CallRouter:
         self._event("pbx", "reject", "Unroutable destination", ref, ref, "rejected")
         return self._finish("rejected")
 
-    # ---------------------------------------------------------------- handlers #
 
     def _do_time(self, condition_id: str) -> CallResult:
         condition = self.group.time_condition(condition_id)
@@ -673,7 +662,6 @@ class CallRouter:
         if strategy in {"linear", "ddc", "simultaneous"}:
             return stations
         if strategy == "ucd":
-            # Uniform call distribution: idle stations first, then the rest.
             return sorted(stations, key=lambda item: self._presence(item) != "available")
         if strategy == "circular":
             return stations
@@ -1101,9 +1089,6 @@ class CallRouter:
 
         site = self.group.site(agent.site)
         if site is not None and agent.ingress in {"pstn_owned_did", "forwarded_with_diversion"}:
-            # The agent is an outside number, so the switch cannot simply hand the
-            # call over. It re-originates a second call across its own carrier
-            # trunk group and conferences the two legs together for the duration.
             outbound = next(
                 (
                     trunk

@@ -121,7 +121,6 @@ function ReportList({ reports }: { reports: ReturnType<typeof useApi<ReportListi
   );
 }
 
-/* ---------- report detail ---------- */
 
 function ReportDetail({ id }: { id: string }) {
   const report = useApi((signal) => benchmarks.report(id, signal) as Promise<BenchmarkReport>, [id]);
@@ -295,4 +294,3 @@ function ScenarioTable({ summary }: { summary: BenchmarkSummary }) {
     </DataTable>
   );
 }
-

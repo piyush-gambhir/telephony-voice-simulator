@@ -1,14 +1,10 @@
-# Long rambling custom greeting (>15s), NO beep at all, no stock phrasing
-# beyond a weak tail. Exercises the semantic layer / AMD on custom speech and
-# the silence-ready path; also regression for "8s cap must not speak
-# mid-greeting".
 name: custom_greeting_long_no_beep
 machine:
   main:
     - wait: 0.8
     - play: greeting_custom_long.wav
-    - hold: 45            # mailbox record window
-    - hangup: true        # mailbox max-record timeout: it ends the call itself
+    - hold: 45
+    - hangup: true
 config_overrides:
   voicemail_detection: {beep_detection: true, semantic_detection: true}
 expect:

@@ -27,15 +27,12 @@ class SQLiteSimulatorStore(
     RunsStoreMixin,
     CallsStoreMixin,
 ):
-    # MySQL overrides the locking suffix used by queue claims and cancellation.
     _LOCKING_READ = ""
 
     def __init__(self, path: str | Path | None = None) -> None:
         configured = path or os.environ.get("SIMULATOR_DB_PATH")
         self.path = Path(configured) if configured else DATA_DIR / "telephony_voice_simulator.db"
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        # Keep an anchor connection for this repository's private shared-memory
-        # database. Individual transactions still get independent connections.
         self._database = (
             f"file:simulator_{uuid.uuid4().hex}?mode=memory&cache=shared"
             if str(self.path) == ":memory:"
@@ -238,10 +235,6 @@ class SQLiteSimulatorStore(
             self._ensure_column(db, "simulation_runs", "destination", "TEXT")
             self._ensure_column(db, "simulation_runs", "outcome", "TEXT")
             self._ensure_column(db, "simulation_runs", "duration_seconds", "INTEGER")
-            # Ownership is intentionally append-only. Removing a local
-            # endpoint does not detach the Twilio number at the carrier, so a
-            # deleted row must never make that address look unmanaged and
-            # silently fall back to legacy/public routing.
             db.execute(
                 """
                 INSERT OR IGNORE INTO managed_provider_addresses (
@@ -253,9 +246,6 @@ class SQLiteSimulatorStore(
                   ON provider_connections.id = endpoints.connection_id
                 """
             )
-            # One-time compatibility migration from the former Twilio-only
-            # ownership and queue tables. Drop them after copying so the
-            # provider-neutral schema remains the sole source of truth.
             if self._table_exists(db, "managed_twilio_addresses"):
                 db.execute(
                     """

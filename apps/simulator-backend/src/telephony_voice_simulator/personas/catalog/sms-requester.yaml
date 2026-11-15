@@ -1,7 +1,7 @@
 id: sms-requester
 description: Caller who asks for the dealership's address by text message.
 engine: chained
-voice_id: 7EzWGsX10sAS4c9m9cPf  # Jack John, rated high quality on Eleven v4 Turbo
+voice_id: 7EzWGsX10sAS4c9m9cPf
 profile: >-
   Name: Taylor Brooks. Behavior: friendly, answers in one or two sentences. Say you are
   planning to stop by the dealership and ask them to text you the address. If they ask

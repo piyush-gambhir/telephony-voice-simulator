@@ -80,7 +80,6 @@ def test_transcript_checks_read_every_recording_in_order(tmp_path, monkeypatch):
     heard = {'a.wav': 'Hi, I have Taylor on the line.', 'b.wav': 'My word is lighthouse.'}
     monkeypatch.setattr('telephony_voice_simulator.grading.analyze.transcribe_recording',
                         lambda path: heard[path.name])
-    # Order is unknown (as on the hosted runtime); phrase checks do not depend on it.
     call = {'analysis_recording_files': _spoken(tmp_path, 'a.wav', 'b.wav')}
     analysis = analyze_call(call, {'expect': {
         'transcript_contains': {'phrases': ['on the line', 'lighthouse', 'pineapple'], 'min_hits': 2},

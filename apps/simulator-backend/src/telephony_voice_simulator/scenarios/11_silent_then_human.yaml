@@ -1,6 +1,3 @@
-# Slow human pickup: 3s of dead air, then "hello?". Regression for the
-# no_speech_timeout -> "treat as human" rule and for the opener playing
-# without waiting out the AMD window.
 name: silent_then_human
 machine:
   main:

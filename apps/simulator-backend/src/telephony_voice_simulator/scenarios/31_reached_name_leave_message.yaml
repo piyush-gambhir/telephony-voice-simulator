@@ -1,5 +1,3 @@
-# Production regression: a short custom greeting has no carrier boilerplate,
-# only "you reached <name>, leave a message" followed by the record tone.
 name: reached_name_leave_message
 machine:
   main:

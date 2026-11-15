@@ -104,7 +104,6 @@ EXPECT_KEYS = {
     "latency_p95_ms_max", "llm_p95_ms_max", "tts_p95_ms_max", "min_duration_s", "persona",
     "target", "ttfw_s_max", "transfer_setup_s_max", "hold_s_max", "target_caller_id", "complete",
 }
-# Paths into the agent's record; overridable per suite for another platform's shape.
 DEFAULT_PATHS = {
     "fine_reason_path": "providerMetadata.ended_reason",
     "transfer_status_path": "transferStatus",
@@ -200,8 +199,6 @@ def _record_checks(expect: dict[str, Any], record: dict[str, Any] | None,
     status_path = config.status_path if config else "status"
     observed = {
         "status": str(agent_api.dotted(record or {}, status_path) or ""),
-        # The record's coarse reason; AGENT_API_ENDED_REASON_PATH often points at the fine
-        # one, which ``fine_reason`` reads instead.
         "ended_reason": str(agent_api.dotted(record or {}, "endedReason")
                             or agent_api.dotted(record or {}, "ended_reason") or ""),
         "fine_reason": str(get("fine_reason_path") or ""),
@@ -262,8 +259,6 @@ def _metrics(record: dict[str, Any] | None, observed: dict[str, Any],
     timeline = (record or {}).get("timeline") or {}
     analysis = getattr(persona_call, "analysis", None) or {}
     dialogue = analysis.get("customer_dialogue") or []
-    # Scribe on the call recording times words to a tenth of a second; the persona's own
-    # transcript (where the agent under test is the "user" side) only to the second.
     heard = analysis.get("scribe") or {}
     first = heard.get("ttfw_s")
     if first is None:
@@ -276,7 +271,6 @@ def _metrics(record: dict[str, Any] | None, observed: dict[str, Any],
         "ttfw_agent_s": _number(timeline.get("first_agent_word_s")),
         "turn_p50_ms": observed.get("latency_p50_ms"),
         "turn_p95_ms": observed.get("latency_p95_ms"),
-        # What the caller waited from finishing a sentence to the agent's reply, from audio.
         "response_gap_p50_s": heard.get("response_gap_p50_s"),
         "response_gap_p95_s": heard.get("response_gap_p95_s"),
         "transfer_setup_s": _seconds_between(started, (target_leg or {}).get("started_at"))
@@ -305,7 +299,6 @@ def _metric_checks(expect: dict[str, Any], metrics: dict[str, Any], case: dict[s
         checks.append(_check("target_caller_id", None if not seen else seen in want,
                              f"want {allowed} ({want}) got {seen!r}"))
     if complete := expect.get("complete"):
-        # true: the suite's complete_fields; a list adds case-specific paths (e.g. a bridge).
         extra = complete if isinstance(complete, list) else []
         missing = [path for path in [*(suite.get("complete_fields") or []), *extra]
                    if agent_api.dotted(record or {}, path) in (None, "", [], {})]
@@ -358,7 +351,7 @@ def _grade_persona(store: Any, line: str, since: float, log: Log,
         return _check("persona_leg_present", False, f"no persona call on {line}"), ""
     try:
         grade = customer.grade_session(store, call.id, wait=True, progress=log)
-    except Exception as exc:  # a grading failure is a result, not a crash
+    except Exception as exc:
         return _check("persona_graded", False, f"{type(exc).__name__}: {exc}"), call.id
     failed = [c.get("check") for c in grade.get("checks", []) if not c.get("passed")]
     failed += [e.get("expectation") or e.get("name") for e in grade.get("expectations", [])
@@ -433,8 +426,6 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
     if case["kind"] == "amd":
         scenario = load_scenarios()[case["scenario"]]
         if overrides := case.get("scenario_expect"):
-            # Agent-specific expectations (e.g. the exact voicemail text) differ per agent;
-            # a null value drops the scenario's check.
             merged = {**(scenario.get("expect") or {}), **overrides}
             scenario = {**scenario, "expect": {k: v for k, v in merged.items() if v is not None}}
         result = execution.run_once(
@@ -445,7 +436,6 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
         record = agent_api.fetch_record(config, result["agent_call_id"]) \
             if result.get("agent_call_id") else None
         checks, observed = _record_checks(expect, record, paths, config)
-        # A dropped expectation also drops the simulator's own audio check of that name.
         dropped = {k for k, v in (case.get("scenario_expect") or {}).items() if v is None}
         kept = [c for c in result.get("checks", []) if c.get("check") not in dropped]
         row.update(call_id=result.get("agent_call_id"), sim_call_id=result.get("sim_call_sid"),
@@ -463,13 +453,10 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
     queued_staff: list[str] = []
     try:
         if waiting := store.list_customer_persona_queue(line):
-            for item in waiting:  # left over from an aborted run; it would take this call
+            for item in waiting:
                 store.cancel_customer_persona(item["id"])
-        # ``repeat`` queues the target's behavior for that many calls, so an agent that dials
-        # again (after a decline, busy or voicemail) meets the same line, not its default.
         for _ in range(int((target or {}).get("repeat", 1))):
             if target and target.get("persona"):
-                # A staff persona (ElevenLabs) answers the transfer instead of a script.
                 queued_staff.append(customer.queue_persona(
                     store, target["line"], persona_id=target["persona"],
                     label=f"{case['name']} target")["id"])
@@ -488,10 +475,8 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
                                     timeout=float(defaults.get("find_timeout_seconds", 300)))
             if not call_id:
                 raise RuntimeError("the agent never logged the inbound call")
-    except Exception as exc:  # setup and trigger failures are results
+    except Exception as exc:
         row["error"] = f"{type(exc).__name__}: {exc}"
-        # Only when the agent surely placed no call; a call after a timeout or 5xx may still
-        # arrive and must find its persona and target (as in the benchmark's run_once).
         if isinstance(exc, agent_api.TriggerRejected) or case["kind"] == "inbound":
             for queued in [queued_persona, *queued_staff]:
                 if queued:
@@ -519,7 +504,7 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
         row["target_call_id"] = str((leg or {}).get("id") or "")
         if expect.get("target", "pass") == "pass":
             checks += target_checks
-        for queued in queued_staff:  # unclaimed, they would answer the next case's transfer
+        for queued in queued_staff:
             with contextlib.suppress(Exception):
                 store.cancel_customer_persona(queued)
     elif target:
@@ -527,7 +512,7 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
         row["target_call_id"] = str((leg or {}).get("id") or "")
         if expect.get("target", "pass") == "pass":
             checks += target_checks
-        for run_id in queued_target:  # unclaimed, they would answer the next case's transfer
+        for run_id in queued_target:
             _cancel(run_id)
     persona_call = store.get_incoming_call(row["persona_call_id"]) \
         if row.get("persona_call_id") else None
@@ -539,7 +524,6 @@ def _run_case(case: dict[str, Any], suite: dict[str, Any], base: agent_api.Agent
 
 def _cancel(run_id: str | None) -> None:
     if run_id:
-        # The simulator API being down must not hide the case's result.
         with contextlib.suppress(Exception):
             execution.cancel_queued(run_id)
 
@@ -595,7 +579,7 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
         suite = {**suite, "persona_lines": [suite["persona_line"]]} if suite.get("persona_line") \
             else suite
     if _lanes(suite) <= 1 and not suite.get("persona_line") and suite.get("persona_lines"):
-        suite = {**suite, "persona_line": suite["persona_lines"][0]}  # one lane: the first line
+        suite = {**suite, "persona_line": suite["persona_lines"][0]}
     if _lanes(suite) > 1:
         rows = _run_lanes(selected, suite, suite_path, baseline, base, store, pace, out_dir,
                           report_id, log)
@@ -605,7 +589,7 @@ def run(*, suite_path: str | Path, cases: list[str] | None = None, store: Any,
         log(f"[{index + 1}/{len(selected)}] {case['name']} ({case['kind']})")
         try:
             row = run_case(case, suite, base, store, log)
-        except Exception as exc:  # one broken case must not lose the calls already placed
+        except Exception as exc:
             row = _verdict({"case": case["name"], "kind": case["kind"], "started_at": time.time(),
                             "error": f"{type(exc).__name__}: {exc}", "checks": []})
         verdict = {True: "PASS", False: "FAIL", None: "INDET"}[row["passed"]]

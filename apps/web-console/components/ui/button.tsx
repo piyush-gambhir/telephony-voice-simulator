@@ -9,13 +9,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Ink: the one primary action in a view.
         default: "bg-primary text-primary-foreground hover:bg-primary/88",
-        // Tonal neutral: the action beside a primary, toolbar controls.
         secondary: "bg-control text-foreground hover:bg-control-hover active:bg-control-active",
         outline: "bg-control text-foreground hover:bg-control-hover active:bg-control-active",
         ghost: "bg-transparent text-muted-foreground hover:bg-control-hover hover:text-foreground",
-        // Soft red for row and menu actions; solid red only confirms a destructive dialog.
         destructive: "bg-danger-soft text-danger hover:bg-danger-soft/75",
         danger: "bg-danger text-destructive-foreground hover:bg-danger/90",
         link: "h-auto px-0 text-accent-text underline-offset-4 hover:underline",

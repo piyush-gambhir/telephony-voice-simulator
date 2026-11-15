@@ -100,7 +100,6 @@ async def download_recording(call: dict, url: str, recording_sid: str, kind: str
     authorization = encode_basic_auth(
         os.environ.get("TWILIO_ACCOUNT_SID", ""), os.environ.get("TWILIO_AUTH_TOKEN", "")
     )
-    # Twilio recordings become fetchable shortly after the callback.
     async with ClientSession(headers={"Authorization": authorization}, timeout=ClientTimeout(total=15)) as http:
         for attempt in range(RECORDING_DOWNLOAD_ATTEMPTS):
             await asyncio.sleep(RECORDING_RETRY_DELAY_SECONDS * attempt)

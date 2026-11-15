@@ -43,7 +43,6 @@ type Row = { call_uid: string; user_text: string };
 type Parsed = { name: string; rows: Row[]; malformed: number; overCap: boolean };
 type Figure = { count: number; share: number | null };
 
-/** One JSON object per line with call_uid and user_text; anything else counts as malformed. */
 function parseJsonl(text: string): { rows: Row[]; malformed: number } {
   const rows: Row[] = [];
   let malformed = 0;
@@ -64,7 +63,6 @@ function parseJsonl(text: string): { rows: Row[]; malformed: number } {
   return { rows, malformed };
 }
 
-/** Headline figures arrive as {count, share_percent}; accept a bare count too. */
 function figure(value: unknown, total: number): Figure {
   if (typeof value === "number") return { count: value, share: total ? Math.round((value / total) * 1000) / 10 : null };
   if (value && typeof value === "object") {
@@ -93,7 +91,6 @@ export function AnalysisPage() {
 
   async function load(file: File | undefined) {
     if (!file) return;
-    // A classification still running for the previous file must not land on this one.
     generation.current += 1;
     setReadError(null);
     setSummary(null);

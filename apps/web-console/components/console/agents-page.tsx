@@ -26,7 +26,6 @@ import { useAction, useApi } from "@/hooks/use-api";
 import { simulatorApi, type Scenario } from "@/lib/simulator-api";
 import { agents, type Operation } from "@/lib/workflows-api";
 
-/** integrations/agent_api.py extract_outcome. */
 type Outcome = {
   status: string;
   ended_reason: string;
@@ -36,10 +35,8 @@ type Outcome = {
   detection_delay: number | null;
 };
 
-/** service/agents.py call_and_wait. */
 type CallResult = { call_id: string; scenario: string; number: string; completed: boolean; outcome: Outcome };
 
-/** The agent's default scenario in service/agents.py. */
 const DEFAULT_SCENARIO = "stock_voicemail_beep_1000";
 
 type Area = "rest" | "room";
@@ -68,7 +65,6 @@ export function AgentsPage() {
   );
 }
 
-/* ---------- REST agent ---------- */
 
 function RestAgent({ scenarios }: { scenarios: Scenario[] }) {
   const [scenario, setScenario] = useState("");

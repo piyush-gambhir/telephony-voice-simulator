@@ -47,9 +47,6 @@ class RunsMixin:
         connection = self.store.get_connection(endpoint.connection_id)
         if connection is None or not connection.enabled:
             raise ValidationError("The endpoint provider connection is unavailable")
-        # A fixed endpoint models a number permanently wired to one behavior:
-        # when a default exists, ad-hoc run requests cannot override it. Queued
-        # endpoints accept a per-run scenario and fall back to their default.
         selected = (
             endpoint.default_scenario
             if endpoint.routing_mode == "fixed" and endpoint.default_scenario
@@ -140,8 +137,6 @@ class RunsMixin:
             "failed": "failed",
             "abandoned": "abandoned",
         }[outcome]
-        # A model run ends at its final timeline event (including time spent in
-        # the menu). Do not invent a conversation length after the bridge.
         minutes, seconds = steps[-1].at.split(":")
         duration_seconds = int(minutes) * 60 + int(seconds)
         run = self.store.create_run(

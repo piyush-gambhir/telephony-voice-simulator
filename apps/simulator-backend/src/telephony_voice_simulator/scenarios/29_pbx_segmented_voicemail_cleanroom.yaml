@@ -1,7 +1,3 @@
-# Clean-room enterprise PBX voicemail fixture. The three independently
-# generated prompt fragments and synthesized record tone reproduce the timing
-# and concatenation behavior of a segmented PBX without using vendor audio,
-# vendor transcripts, or a cloned voice.
 name: pbx_segmented_voicemail_cleanroom
 machine:
   main:

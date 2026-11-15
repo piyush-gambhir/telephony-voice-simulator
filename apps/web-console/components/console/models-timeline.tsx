@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import { MISSING, TonePill } from "@/components/console/kit";
 import { cn } from "@/lib/utils";
 
-/** One step of a model timeline as the backend returns it (IVR, PBX story or dealer call). */
 export type ModelStep = {
   index?: number;
   at?: string;
@@ -70,7 +69,6 @@ export function OutcomePill({ outcome }: { outcome: string | null | undefined })
   return <TonePill tone={outcomeTone(outcome)}>{outcome ? humanize(outcome) : MISSING}</TonePill>;
 }
 
-/** A compact label/value list for the key facts of a run. */
 export function Facts({ items, className }: { items: Array<[string, ReactNode]>; className?: string }) {
   return (
     <dl className={cn("grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13px]", className)}>
@@ -84,7 +82,6 @@ export function Facts({ items, className }: { items: Array<[string, ReactNode]>;
   );
 }
 
-/** Steps in order: time, kind, label, detail, actor and where the step points. */
 export function StepList({ steps, label }: { steps: ModelStep[]; label: string }) {
   if (!steps.length) return <p className="text-[13px] text-muted-foreground">No steps recorded.</p>;
   return (

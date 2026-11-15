@@ -1,7 +1,3 @@
-# PRECISION GUARD: a practiced receptionist answers with a complete business
-# greeting. Its cadence can sound like an IVR or recorded prompt, but it is a
-# live person. The agent must respond conversationally and never activate a
-# machine, DTMF, or voicemail path.
 name: business_receptionist_human
 machine:
   main:

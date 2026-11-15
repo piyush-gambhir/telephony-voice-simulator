@@ -4,7 +4,6 @@ import { DataTable, formatAddress, MISSING, Panel, PanelTitle, Td, Th, TonePill 
 import { Facts, humanize } from "@/components/console/models-timeline";
 import type { DealerMap } from "@/lib/workflows-api";
 
-/** One rooftop's row of `transfer_matrix` (domains/pbx/dealer/transfer.py). */
 type MatrixRow = {
   site: string;
   platform: string;

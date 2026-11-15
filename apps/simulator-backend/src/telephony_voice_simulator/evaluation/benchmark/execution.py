@@ -103,15 +103,12 @@ def find_sim_call(
             if call.get("to_address") != number or call.get("id") in seen:
                 continue
             started = _parse_iso(call.get("started_at"))
-            # Allow timestamp rounding only. A prior call on this line is not
-            # evidence for this attempt, even if its grading arrived late.
             if started is None or started < since - 1:
                 continue
             latest = call
             if (call.get("analysis") or {}).get("checks") is not None:
                 return call
         time.sleep(8)
-    # Timed out waiting for grading; the partial record still names the call.
     return latest
 
 
@@ -154,17 +151,13 @@ def run_once(
     try:
         queued_run = queue_scenario(scenario_name, number, numbers)
         call_id, _ = agent_api.trigger_call(config, scenario=scenario_name, number=number)
-    except Exception as exc:  # trigger/queue failures are results, not crashes
-        # Only when the agent surely placed no call; after a timeout or 5xx a call may
-        # still arrive and must find its scenario.
+    except Exception as exc:
         if queued_run and isinstance(exc, agent_api.TriggerRejected):
             try:
                 cancel_queued(queued_run)
             except httpx.HTTPError:
                 pass
         row["error"] = f"{type(exc).__name__}: {exc}"
-        # A type and a message alone cannot say WHERE a run died, and a failed
-        # suite is expensive to reproduce, so keep the frames too.
         row["traceback"] = traceback.format_exc()[-2000:]
         row["observed_class"] = "unknown"
         row["passed"] = False
@@ -315,9 +308,6 @@ def run_suite(
         nonlocal report
         graded: set[str] = set()
         first = True
-        # Lanes interleave, so a line that only makes sense next to an earlier
-        # header is unreadable. Every line carries lane + progress + scenario,
-        # which also makes a single lane greppable: `| grep '^L3'`.
         lane_no = numbers.index(number) + 1
         width = len(str(total))
         while True:
@@ -350,15 +340,11 @@ def run_suite(
                 f"{label} {verdict} {row['expected_class']}->{row.get('observed_class')} "
                 f"{row.get('ended_reason') or '-'}{detail}"
             )
-            # Write after every call so an interrupted overnight run still
-            # leaves usable evidence.
             with lock:
                 rows.append(row)
                 report = snapshot()
                 write_report(out_dir, report)
             if row.get("agent_terminal") is False:
-                # A timed-out call may still occupy the line. Reusing it could
-                # consume another scenario's queue entry and corrupt scoring.
                 log(f"{label} lane stopped: agent call is not terminal")
                 return
 

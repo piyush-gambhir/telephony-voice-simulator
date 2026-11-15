@@ -48,8 +48,6 @@ def register_routes(
         app.router.add_post("/twilio/ivr", handle_ivr_voice)
         app.router.add_post("/twilio/ivr/dial", handle_ivr_dial)
         app.router.add_post("/twilio/ivr/result", handle_ivr_dial_result)
-    # Both runtimes share recording and status callbacks. They are registered
-    # once when either mode is active.
     app.router.add_post("/twilio/recording", handle_recording)
     app.router.add_post("/twilio/status", handle_status)
 

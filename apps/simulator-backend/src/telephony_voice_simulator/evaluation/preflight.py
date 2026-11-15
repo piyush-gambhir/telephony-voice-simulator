@@ -21,7 +21,6 @@ import httpx
 from ..telephony.twilio.management import TwilioManagementError, TwilioNumberManager
 from .benchmark import execution
 
-# A CallSid of the right shape that Twilio will never issue, for the signed probe.
 PROBE_SID = "CA" + "0" * 32
 PROBE_LINE = "+15550000000"
 
@@ -113,7 +112,7 @@ def run(suite: dict[str, Any], cases: list[dict[str, Any]], store: Any,
 
     try:
         profiles = customer.profiles()
-    except Exception as exc:  # an unreadable profiles file fails the check, not the run
+    except Exception as exc:
         checks.append(_check("persona_lines", False, f"{type(exc).__name__}: {exc}"))
         return checks
     missing = sorted({*personas, *staff} - set(profiles["profiles"]))
@@ -123,7 +122,6 @@ def run(suite: dict[str, Any], cases: list[dict[str, Any]], store: Any,
     allowed = set(profiles["allowed_callers"])
     callers = {str(c["agent_number"]) for c in cases if c.get("agent_number")}
     if staff:
-        # A transfer reaches a staff line from the customer's number (or the agent's).
         callers |= set(personas)
     if missing_callers := sorted(callers - allowed):
         checks.append(_check("allowed_callers", False,

@@ -68,7 +68,6 @@ def test_expected_class_derivations() -> None:
 
 
 def test_observed_class_is_decided_by_the_ending() -> None:
-    # Detection with no ending says nothing about what the agent DID.
     assert scoring.observed_class({"is_machine": True, "ended_reason": ""}) == "unknown"
     assert (
         scoring.observed_class({"is_machine": None, "ended_reason": "call.ending.voicemail-hangup"})
@@ -135,9 +134,7 @@ def test_summarize_builds_the_matrix_and_error_rates() -> None:
     assert summary["passed"] == 2
     assert summary["failed"] == 2
     assert summary["confusion_matrix"]["machine"] == {"machine": 1, "human": 1}
-    # 1 of 2 machine calls was read as a human.
     assert summary["false_human_rate"] == 0.5
-    # human + screener are both "live"; only the human row was misread.
     assert summary["false_machine_rate"] == 0.5
     assert summary["per_scenario"]["vm_a"]["attempts"] == 2
     assert summary["per_scenario"]["vm_a"]["pass_rate"] == 0.5
@@ -201,8 +198,6 @@ def test_resolve_plan_gives_one_lane_per_line() -> None:
     assert plan["sim_numbers"] == lines
     assert plan["concurrency"] == 3
 
-    # Concurrency can never exceed the pool: two lanes on one line would race
-    # for that line's scenario queue.
     capped = _resolve(scenario=["mailbox_full"], number=lines[:2], concurrency=9)
     assert capped["concurrency"] == 2
 
@@ -214,8 +209,6 @@ def test_build_jobs_is_attempt_major() -> None:
     plan = {"scenarios": ["a", "b"], "repeat": 3}
     jobs = planning.build_jobs(plan)
     assert len(jobs) == 6
-    # Every scenario is covered once before any is covered twice, so an
-    # aborted run still has balanced coverage.
     assert jobs[:2] == [("a", 1), ("b", 1)]
     assert jobs[2:4] == [("a", 2), ("b", 2)]
 
@@ -352,11 +345,9 @@ def test_observed_class_does_not_punish_a_navigated_screener() -> None:
     }
     assert scoring.observed_class(navigated) == "screener"
 
-    # Same detection, but the agent gave up and left a voicemail.
     gave_up = dict(navigated, ended_reason="call.ending.voicemail-left-message")
     assert scoring.observed_class(gave_up) == "machine"
 
-    # Live pickup with no detection at all is a plain human.
     human = {
         "ended_reason": "call.in-progress.customer-ended-call",
         "is_machine": False,
@@ -377,7 +368,7 @@ def test_rescore_report_reclassifies_without_redialling() -> None:
                 "scenario": "dtmf_gate_honored",
                 "attempt": 1,
                 "expected_class": "screener",
-                "observed_class": "machine",  # the old, wrong verdict
+                "observed_class": "machine",
                 "ended_reason": "call.in-progress.customer-ended-call",
                 "detection_layer": "livekit-amd:dtmf-nav:5",
                 "amd": {"is_machine": True},
@@ -394,9 +385,7 @@ def test_rescore_report_reclassifies_without_redialling() -> None:
     fixed = scoring.rescore_report(stored)
     assert fixed["rows"][0]["observed_class"] == "screener"
     assert fixed["summary"]["confusion_matrix"]["screener"] == {"screener": 1}
-    # A navigated screener is no longer counted as a live callee read as a machine.
     assert fixed["summary"]["false_machine_rate"] == 0.0
-    # The original is not mutated.
     assert stored["rows"][0]["observed_class"] == "machine"
 
 
@@ -702,7 +691,6 @@ def test_compare_rescore_and_preflight_by_report_id(results_dir) -> None:
     assert (results_dir / "prod" / "report.rescored.md").is_file()
     assert rescored["summary"]["calls"] == 1
 
-    # No agent call id on the row, so the pipeline is not healthy.
     assert benchmarks.preflight(report="uat")["healthy"] is False
 
 
