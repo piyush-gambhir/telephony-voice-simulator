@@ -57,7 +57,6 @@
 }
 
 :root {
-  /* Tonal ladder: surface-1 sits one step under the page, cards lift one step over it. */
   --background: oklch(0.951 0.002 286);
   --surface-1: oklch(0.925 0.003 286);
   --surface-2: oklch(0.99 0.001 286);
@@ -69,7 +68,6 @@
   --card-foreground: var(--foreground);
   --popover: var(--surface-3);
   --popover-foreground: var(--foreground);
-  /* Ink is the one primary action. Violet means selection, links, focus and queued work. */
   --primary: oklch(0.17 0.005 286);
   --primary-foreground: oklch(0.985 0 0);
   --control: oklch(0.955 0.003 286);
@@ -190,7 +188,6 @@
 }
 
 @layer utilities {
-  /* Group labels, pill words and stamps: mono caps, written in sentence case at the source. */
   .t-micro {
     font-family: var(--font-mono);
     font-size: 11px;
