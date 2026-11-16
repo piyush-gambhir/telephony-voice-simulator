@@ -1,13 +1,12 @@
 # Architecture
 
-## Merge decision
+## Structure
 
-AMD, IVR, and PBX simulation belong in one project because they share the
-same call boundary: endpoints, provider connections, routing, DTMF, timelines,
-recordings, results, and operator workflows. They should remain separate
-scenario packs because their state machines and grading rules differ.
+AMD, IVR, and PBX simulation share one call boundary: endpoints, provider connections, routing, DTMF, timelines,
+recordings, results, and operator workflows. They are separate
+scenario packs with their own state machines and grading rules.
 
-The resulting dependency direction is:
+The dependency direction is:
 
 ```text
 web-console
@@ -21,8 +20,7 @@ AMD pack          IVR pack          PBX pack
 optional LiveKit and Twilio adapters
 ```
 
-AMD is therefore a domain on top of the telephony simulation platform, not a
-second platform.
+AMD is a domain on top of the telephony simulation platform.
 
 ## Two applications
 
@@ -30,14 +28,6 @@ second platform.
   execution adapters, persistence, recordings, grading, and the HTTP API.
 - `apps/web-console` is a replaceable client. Its static scenario reference is
   generated from the backend catalog, so scenario data is not maintained twice.
-
-## Deliberately not copied
-
-The old telephony project had a Next.js server layer, Drizzle schema,
-PostgreSQL service, and Twilio Function app alongside its Python simulator.
-Those duplicated responsibilities now owned by the Python control plane,
-shared repository, provider adapters, and unified web console. The call behavior
-was ported; the duplicate runtime and UI implementations were not.
 
 ## Portability boundary
 

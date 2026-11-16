@@ -4,9 +4,7 @@ A local-first monorepo for testing the complete voice-call boundary: answering
 machine detection (AMD), inbound IVRs, PBX routing, extensions, queues,
 screeners, human pickup, live carrier behavior, recordings, and grading.
 
-This is the merged successor to the former AMD and telephony simulators. AMD
-is now one scenario domain on top of a shared telephony platform rather than a
-second application with duplicate storage, provider, and UI layers.
+AMD is one scenario domain on top of a shared telephony platform with common storage, provider, and UI layers.
 
 ## Repository structure
 
@@ -25,8 +23,6 @@ telephony-voice-simulator/
 │   ├── CONFIGURATION.md
 │   ├── DEPLOYMENT.md
 │   ├── HLD.md
-│   ├── MIGRATION_AUDIT.md
-│   ├── OPEN_SOURCE_AUDIT.md
 │   ├── REGRESSION.md
 │   └── UAT.md
 ├── scripts/
@@ -163,8 +159,6 @@ allowed start window and the moment the agent started speaking. Scenarios shows
 coverage per scenario; Lines, IVR lab, Providers and Directory hold the rest.
 Filters live in the URL, and search, JSON export, queued-run cancellation and
 automatic refresh are kept.
-The [project review](docs/PROJECT_REVIEW.md) records the current module boundaries,
-verification, prioritized improvements, and remaining integration boundaries.
 
 ## Testing a deployed voice agent end to end
 
@@ -197,25 +191,10 @@ for a transfer a `target` line with a staff `persona` or a scripted `scenario`; 
 case needs go in `before`/`after` hooks. See [Regression](docs/REGRESSION.md) and
 [Transfers](docs/TRANSFERS.md).
 
-## Migration and open-source status
+## Licensing and recording
 
-The feature-by-feature migration, replacements, and retained command-line
-entry points are documented in
-[Migration audit](docs/MIGRATION_AUDIT.md). The duplicate Next.js server API,
-Drizzle/PostgreSQL layer, old simulator engines, and duplicate provisioning
-script were intentionally removed after their behavior moved into the shared
-backend.
-
-The code is Apache-2.0 licensed and has been stripped of credentials,
-tenant-specific payloads, real operational destinations, and the restricted
-Asterisk audio fixture. The clean-room replacement preserves its timing and
-overlap assertions without vendor recordings.
-
-Public Git, wheel, web, and Docker builds exclude all corpus WAV/MP3 binaries
-by default. The scenario definitions and clean-room fixture text are suitable
-for publication; local synthetic speech remains behind the initially empty
-per-file release allowlist described in
-[Open-source audit](docs/OPEN_SOURCE_AUDIT.md). Vendor names describe
+The code is Apache-2.0 licensed. Public Git, wheel, web, and Docker builds exclude all corpus WAV/MP3 binaries
+by default; see [Asset policy](docs/ASSET_POLICY.md). Vendor names describe
 compatibility only and do not imply affiliation.
 
 Full-call recording is configured per managed number in the console and is off
@@ -226,19 +205,3 @@ rules required for every jurisdiction involved. Deleting a call in the console
 removes the simulator's database records and local files; it does not remotely
 erase a provider-hosted Twilio `RecordingSid`. Configure provider retention or
 delete those recordings in Twilio separately.
-
-### Node tooling verification
-
-The web console was checked with Node 26.13.0 and pnpm 12.16.1 on 2026-11-01:
-lint, explicit TypeScript 7 typecheck (the `typescript7` alias), and the 72-page
-static build passed. TypeScript 6.0.3 remains installed for `typescript-eslint`
-(which requires TypeScript below 6.1), so Dependabot ignores TypeScript majors.
-ESLint 10 runs the plugins bundled by `eslint-config-next` through
-`peerDependencyRules`. An earlier Node 26 Docker image built successfully, and
-its console tabs and refresh were exercised in an isolated browser with local
-backend fixtures. These checks
-do not validate live telephony, provider credentials, calls, or SMS.
-
-The web dependency full and production audits reported no advisories. See
-`deploy/twilio-ivr/README.md` for the separate Twilio deployment-tool limitations.
-No runtime performance improvement was measured.

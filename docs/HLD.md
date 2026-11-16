@@ -1,7 +1,5 @@
 # High-level design
 
-Last reviewed: 2026-07-26.
-
 ## 1. Purpose
 
 Telephony Voice Simulator is a local-first platform for exercising the call
@@ -195,7 +193,6 @@ flowchart LR
     Contract --> Registry
     Twilio --> Webhooks["Twilio webhook/TwiML runtime"]
     Twilio --> Queue["Provider-neutral durable queue port"]
-    Telnyx -.-> Future["Future Telnyx Call Control runtime"]
 ```
 
 The common `telephony` package owns only contracts and composition. Twilio
@@ -289,8 +286,7 @@ normal ownership graph:
 
 - `managed_provider_addresses` remembers every address ever managed by each
   carrier module. Deleting an endpoint cannot make a Twilio number silently
-  fall back to an unmanaged route. The SQLite migration copies and then
-  removes the former Twilio-only ownership and queue tables.
+  fall back to an unmanaged route.
 - `deleted_incoming_calls` tombstones deleted call IDs. Late carrier callbacks
   cannot recreate a call or its files after an operator deletes it.
 
@@ -656,20 +652,7 @@ Recommended before operating real traffic:
 - alerts for stuck queues, signature failures, missing recordings, and public
   audio policy rejection.
 
-## 19. Key design decisions and tradeoffs
-
-| Decision | Benefit | Tradeoff |
-|---|---|---|
-| One Python backend | No duplicated API, schema, or business rules | Python process is the central runtime dependency |
-| Static Next.js console | Simple, replaceable, and easy to host | API origin is fixed at build time |
-| SQLite default plus MySQL URI | Zero-service local setup and an upgrade path to permanent storage | MySQL operations still require external backup, TLS, and availability controls |
-| Provider adapter interface | Carrier behavior does not leak into scenario packs | Live providers still need provider-specific operational code |
-| YAML AMD scenarios | Reviewable and portable state machines | Media provenance must be managed separately |
-| Deterministic IVR/PBX models | Fast, repeatable CI and product testing | Not a substitute for a live SIP/PBX stack |
-| Separate IVR and AMD routes | Clear runtime and audio security boundaries | One Twilio number can point to only one Voice URL at a time |
-| Public media allowlist | Twilio can fetch only reviewed compiled assets | Public AMD needs an explicit rights-review workflow |
-
-## 20. Extension points
+## 19. Extension points
 
 ### Add a provider
 
@@ -691,7 +674,7 @@ Keep the existing PBX pack as the expected-behavior model and add a provider
 adapter that converts its normalized routing intent into live SIP/PBX actions.
 Do not introduce a third application or duplicate the catalog/store.
 
-## 21. Source map
+## 20. Source map
 
 | Concern | Primary source |
 |---|---|
@@ -714,7 +697,7 @@ Do not introduce a third application or duplicate the catalog/store.
 | Web client | `apps/web-console/components/console/` and `lib/simulator-api.ts` |
 | Deployment | `compose*.yaml`, backend/web Dockerfiles, `deploy/nginx.conf` |
 
-## 22. End-to-end summary
+## 21. End-to-end summary
 
 At build time, the backend scenario catalog generates the static scenario
 reference used by the web console. At runtime, an operator configures provider
@@ -731,5 +714,4 @@ directory, gathers exactly four digits, bridges the configured destination,
 and persists the outcome.
 
 The result is one portable telephony simulation control plane with distinct
-scenario engines and optional execution adapters, rather than two overlapping
-applications.
+scenario engines and optional execution adapters.

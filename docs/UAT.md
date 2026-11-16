@@ -1,7 +1,6 @@
 # Generic UAT matrix
 
-`telephony-voice-sim uat` (`apps/simulator-backend/src/telephony_voice_simulator/evaluation/uat.py`) replaces the former
-integration-specific orchestration. It contains no tenant IDs, customer
+`telephony-voice-sim uat` (`apps/simulator-backend/src/telephony_voice_simulator/evaluation/uat.py`) runs a generic matrix. It contains no tenant IDs, customer
 payloads, storage locations, credentials, or assumptions about one agent
 vendor.
 

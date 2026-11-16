@@ -200,7 +200,7 @@ controls the unified backend queue and does not enqueue hosted calls.
 
 ## Standalone Twilio Functions IVR
 
-`deploy/twilio-ivr` restores the optional `twilio-run` workflow:
+`deploy/twilio-ivr` is the optional `twilio-run` workflow:
 
 Use Node 22 in this subproject. The pinned `twilio-run@5.0.1` declares Node
 20/22 support, while the main monorepo web console requires Node.js 26.12.1.
@@ -250,7 +250,7 @@ The API must remain private and allow the deployed console origin through
 - Real destinations, credentials, and customer data are absent from the source
   tree.
 - `public_release_allowlist.json` contains only checksum-bound,
-  rights-reviewed files; it is empty for the initial release.
+  rights-reviewed files.
 - Public AMD is disabled or its distinct deployment allowlist covers every
   referenced asset and `telephony-voice-sim corpus validate-public` passes.
 - `pnpm license:check` and `pnpm public-release:check` pass, including wheel
