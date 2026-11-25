@@ -375,8 +375,11 @@ def _to_48k_mono(src: Path, dst: Path) -> None:
     )
 
 
-def _load_manifest() -> dict[str, dict[str, Any]]:
-    source = MANIFEST if MANIFEST.exists() else SOURCE_MANIFEST
+def _load_manifest(path: Path | None = None) -> dict[str, dict[str, Any]]:
+    if path is not None:
+        source = path
+    else:
+        source = MANIFEST if MANIFEST.exists() else SOURCE_MANIFEST
     if not source.exists():
         return {}
     parsed = json.loads(source.read_text())
@@ -385,23 +388,26 @@ def _load_manifest() -> dict[str, dict[str, Any]]:
     return parsed
 
 
-def _write_manifest(manifest: dict[str, dict[str, Any]]) -> None:
+def _write_manifest(
+    manifest: dict[str, dict[str, Any]], path: Path | None = None
+) -> None:
     """Replace the manifest only after a complete JSON document is on disk."""
 
-    MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    target = path or MANIFEST
+    target.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
         prefix=".assets-manifest-",
         suffix=".json",
-        dir=MANIFEST.parent,
+        dir=target.parent,
         delete=False,
     ) as temporary:
         json.dump(dict(sorted(manifest.items())), temporary, indent=2)
         temporary.write("\n")
         temporary.flush()
         temporary_path = Path(temporary.name)
-    temporary_path.replace(MANIFEST)
+    temporary_path.replace(target)
 
 
 def _generated_manifest_row(
@@ -411,6 +417,7 @@ def _generated_manifest_row(
     output: Path,
     metadata: dict[str, str],
     previous: dict[str, Any] | None,
+    source_url: str = "telephony_voice_simulator.corpus.build.CORPUS",
 ) -> dict[str, Any]:
     prior_note = str((previous or {}).get("license_note") or "").strip()
     license_note = prior_note or (
@@ -419,7 +426,7 @@ def _generated_manifest_row(
     )
     return {
         "source_type": "generated",
-        "source_url": "telephony_voice_simulator.corpus.build.CORPUS",
+        "source_url": source_url,
         "license_note": license_note,
         "transcript_source": "corpus",
         "voice_hint": voice_hint,
@@ -436,24 +443,34 @@ def build_assets(
     force: bool = False,
     replace_imported: bool = False,
     log: Callable[[str], None] | None = None,
+    corpus: dict[str, tuple[str, str]] | None = None,
+    assets_dir: Path | None = None,
+    manifest_path: Path | None = None,
+    source_url: str = "telephony_voice_simulator.corpus.build.CORPUS",
 ) -> dict[str, Any]:
     """Render missing corpus audio through TTS and record its provenance.
+
+    ``corpus``, ``assets_dir`` and ``manifest_path`` default to the bundled corpus;
+    pass them to render an external asset set (for example a generated dataset).
 
     Raises ``RuntimeError`` when an asset cannot be built; assets built before the
     failure stay on disk with their manifest rows.
     """
     emit = log or (lambda _line: None)
-    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+    entries = CORPUS if corpus is None else corpus
+    target_dir = assets_dir or ASSETS_DIR
+    manifest_file = manifest_path or MANIFEST
+    target_dir.mkdir(parents=True, exist_ok=True)
     try:
-        manifest = _load_manifest()
+        manifest = _load_manifest(manifest_path)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"cannot read {MANIFEST}: {exc}") from exc
+        raise RuntimeError(f"cannot read {manifest_file}: {exc}") from exc
     built: list[str] = []
     skipped: list[str] = []
-    for name, (voice, text) in CORPUS.items():
+    for name, (voice, text) in entries.items():
         if only and only not in name:
             continue
-        out = ASSETS_DIR / name
+        out = target_dir / name
         previous = manifest.get(name)
         if out.exists() and not force:
             if previous and (expected := previous.get("sha256")):
@@ -475,8 +492,9 @@ def build_assets(
                 "force it with replace_imported to replace it intentionally"
             )
 
+        out.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
-            suffix=".wav", prefix=".corpus-", dir=ASSETS_DIR, delete=False
+            suffix=".wav", prefix=".corpus-", dir=out.parent, delete=False
         ) as temporary:
             generated = Path(temporary.name)
         try:
@@ -499,17 +517,18 @@ def build_assets(
             output=out,
             metadata=metadata,
             previous=previous,
+            source_url=source_url,
         )
         try:
-            _write_manifest(manifest)
+            _write_manifest(manifest, manifest_path)
         except OSError as exc:
             raise RuntimeError(f"{name}: cannot update provenance manifest: {exc}") from exc
         emit(f"built {name} with {metadata['generator_engine']}")
         built.append(name)
-    emit(f"done: {len(built)} built, {len(skipped)} cached -> {ASSETS_DIR}")
+    emit(f"done: {len(built)} built, {len(skipped)} cached -> {target_dir}")
     return {
         "built": built,
         "cached": skipped,
-        "assets_dir": str(ASSETS_DIR),
-        "manifest": str(MANIFEST),
+        "assets_dir": str(target_dir),
+        "manifest": str(manifest_file),
     }

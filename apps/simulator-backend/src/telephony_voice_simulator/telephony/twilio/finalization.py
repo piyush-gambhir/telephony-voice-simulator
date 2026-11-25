@@ -17,8 +17,8 @@ from .compile import CompiledScenario
 
 CALLBACK_GRACE_SECONDS = 12
 TERMINAL_STATUSES = {"completed", "failed", "busy", "no-answer", "canceled"}
-MEDIA_CHECKS = {"agent_spoke", "message_start_after", "message_content", "transcript_contains",
-                "transcript_excludes"}
+MEDIA_CHECKS = {"agent_spoke", "agent_speech_after", "message_start_after", "message_content",
+                "transcript_contains", "transcript_excludes"}
 
 
 def capture_scenario(call: dict) -> None:

@@ -146,6 +146,9 @@ The optional `scripts/run_benchmark.sh PROFILE SUITE` wrapper sources the
 profile env file, validates the plan, performs one preflight call
 (`benchmark run --scenario stock_voicemail_beep_1000 --repeat 1`, then
 `benchmark preflight`), and starts the suite only if the pipeline worked.
+Set `BENCHMARK_PREFLIGHT_SCENARIO` (in the environment or the profile) to preflight
+with another scenario, for example when `SIMULATOR_SCENARIOS_DIR` points at the
+[voicemail dataset](VOICEMAIL_DATASET.md) suite and the bundled one is not loaded.
 Each preflight has a fresh report directory. Passing `--dry-run` to the wrapper
 only runs `benchmark plan` and places no calls. A failed agent assertion is valid
 preflight evidence; a missing simulator leg or broken API is not. Set

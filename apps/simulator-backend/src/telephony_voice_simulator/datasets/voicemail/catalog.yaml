@@ -1,0 +1,2095 @@
+version: 2
+categories:
+  - id: carrier_default
+    label: "Carrier default greeting"
+    description: "Network-provided greeting with no recorded name. Phrase-based detection should fire, and the message must wait for the beep."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: carrier_number_readback
+    label: "Carrier number readback"
+    description: "Network greeting that reads the dialed number back digit by digit. The number can read like a person confirming a number, so the greeting is long before any cue."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: personal_short
+    label: "Short personal greeting"
+    description: "Brief recorded greeting in a person's own voice. Casual tone and very little text make it easy to mistake for a live answer."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: personal_custom_no_stock_phrase
+    label: "Custom greeting without stock phrases"
+    description: "Personal greeting that never says leave a message or similar. Phrase lists miss it, so detection must lean on the beep or audio cues."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: personal_long_rambling
+    label: "Long rambling greeting"
+    description: "Fifteen to twenty-five seconds of personal chatter before the beep. Agents that give up waiting or start talking early fail here."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: personal_starts_like_human
+    label: "Greeting that opens like a person"
+    description: "Recording opens with hello or hi and a pause, as if someone picked up, then turns into a greeting. The classic trap for early human classification."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: multipart_name_spliced
+    label: "Carrier frame with recorded name"
+    description: "Carrier phrasing wrapped around a separately recorded name, so voice and cadence change mid greeting."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: business_after_hours
+    label: "Business after-hours greeting"
+    description: "Business recording that states hours and then offers a mailbox. Long, formal, and full of human-sounding scripted speech."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: business_department_mailbox
+    label: "Business department mailbox"
+    description: "Department or shared mailbox greeting that names a team rather than a person."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: live_voicemail_transcribing
+    label: "Live voicemail with transcription"
+    description: "Phone OS live voicemail that tells the caller the message is being transcribed. The mailbox is real, but a person may listen in and speak."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: noisy_or_music_greeting
+    label: "Greeting with music or noise"
+    description: "Greeting over a bed of background sound. Noise defeats silence-based and energy-based cues."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: spanish_voicemail
+    label: "Spanish voicemail"
+    description: "Spanish-language greeting. English-only phrase lists miss it."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: bilingual_greeting
+    label: "Bilingual greeting"
+    description: "Greeting that repeats itself in two languages, doubling the time before the beep."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: unusual_beep
+    label: "Unusual beep shape"
+    description: "Late, repeated, rare-pitch or very short record tone. Most mailboxes beep at 450, 650 or 750 Hz, so detectors tuned to that band or to one long tone miss these."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: tone_only
+    label: "Tone only"
+    description: "A record tone with no greeting at all. Only beep detection can classify the call."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: no_beep_after_greeting
+    label: "Greeting without a beep"
+    description: "Mailbox that goes straight to recording when the greeting ends. The agent must speak after the greeting finishes, not wait for a tone."
+    expected_class: machine-vm
+    expected_outcome: leave_message_no_beep
+  - id: call_screener_ai
+    label: "AI call screener"
+    description: "Assistant that asks the caller for a name and reason, then rings the person. The agent must answer the screener and stay on the line."
+    expected_class: screener
+    expected_outcome: stay_through_screen
+  - id: screener_record_name
+    label: "Record-your-name screener"
+    description: "Prompt that asks for a name after a tone and connects the call to a person afterwards. The tone is not a voicemail beep."
+    expected_class: screener
+    expected_outcome: stay_through_screen
+  - id: dtmf_gate_press_key
+    label: "Press a key to continue"
+    description: "Prompt that blocks the call until a specific key is pressed, then connects a person."
+    expected_class: screener
+    expected_outcome: press_key_then_continue
+  - id: mailbox_full
+    label: "Mailbox full"
+    description: "Recording says the mailbox cannot take messages. The agent should end the call without leaving one."
+    expected_class: machine-unavailable
+    expected_outcome: hang_up_inbox_full
+  - id: mailbox_not_set_up
+    label: "Mailbox not set up"
+    description: "Recording says the mailbox has not been set up. No message can be left."
+    expected_class: machine-unavailable
+    expected_outcome: hang_up_unreachable
+  - id: number_disconnected_or_unreachable
+    label: "Disconnected or unreachable"
+    description: "Special information tones or an announcement that the number cannot be reached. The agent should hang up."
+    expected_class: machine-unavailable
+    expected_outcome: hang_up_unreachable
+  - id: business_ivr_menu
+    label: "Business phone menu"
+    description: "Automated menu that lists options and waits for keys. No person or mailbox is reachable without navigation."
+    expected_class: machine-ivr
+    expected_outcome: hang_up_ivr
+  - id: human_short_hello
+    label: "Human: short hello"
+    description: "A person who answers with a bare hello. Short, with no machine cues, and must not be treated as voicemail."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_name_answer
+    label: "Human: answers with a name"
+    description: "A person who answers with their name. Reads like a greeting but a person is on the line."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_busy_driving
+    label: "Human: busy or driving"
+    description: "A distracted person with noise and hurry in their speech."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_screening_by_asking
+    label: "Human: screens by asking who is calling"
+    description: "A person who asks who is calling before saying anything else."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_kid_or_family_answers
+    label: "Human: child or family member answers"
+    description: "A child or relative answers, speaks briefly, and may call for someone else."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_business_receptionist
+    label: "Human: business receptionist"
+    description: "A receptionist with a scripted business greeting. Scripted speech sounds like a recording."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_short_confirmation
+    label: "Human: one-word confirmation"
+    description: "A person answers the agent's name question with one or two words. In production audits this was the live answer most often scored as voicemail."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_callback_brushoff
+    label: "Human: busy, call back later"
+    description: "A person says they are busy and will call back, using words that also appear in recorded greetings."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: human_with_background_audio
+    label: "Human: background audio"
+    description: "A person answers while a car navigation voice, radio, or TV plays. The other voice is not a recording of the callee."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: hold_or_connecting_then_human
+    label: "Hold or connecting message, then a person"
+    description: "A forwarding or hold recording plays before a person picks up. It is a recording, but not a mailbox: leaving a message here talks over the person."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: business_recording_then_human
+    label: "Business intro recording, then a person"
+    description: "A welcome line or call-recording notice plays, then a staff member answers."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: ai_screener_recording_notice
+    label: "AI call assistant that records the call"
+    description: "A phone's AI assistant says it is recording the call for the owner and asks who is calling, often in Spanish too. The owner may pick up afterwards."
+    expected_class: screener
+    expected_outcome: stay_through_screen
+  - id: greeting_alternative_contact
+    label: "Greeting that asks for a text instead"
+    description: "Personal greeting that points to a text or another channel and never uses a stock voicemail phrase."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: greeting_screens_sales
+    label: "Greeting that warns sales callers off"
+    description: "Personal greeting that tells sales or list callers not to leave a message, then promises a call back to everyone else."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: greeting_clipped_start
+    label: "Greeting heard only from the middle"
+    description: "The first words are lost while the agent's opener plays, so only the tail of the greeting reaches the detector."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: carrier_not_set_up_fast_hangup
+    label: "Not-set-up mailbox that drops the line fast"
+    description: "Carrier says the mailbox is not set up and ends the call within a second, often before a classifier decides. It must still be reported as an unavailable mailbox, not as the callee hanging up."
+    expected_class: machine-unavailable
+    expected_outcome: hang_up_unreachable
+  - id: low_tone_before_beep
+    label: "Short low tone before the beep"
+    description: "A brief 300 to 400 Hz blip plays just before the real record beep. Starting the message on the first tone clips the start of it, and a detector that fires on the blip decides too early."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: carrier_talks_after_tone_cue
+    label: "Carrier keeps talking after the tone cue"
+    description: "The greeting says at the tone, then keeps going with instructions before the beep. Agents that treat the phrase as the cue start the message over the rest of the prompt."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: carrier_readback_long_pause
+    label: "Number readback with a long pause"
+    description: "The greeting reads back the number, goes quiet for about five seconds, then plays a closing line about finishing the recording and the beep. The silence looks like the end of the greeting."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: late_greeting_after_silence
+    label: "Greeting after a long silence"
+    description: "The line is silent for eight to nine seconds after answer before the greeting starts. Agents that give up on silence or decide before any speech get this wrong."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: screener_then_voicemail
+    label: "Screener that hands off to voicemail"
+    description: "A call screener asks who is calling, then says the person is unavailable and sends the call to a mailbox. The agent answers the screener, then leaves the message after the final beep."
+    expected_class: screener
+    expected_outcome: leave_message_after_screen
+  - id: greeting_asks_name_number_message
+    label: "Short greeting that asks for name, number and message"
+    description: "A short recorded greeting that asks for a name, a number and a message in words close to a screener prompt. It is a mailbox with a beep, not a screener."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: greeting_detailed_or_brief_message
+    label: "Asks for a detailed or a brief message"
+    description: "Greeting that asks for a detailed message or a brief message. The wording is a strong mailbox cue but varies from the usual leave a message phrase."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: human_says_voicemail_phrases
+    label: "Human: says voicemail phrases"
+    description: "A live person who says you have reached, I'll get back to you, or leave me a message. Phrase lists built for greetings call these people machines."
+    expected_class: human
+    expected_outcome: talk_to_human
+  - id: stray_yes_before_carrier
+    label: "Stray yes before a carrier greeting"
+    description: "A short yes is heard before a carrier greeting starts, so the transcript opens like a person confirming. The rest is an ordinary mailbox."
+    expected_class: machine-vm
+    expected_outcome: leave_message_after_beep
+  - id: mailbox_full_after_greeting
+    label: "Mailbox full after the greeting"
+    description: "A normal personal or business greeting plays first, and only then does the system say the mailbox is full and end the call. The agent must not leave a message."
+    expected_class: machine-unavailable
+    expected_outcome: hang_up_inbox_full
+  - id: unreachable_announcement_no_sit
+    label: "Not in service or disconnected, no tones"
+    description: "An announcement that the number is not in service or has been disconnected, with no special information tones before it. Only the words show the line is dead."
+    expected_class: machine-unavailable
+    expected_outcome: hang_up_unreachable
+entries:
+  - id: carrier_default_01
+    category: carrier_default
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["record your message", "at the tone", "not available"]
+    failure_modes: [early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The person you are calling is not available. At the tone, please record your message.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_default_02
+    category: carrier_default
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["leave your message", "after the tone", "not available"]
+    failure_modes: [early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Your call has been forwarded to an automated voice message system. The person you are trying to reach is not available. Please leave your message after the tone.", voice: "male"}}
+      - {pause: 0.8}
+      - {tone: {freq: 450, duration: 0.6, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_default_03
+    category: carrier_default
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Closing instructions about hanging up or pressing a key add several seconds before the beep and invite a key press."
+    cues: ["press"]
+    failure_modes: [early_message, talks_over_greeting]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Sorry, nobody is available to take your call. When you are finished recording, you may hang up, or press one for more options.", voice: "female"}}
+      - {pause: 1.4}
+      - {tone: {freq: 1400, duration: 0.4, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_number_readback_01
+    category: carrier_number_readback
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["record your message", "at the tone", "not available"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The number you have dialed, 555-0142, is not available. At the tone, please record your message.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_number_readback_02
+    category: carrier_number_readback
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "The spoken digits come first, so the opening sounds like a person reading a number."
+    cues: ["leave a message"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Please leave a message for five five five, zero one two three. When you are done, hang up.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_number_readback_03
+    category: carrier_number_readback
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "A short pause and a long beep follow a greeting that is almost entirely digits."
+    cues: ["leave a message", "after the beep"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The subscriber at 555-0188 cannot take your call right now. Please leave a message after the beep.", voice: "neutral"}}
+      - {pause: 0.6}
+      - {tone: {freq: 450, duration: 0.7, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_short_01
+    category: personal_short
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["leave a message", "call you back"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hey, it's Sam. Leave a message and I'll call you back.", voice: "male"}}
+      - {pause: 0.8}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_short_02
+    category: personal_short
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Casual, friendly delivery sounds like a person answering in real time."
+    cues: ["leave me a message", "you've reached"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hi, you've reached Maya. I can't get to the phone. Leave me a message.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.4, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_short_03
+    category: personal_short
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Two words and no stock phrase; there is almost nothing to classify before the beep."
+    cues: ["leave it"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Yo. Leave it.", voice: "male"}}
+      - {pause: 0.5}
+      - {tone: {freq: 450, duration: 0.4, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_short_04
+    category: personal_short
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Four words and a quick beep."
+    cues: ["leave one"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 2}
+    segments:
+      - {say: {text: "It's Theo. Leave one.", voice: "male"}}
+      - {pause: 0.5}
+      - {tone: {freq: 450, duration: 0.4, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_custom_no_stock_phrase_01
+    category: personal_custom_no_stock_phrase
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "No leave-a-message wording anywhere in the greeting; only the beep gives it away."
+    failure_modes: [false_human, misses_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Out fishing, talk soon.", voice: "male"}}
+      - {pause: 1.2}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_custom_no_stock_phrase_02
+    category: personal_custom_no_stock_phrase
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "The greeting reads like a statement from a person, with no mailbox language."
+    failure_modes: [false_human, misses_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "This is Jordan. Gone to the lake until Sunday. Take care.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_custom_no_stock_phrase_03
+    category: personal_custom_no_stock_phrase
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Playful wording and a pause before a 900 Hz beep, above the common range."
+    failure_modes: [false_human, misses_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Ha ha, you just missed me. Maybe next time.", voice: "male"}}
+      - {pause: 1.5}
+      - {tone: {freq: 900, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_long_rambling_01
+    category: personal_long_rambling
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "About twenty seconds of speech with filler words and conversational asides before any beep."
+    cues: ["i'll get back to you", "get back to you"]
+    failure_modes: [talks_over_greeting, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hey there, this is Pat. So, uh, I'm probably out in the garden, or maybe at the store picking up something for dinner, or I could be on the other line. Anyway, I'll get back to you as soon as I can. I check these a couple of times a day, so don't worry. Okay, here goes.", voice: "female"}}
+      - {pause: 1.2}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_long_rambling_02
+    category: personal_long_rambling
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Over twenty seconds of household chatter; agents with an early timeout talk over the greeting."
+    cues: ["you've reached", "call back", "your name", "your number", "hello"]
+    failure_modes: [talks_over_greeting, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hello, you've reached the Hamilton house. We're not here right now. We might be at soccer practice, or at the grocery store, or just ignoring the phone. If it's urgent, try the other number on the fridge. Otherwise, tell us your name, your number, and what you need, and we'll call back when we can. Thanks for calling, and have a great day.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_starts_like_human_01
+    category: personal_starts_like_human
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "Opens with a live-sounding hello and a pause, so early classification calls it a person."
+    cues: ["leave a message", "you've reached", "i'll get back to you", "get back to you", "hello"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hello?", voice: "female"}}
+      - {pause: 1.3}
+      - {say: {text: "Ha, got you. You've reached Riley. Leave a message and I'll get back to you.", voice: "female"}}
+      - {pause: 0.9}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_starts_like_human_02
+    category: personal_starts_like_human
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "A cheerful hi and a long pause mimic a person waiting for the caller."
+    cues: ["leave your name", "your name"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hi!", voice: "male"}}
+      - {pause: 1.6}
+      - {say: {text: "Sorry, can't come to the phone right now. Leave your name and number.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: personal_starts_like_human_03
+    category: personal_starts_like_human
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Two hellos and two seconds of silence, the strongest human-sounding opening in the set."
+    cues: ["after the beep", "voicemail", "hello"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hello? Hello?", voice: "female"}}
+      - {pause: 2.0}
+      - {say: {text: "Just kidding. This is Casey's voicemail. Say something after the beep.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 750, duration: 0.6, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: multipart_name_spliced_01
+    category: multipart_name_spliced
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "The recorded name changes voice and cadence in the middle of the greeting."
+    cues: ["leave a message", "after the tone", "not available", "voice mailbox", "mailbox", "you have reached"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "You have reached the voice mailbox of", voice: "female"}}
+      - {say: {text: "Taylor Brooks", voice: "male"}}
+      - {say: {text: "is not available. Please leave a message after the tone.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: multipart_name_spliced_02
+    category: multipart_name_spliced
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Short spliced pieces with pauses between them can look like several speakers."
+    cues: ["record your message", "at the tone", "you've reached"]
+    failure_modes: [false_human, stt_overlap]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hi, you've reached", voice: "female"}}
+      - {say: {text: "Morgan and Lee", voice: "male"}}
+      - {say: {text: "Please record your message at the tone.", voice: "female"}}
+      - {pause: 1.2}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: business_after_hours_01
+    category: business_after_hours
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Long formal greeting that includes hours and an emergency number."
+    cues: ["leave your name", "after the tone", "your name"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Thank you for calling Riverside Dental. Our office is currently closed. Our hours are Monday through Friday, eight to five. If this is an emergency, please call 555-0150. Otherwise, leave your name and number after the tone.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: business_after_hours_02
+    category: business_after_hours
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Business scripts sound close to a live receptionist."
+    cues: ["leave a message", "you've reached"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "You've reached Maple Street Auto Repair. We're closed for the day. Please leave a message and the service desk will return your call when we open tomorrow.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.6, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: business_department_mailbox_01
+    category: business_department_mailbox
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["mailbox", "you have reached"]
+    failure_modes: [early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "You have reached the billing department mailbox for Northwind Clinic. Leave your account name and a number where we can reach you.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: business_department_mailbox_02
+    category: business_department_mailbox
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Terse, desk-style delivery with no mailbox wording until the last clause."
+    cues: ["after the beep", "your name"]
+    failure_modes: [early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Service department. No one is at the desk right now. After the beep, tell us your name, the vehicle, and how we can help.", voice: "male"}}
+      - {pause: 0.7}
+      - {tone: {freq: 750, duration: 0.4, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: live_voicemail_transcribing_01
+    category: live_voicemail_transcribing
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "The notice that speech is being transcribed invites a short reply from a person listening in."
+    cues: ["leave a message", "transcribed"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Please leave a message. Your message will be transcribed as you speak.", voice: "female"}}
+      - {pause: 0.9}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: live_voicemail_transcribing_02
+    category: live_voicemail_transcribing
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Describes live text delivery, so the line may be answered by the callee while the agent speaks."
+    cues: ["after the tone"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The person you are calling cannot answer. Speak after the tone, and a text version of your message will be sent to them as you talk.", voice: "neutral"}}
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: noisy_or_music_greeting_01
+    category: noisy_or_music_greeting
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A long quiet hum stands in for background music before the speech starts."
+    cues: ["leave a message", "call you back"]
+    failure_modes: [misses_beep, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {tone: {freq: 330, duration: 4.0, amplitude: 2500, role: music}}
+      - {say: {text: "Hey, thanks for calling. Leave a message and we'll call you back.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: noisy_or_music_greeting_02
+    category: noisy_or_music_greeting
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Noise bed continues through the pause where a beep detector expects silence."
+    cues: ["leave a message", "you've reached"]
+    failure_modes: [misses_beep, early_message, stt_overlap]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hi, you've reached the party line. Leave a message, I can barely hear myself think.", voice: "male"}}
+      - {tone: {freq: 220, duration: 3.0, amplitude: 2500, role: noise}}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: spanish_voicemail_01
+    category: spanish_voicemail
+    prevalence: occasional
+    difficulty: medium
+    language: es
+    why_hard: "English-only phrase lists miss the greeting."
+    cues: ["deje su mensaje", "después del tono"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hola, en este momento no puedo contestar. Por favor deje su mensaje después del tono.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: spanish_voicemail_02
+    category: spanish_voicemail
+    prevalence: occasional
+    difficulty: medium
+    language: es-US
+    why_hard: "A named personal greeting in Spanish with no stock phrase in English."
+    cues: ["buzón de voz"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Ha llegado al buzón de voz de Carlos. No estoy disponible. Deje su nombre y su número, y le devolveré la llamada.", voice: "male"}}
+      - {pause: 1.2}
+      - {tone: {freq: 750, duration: 0.6, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: spanish_voicemail_03
+    category: spanish_voicemail
+    prevalence: occasional
+    difficulty: medium
+    language: es
+    why_hard: "Informal Spanish with no stock phrase in English."
+    cues: ["déjame tu mensaje", "te llamo luego"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 2}
+    segments:
+      - {say: {text: "Hola, habla Lucía. Déjame tu mensaje y te llamo luego.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: bilingual_greeting_01
+    category: bilingual_greeting
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "The beep arrives only after the second language, so a detector that decides after the first sentence is wrong."
+    cues: ["leave a message", "after the tone", "you have reached", "deje su mensaje", "después del tono"]
+    failure_modes: [early_message, talks_over_greeting]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "You have reached the Alvarez family. Please leave a message after the tone.", voice: "female"}}
+      - {pause: 0.6}
+      - {say: {text: "Ha llamado a la familia Alvarez. Deje su mensaje después del tono.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: bilingual_greeting_02
+    category: bilingual_greeting
+    prevalence: rare
+    difficulty: hard
+    language: fr
+    why_hard: "Two languages back to back with a short gap between them."
+    cues: ["leave a message", "laissez un message"]
+    failure_modes: [early_message, talks_over_greeting]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Bonjour, vous avez joint Chantal. Laissez un message.", voice: "female"}}
+      - {pause: 0.5}
+      - {say: {text: "Hi, this is Chantal. Please leave a message.", voice: "female"}}
+      - {pause: 1.2}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: unusual_beep_01
+    category: unusual_beep
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "The beep arrives four seconds after speech ends, longer than most detectors wait."
+    cues: ["leave a message"]
+    failure_modes: [misses_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Please leave a message.", voice: "female"}}
+      - {pause: 4.0}
+      - {tone: {freq: 750, duration: 0.4, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: unusual_beep_02
+    category: unusual_beep
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Two short beeps; the agent must not start on the first one and talk over the second."
+    cues: ["leave a message", "after the tone"]
+    failure_modes: [misses_beep, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Leave a message after the tone.", voice: "male"}}
+      - {pause: 0.8}
+      - {tone: {freq: 650, duration: 0.2, role: beep}}
+      - {pause: 0.3}
+      - {tone: {freq: 650, duration: 0.2, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: unusual_beep_03
+    category: unusual_beep
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A long 1000 Hz tone, rarer than the 450 to 750 Hz beeps most mailboxes use."
+    cues: ["record your message"]
+    failure_modes: [misses_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Please record your message.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 1000, duration: 0.8, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: unusual_beep_04
+    category: unusual_beep
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Very short, high-pitched tone that is easy to miss in the audio."
+    cues: ["record your message", "at the tone"]
+    failure_modes: [misses_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "At the tone, record your message.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 2100, duration: 0.15, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: unusual_beep_05
+    category: unusual_beep
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Three short beeps in a row; starting after the first one talks over the rest."
+    cues: ["leave a message", "at the beep"]
+    failure_modes: [misses_beep, early_message]
+    provenance: {basis: invented, added_in: 2}
+    segments:
+      - {say: {text: "Leave a message at the beeps.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 750, duration: 0.15, role: beep}}
+      - {pause: 0.15}
+      - {tone: {freq: 750, duration: 0.15, role: beep}}
+      - {pause: 0.15}
+      - {tone: {freq: 750, duration: 0.15, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: tone_only_01
+    category: tone_only
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "No speech at all, only a tone after two seconds of silence."
+    failure_modes: [misses_beep, gives_up_on_silence]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {pause: 2.0}
+      - {tone: {freq: 1000, duration: 0.6, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: tone_only_02
+    category: tone_only
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Longer silence and a higher tone; silence can look like a dead line."
+    failure_modes: [misses_beep, gives_up_on_silence]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {pause: 3.5}
+      - {tone: {freq: 1400, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: tone_only_03
+    category: tone_only
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "One second of silence and a common 450 Hz beep, with no speech."
+    failure_modes: [misses_beep, gives_up_on_silence]
+    provenance: {basis: invented, added_in: 2}
+    segments:
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: no_beep_after_greeting_01
+    category: no_beep_after_greeting
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "The greeting ends and recording starts with no tone, so the agent has to judge the end of speech."
+    cues: ["leave your name", "you've reached", "your name", "your number", "hello"]
+    failure_modes: [waits_for_missing_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hello, you've reached Ellis Property Services. Please leave your name, your number, and a brief message, and we will return your call.", voice: "female"}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: no_beep_after_greeting_02
+    category: no_beep_after_greeting
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "No beep and a casual greeting; the agent waits for a tone that never comes."
+    cues: ["you've reached", "call you back"]
+    failure_modes: [waits_for_missing_beep]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "You've reached Quinn. I'm away from my phone. Say what you need and I'll call you back.", voice: "male"}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: no_beep_after_greeting_03
+    category: no_beep_after_greeting
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Short greeting and no tone; recording starts as soon as the words end."
+    cues: ["talk after this"]
+    failure_modes: [waits_for_missing_beep]
+    provenance: {basis: invented, added_in: 2}
+    segments:
+      - {say: {text: "Hi, Nadia here. Talk after this and I'll hear it later.", voice: "female"}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: call_screener_ai_01
+    category: call_screener_ai
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "Screener, wait, then a person; leaving a voicemail or hanging up fails the call."
+    cues: ["screen", "say your name", "please hold", "your name", "why you're calling", "who is this", "hello"]
+    failure_modes: [false_machine, ignores_screener]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The person you are calling uses a screening assistant. Please say your name and why you're calling.", voice: "neutral"}}
+      - {pause: 9.0}
+      - {say: {text: "Thanks. Please hold while I check if they are available.", voice: "neutral"}}
+      - {pause: 6.0}
+      - {say: {text: "Hello? Who is this?", voice: "male"}}
+      - {hold: 40}
+  - id: call_screener_ai_02
+    category: call_screener_ai
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Short human reply follows a long wait on a screener voice."
+    cues: ["screen", "state your name", "your name"]
+    failure_modes: [false_machine, ignores_screener]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "This call is being screened by an automated assistant. State your name and the reason for your call.", voice: "female"}}
+      - {pause: 10.0}
+      - {say: {text: "Okay, one moment.", voice: "female"}}
+      - {pause: 2.0}
+      - {say: {text: "Hi, go ahead.", voice: "female"}}
+      - {hold: 40}
+  - id: screener_record_name_01
+    category: screener_record_name
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "A tone that is not a voicemail beep; leaving the message early is a failure."
+    cues: ["after the tone", "say your name", "your name", "connect", "hello"]
+    failure_modes: [false_machine, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "To connect your call, please say your name after the tone.", voice: "female"}}
+      - {pause: 0.5}
+      - {tone: {freq: 440, duration: 0.3, amplitude: 10000, role: screen}}
+      - {pause: 7.0}
+      - {say: {text: "Thank you. Connecting you now.", voice: "female"}}
+      - {pause: 1.0}
+      - {say: {text: "Hello?", voice: "male"}}
+      - {hold: 40}
+  - id: screener_record_name_02
+    category: screener_record_name
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Lower tone, shorter wait, and a different voice for the person who answers."
+    cues: ["at the tone", "say your name", "your name", "hello"]
+    failure_modes: [false_machine, early_message]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Say your name and who you represent at the tone.", voice: "male"}}
+      - {pause: 0.4}
+      - {tone: {freq: 600, duration: 0.25, amplitude: 10000, role: screen}}
+      - {pause: 6.0}
+      - {say: {text: "One second, I'll see if they can take this.", voice: "male"}}
+      - {pause: 2.5}
+      - {say: {text: "Yeah, hello?", voice: "female"}}
+      - {hold: 40}
+  - id: dtmf_gate_press_key_01
+    category: dtmf_gate_press_key
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "The call stays blocked until the key is pressed, and the prompt repeats."
+    cues: ["press", "screen", "connect", "hello"]
+    failure_modes: [misses_key]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "This call is being screened. To be connected to the person you are calling, press five now.", voice: "female"}}
+      - {pause: 6.0}
+    gate_digits: ["5"]
+    after_gate:
+      - {say: {text: "Hello? Who's this?", voice: "male"}}
+      - {hold: 40}
+  - id: dtmf_gate_press_key_02
+    category: dtmf_gate_press_key
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "A thanks-for-waiting opening hides that a key is needed."
+    cues: ["press"]
+    failure_modes: [misses_key]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Thank you for waiting. To continue your call, press the pound key.", voice: "female"}}
+      - {pause: 6.0}
+    gate_digits: ["#"]
+    after_gate:
+      - {say: {text: "Hi, sorry about that. Go ahead.", voice: "female"}}
+      - {hold: 40}
+  - id: mailbox_full_01
+    category: mailbox_full
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["mailbox", "is full"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The mailbox of the person you are calling is full and cannot accept messages at this time. Goodbye.", voice: "female"}}
+      - {pause: 2.0}
+      - {hangup: true}
+  - id: mailbox_full_02
+    category: mailbox_full
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "No mention of the word full, so a phrase match on full does not fire."
+    cues: ["voicemail"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "I'm sorry, this voicemail box has reached its limit. Please try your call again later.", voice: "male"}}
+      - {pause: 1.5}
+      - {hangup: true}
+  - id: mailbox_not_set_up_01
+    category: mailbox_not_set_up
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["mailbox", "not been set up"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The mailbox for this number has not been set up yet. Goodbye.", voice: "female"}}
+      - {pause: 1.5}
+      - {hangup: true}
+  - id: mailbox_not_set_up_02
+    category: mailbox_not_set_up
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Indirect wording and a polite request to try again invite a retry."
+    cues: ["voice mailbox", "mailbox", "not set up", "try again later"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The person you are calling has not set up a voice mailbox. Please try again later.", voice: "neutral"}}
+      - {pause: 1.5}
+      - {hangup: true}
+  - id: number_disconnected_or_unreachable_01
+    category: number_disconnected_or_unreachable
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Three rising tones precede the announcement; an agent keyed on speech ignores them."
+    cues: ["not in service"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: public_standard, added_in: 1}
+    segments:
+      - {pause: 0.5}
+      - {tone: {freq: 913.8, duration: 0.38, amplitude: 11000, role: sit}}
+      - {tone: {freq: 1370.6, duration: 0.38, amplitude: 11000, role: sit}}
+      - {tone: {freq: 1776.7, duration: 0.38, amplitude: 11000, role: sit}}
+      - {say: {text: "We are sorry. The number you have dialed is not in service. Please check the number and try again.", voice: "female"}}
+      - {pause: 1.0}
+      - {hangup: true}
+  - id: number_disconnected_or_unreachable_02
+    category: number_disconnected_or_unreachable
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Sounds like an out-of-coverage message rather than a mailbox."
+    cues: ["unreachable", "try again later"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "The subscriber you are calling is temporarily unreachable. Please try again later.", voice: "male"}}
+      - {pause: 1.0}
+      - {hangup: true}
+  - id: business_ivr_menu_01
+    category: business_ivr_menu
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "A scripted business voice with a menu; no person unless a key is pressed."
+    cues: ["press"]
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Thank you for calling Riverside Dental. For appointments, press one. For billing, press two. For our hours and location, press three. To repeat this menu, press nine.", voice: "female"}}
+      - {pause: 6.0}
+      - {say: {text: "Thank you for calling Riverside Dental. For appointments, press one. For billing, press two.", voice: "female"}}
+      - {hold: 20}
+  - id: business_ivr_menu_02
+    category: business_ivr_menu
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Conversational welcome with no numbered options at the start."
+    failure_modes: [false_human]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Welcome. Please listen carefully, as our menu options have changed. If you know your party's extension, dial it now.", voice: "male"}}
+      - {pause: 5.0}
+      - {hold: 20}
+  - id: human_short_hello_01
+    category: human_short_hello
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "One word and nothing else; no machine cues, so any wait for more speech is a mistake."
+    cues: ["hello"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hello?", voice: "female"}}
+      - {hold: 35}
+  - id: human_short_hello_02
+    category: human_short_hello
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "Starts after a second of silence, then one word."
+    cues: ["hello"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {pause: 1.0}
+      - {say: {text: "Hello?", voice: "male"}}
+      - {hold: 35}
+  - id: human_name_answer_01
+    category: human_name_answer
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "A name and a greeting that sound like the start of a recorded greeting."
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hi, this is Dana.", voice: "female"}}
+      - {hold: 35}
+  - id: human_name_answer_02
+    category: human_name_answer
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Terse, businesslike, and easy to read as a greeting."
+    cues: ["speaking"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Dana speaking.", voice: "female"}}
+      - {hold: 35}
+  - id: human_busy_driving_01
+    category: human_busy_driving
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "A hurried, distracted tone; a person is present and wants a quick answer."
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Yeah, I'm driving, what's up?", voice: "male"}}
+      - {hold: 35}
+  - id: human_busy_driving_02
+    category: human_busy_driving
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Interruptions and fragments in the first words."
+    cues: ["hello"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hold on, hold on. Yeah, hello? I'm in the middle of something.", voice: "female"}}
+      - {hold: 35}
+  - id: human_screening_by_asking_01
+    category: human_screening_by_asking
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "The only content is a question, which sounds like a screener prompt."
+    cues: ["who is this"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Who is this?", voice: "male"}}
+      - {hold: 35}
+  - id: human_screening_by_asking_02
+    category: human_screening_by_asking
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "Polite screening wording similar to an assistant's prompt."
+    cues: ["who's calling", "hello"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hello? Who's calling, please?", voice: "female"}}
+      - {hold: 35}
+  - id: human_kid_or_family_answers_01
+    category: human_kid_or_family_answers
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A child's voice, a call to someone else, and a gap before the callee speaks."
+    cues: ["hello"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Hello? Mom, it's for you!", voice: "female"}}
+      - {pause: 2.0}
+      - {say: {text: "Hello?", voice: "female"}}
+      - {hold: 35}
+  - id: human_kid_or_family_answers_02
+    category: human_kid_or_family_answers
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A person who offers to take a message, which mimics a voicemail prompt."
+    cues: ["leave a message"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Yeah, hi. He's not here right now. Do you want to leave a message?", voice: "male"}}
+      - {hold: 35}
+  - id: human_business_receptionist_01
+    category: human_business_receptionist
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Scripted greeting that sounds recorded."
+    cues: ["how may i direct"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Good morning, Northstar Service Center. This is Jordan. How may I direct your call?", voice: "female"}}
+      - {hold: 35}
+  - id: human_business_receptionist_02
+    category: human_business_receptionist
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Same business name as a recorded greeting in the set, delivered by a person."
+    cues: ["how can i help"]
+    failure_modes: [false_machine]
+    provenance: {basis: invented, added_in: 1}
+    segments:
+      - {say: {text: "Thank you for calling Riverside Dental, this is Alex. How can I help you?", voice: "male"}}
+      - {hold: 35}
+  - id: human_short_confirmation_01
+    category: human_short_confirmation
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "One word after the agent asks for someone by name; production classifiers called this voicemail."
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Yes.", voice: "male"}}
+      - {hold: 35}
+  - id: human_short_confirmation_02
+    category: human_short_confirmation
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "A short confirmation with no greeting words at all."
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Yes, it is.", voice: "female"}}
+      - {hold: 35}
+  - id: human_short_confirmation_03
+    category: human_short_confirmation
+    prevalence: common
+    difficulty: hard
+    language: en
+    why_hard: "A bare no, which some classifiers read as a recording cut short."
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "No.", voice: "male"}}
+      - {hold: 35}
+  - id: human_short_confirmation_04
+    category: human_short_confirmation
+    prevalence: common
+    difficulty: hard
+    language: es
+    why_hard: "Spanish phone pickup words with a pause between them."
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Bueno?", voice: "female"}}
+      - {pause: 0.6}
+      - {say: {text: "Hola.", voice: "female"}}
+      - {hold: 35}
+  - id: human_callback_brushoff_01
+    category: human_callback_brushoff
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Says call back later and bye, like the end of a greeting."
+    cues: ["call back"]
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "No, give me a call back later. Bye.", voice: "male"}}
+      - {hold: 20}
+  - id: human_callback_brushoff_02
+    category: human_callback_brushoff
+    prevalence: occasional
+    difficulty: hard
+    language: es
+    why_hard: "Busy and will call back, in casual Spanish that reads like a greeting."
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Híjole, ahorita estoy ocupada. Cuando puedas me vuelves a marcar, va?", voice: "female"}}
+      - {hold: 20}
+  - id: human_with_background_audio_01
+    category: human_with_background_audio
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A navigation voice gives a long scripted instruction between the person's words."
+    cues: ["who is this"]
+    failure_modes: [false_machine, stt_overlap]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "No.", voice: "male"}}
+      - {pause: 0.5}
+      - {say: {text: "In half a mile, use the right lane to take exit seven.", voice: "neutral"}}
+      - {pause: 0.5}
+      - {say: {text: "Sorry, who is this?", voice: "male"}}
+      - {hold: 35}
+  - id: human_with_background_audio_02
+    category: human_with_background_audio
+    prevalence: rare
+    difficulty: medium
+    language: en
+    why_hard: "Low steady tones stand in for a radio under the person's voice."
+    cues: ["hello"]
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Hello?", voice: "female"}}
+      - {tone: {freq: 220, duration: 1.5, amplitude: 2500, role: noise}}
+      - {say: {text: "Yeah, go ahead, I can hear you.", voice: "female"}}
+      - {hold: 35}
+  - id: hold_or_connecting_then_human_01
+    category: hold_or_connecting_then_human
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A recording and hold music come first; leaving a message now would land on the person who picks up."
+    cues: ["please hold", "connect", "hello"]
+    failure_modes: [false_machine, early_message]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Please hold while we try to connect you.", voice: "neutral"}}
+      - {tone: {freq: 523, duration: 0.4, amplitude: 3000, role: music}}
+      - {tone: {freq: 659, duration: 0.4, amplitude: 3000, role: music}}
+      - {tone: {freq: 784, duration: 0.4, amplitude: 3000, role: music}}
+      - {pause: 1.0}
+      - {say: {text: "Hello, this is Chris.", voice: "male"}}
+      - {hold: 35}
+  - id: hold_or_connecting_then_human_02
+    category: hold_or_connecting_then_human
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A transfer notice, three seconds of silence, then a live answer."
+    cues: ["who's calling", "transferred"]
+    failure_modes: [false_machine, early_message]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Your call is being transferred. Please stay on the line.", voice: "female"}}
+      - {pause: 3.0}
+      - {say: {text: "Hi, sorry, who's calling?", voice: "female"}}
+      - {hold: 35}
+  - id: business_recording_then_human_01
+    category: business_recording_then_human
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A welcome recording promises someone shortly, then staff answer with the business name."
+    cues: ["please hold"]
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Thank you for calling Lakeside Pawn and Loan. Please hold, we'll be with you shortly.", voice: "female"}}
+      - {pause: 2.0}
+      - {say: {text: "Lakeside, this is Marco.", voice: "male"}}
+      - {hold: 35}
+  - id: business_recording_then_human_02
+    category: business_recording_then_human
+    prevalence: rare
+    difficulty: hard
+    language: es
+    why_hard: "A Spanish recording notice and a live answer in the same voice style."
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Gracias por llamar. Esta llamada puede ser grabada para fines de calidad.", voice: "female"}}
+      - {pause: 1.0}
+      - {say: {text: "Bueno, habla Rosa.", voice: "female"}}
+      - {hold: 35}
+  - id: ai_screener_recording_notice_01
+    category: ai_screener_recording_notice
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Says it is recording, which reads like voicemail, but it waits for an answer and may connect."
+    cues: ["why you're calling", "recording this call", "hello"]
+    failure_modes: [false_machine, ignores_screener]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Hi, I'm an AI assistant recording this call for the person you're trying to reach. Please say who you are and why you're calling.", voice: "neutral"}}
+      - {pause: 7.0}
+      - {say: {text: "Thanks. I'll see if they're available.", voice: "neutral"}}
+      - {pause: 3.0}
+      - {say: {text: "Hello?", voice: "male"}}
+      - {hold: 35}
+  - id: ai_screener_recording_notice_02
+    category: ai_screener_recording_notice
+    prevalence: occasional
+    difficulty: medium
+    language: es
+    why_hard: "Spanish screener prompt for name and reason, then the owner answers."
+    cues: ["motivo de su llamada"]
+    failure_modes: [false_machine, ignores_screener]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Hola. Diga su nombre y el motivo de su llamada.", voice: "female"}}
+      - {pause: 7.0}
+      - {say: {text: "Gracias. Revisaré si esta persona está disponible.", voice: "female"}}
+      - {pause: 3.0}
+      - {say: {text: "Bueno?", voice: "female"}}
+      - {hold: 35}
+  - id: greeting_alternative_contact_01
+    category: greeting_alternative_contact
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "No stock phrase, and it asks for a text, not a message."
+    cues: ["text me"]
+    failure_modes: [false_human, misses_beep]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "If I miss your call, please text me. Thanks.", voice: "female"}}
+      - {pause: 0.6}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+  - id: greeting_alternative_contact_02
+    category: greeting_alternative_contact
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Says outright that voicemail is not checked."
+    cues: ["voicemail", "don't check voicemail"]
+    failure_modes: [false_human, misses_beep]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Hey, it's Drew. I don't check voicemail, so shoot me a text instead.", voice: "male"}}
+      - {pause: 0.6}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+  - id: greeting_screens_sales_01
+    category: greeting_screens_sales
+    prevalence: rare
+    difficulty: medium
+    language: en
+    why_hard: "Tells some callers to hang up, which a careful agent may obey wrongly."
+    cues: ["call you back"]
+    failure_modes: [hangs_up_early]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "Sorry I missed you. If you're calling to sell me something, please hang up. Everyone else, I'll call you back.", voice: "male"}}
+      - {pause: 0.6}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+  - id: greeting_screens_sales_02
+    category: greeting_screens_sales
+    prevalence: rare
+    difficulty: medium
+    language: en
+    why_hard: "A long condition before the call-back promise."
+    cues: ["i'll get back to you", "get back to you"]
+    failure_modes: [hangs_up_early]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "If you got my number from a list, please take it off. Otherwise, I'll get back to you soon. Bye.", voice: "female"}}
+      - {pause: 0.6}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+  - id: greeting_clipped_start_01
+    category: greeting_clipped_start
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Only the tail of the greeting is heard: no name and no opening phrase."
+    cues: ["get back to you"]
+    failure_modes: [stt_overlap, false_human]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "message, and I'll try to get back to you.", voice: "female"}}
+      - {pause: 0.6}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+  - id: greeting_clipped_start_02
+    category: greeting_clipped_start
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Starts mid-sentence with the carrier's tail."
+    cues: ["record your message", "at the tone", "not available"]
+    failure_modes: [stt_overlap, false_human]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "not available right now. At the tone, please record your message.", voice: "female"}}
+      - {pause: 0.4}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+  - id: carrier_not_set_up_fast_hangup_01
+    category: carrier_not_set_up_fast_hangup
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Starts mid-sentence and the line drops within half a second."
+    cues: ["voicemail", "not been set up"]
+    failure_modes: [false_human]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "has a voicemail box that has not been set up yet. Please try your call again later. Goodbye.", voice: "female"}}
+      - {pause: 0.4}
+      - {hangup: true}
+  - id: carrier_not_set_up_fast_hangup_02
+    category: carrier_not_set_up_fast_hangup
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Short announcement and an immediate drop."
+    cues: ["voicemail", "hasn't been set up"]
+    failure_modes: [false_human]
+    provenance: {basis: audit, added_in: 1}
+    segments:
+      - {say: {text: "The person you called has a voicemail box that hasn't been set up yet. Goodbye.", voice: "female"}}
+      - {pause: 0.3}
+      - {hangup: true}
+  - id: low_tone_before_beep_01
+    category: low_tone_before_beep
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A short 350 Hz blip comes four tenths of a second before the real beep, so the first tone is the wrong cue."
+    cues: ["leave a message", "after the tone", "mailbox", "you have reached"]
+    failure_modes: [early_message, misses_beep]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "You have reached the mailbox for Gwen Hollis. Please leave a message after the tone.", voice: "female"}}
+      - {pause: 0.6}
+      - {tone: {freq: 350, duration: 0.15, amplitude: 9000, role: noise}}
+      - {pause: 0.4}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: low_tone_before_beep_02
+    category: low_tone_before_beep
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "The low tone runs straight into the beep with no gap, so the two read as one long tone."
+    cues: ["leave your message", "at the beep"]
+    failure_modes: [early_message, misses_beep]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hi, this is Marcus. Leave your message at the beep.", voice: "male"}}
+      - {pause: 0.8}
+      - {tone: {freq: 320, duration: 0.2, amplitude: 9000, role: noise}}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: low_tone_before_beep_03
+    category: low_tone_before_beep
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A quiet 380 Hz click follows the greeting by a full second, then the beep arrives after another pause."
+    cues: ["record your message", "at the tone"]
+    failure_modes: [early_message, misses_beep]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Westgate Storage, after-hours line. Record your message at the tone.", voice: "neutral"}}
+      - {pause: 1.0}
+      - {tone: {freq: 380, duration: 0.12, amplitude: 7000, role: noise}}
+      - {pause: 0.7}
+      - {tone: {freq: 750, duration: 0.4, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_talks_after_tone_cue_01
+    category: carrier_talks_after_tone_cue
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "The phrase at the tone comes first, then several seconds of instructions play before the beep."
+    cues: ["at the tone", "speak at the tone"]
+    failure_modes: [early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "The person you are calling is away. Please speak at the tone. Afterwards, hang up to send it, or stay on the line to review, re-record, or mark it urgent.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_talks_after_tone_cue_02
+    category: carrier_talks_after_tone_cue
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "The tone cue sits in the middle of the greeting, followed by a sentence about delivery options."
+    cues: ["at the tone", "press", "begin your message"]
+    failure_modes: [early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "No one can take your call. At the tone, begin your message. You can also send a page by pressing star after you finish.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.6, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_talks_after_tone_cue_03
+    category: carrier_talks_after_tone_cue
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A pause after the tone cue looks like the end of the greeting, but another instruction follows before the beep."
+    cues: ["record your message", "at the tone", "press"]
+    failure_modes: [early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Please record your message at the tone.", voice: "female"}}
+      - {pause: 1.2}
+      - {say: {text: "When you are done, you may hang up or press pound for more choices.", voice: "female"}}
+      - {pause: 0.7}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_readback_long_pause_01
+    category: carrier_readback_long_pause
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Five seconds of silence after the readback look like a finished greeting, but a closing line and the beep follow."
+    cues: ["not available", "after you finish recording"]
+    failure_modes: [gives_up_on_silence, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "The number you have dialed, 555-0131, is not available.", voice: "female"}}
+      - {pause: 5.0}
+      - {say: {text: "After you finish recording, you may hang up.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_readback_long_pause_02
+    category: carrier_readback_long_pause
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Spoken digits, a long gap, then a second voice line before the beep."
+    cues: ["press", "you have reached", "after you finish recording"]
+    failure_modes: [gives_up_on_silence, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "You have reached five five five, zero one seven seven.", voice: "male"}}
+      - {pause: 4.8}
+      - {say: {text: "After you finish recording, hang up or press one to hear your message.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: carrier_readback_long_pause_03
+    category: carrier_readback_long_pause
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "The readback and the long pause come before any mailbox wording."
+    cues: ["not available", "after you finish recording"]
+    failure_modes: [gives_up_on_silence, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "555-0119.", voice: "neutral"}}
+      - {pause: 5.2}
+      - {say: {text: "Is not available. After you finish recording, simply hang up.", voice: "neutral"}}
+      - {pause: 0.6}
+      - {tone: {freq: 750, duration: 0.45, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: late_greeting_after_silence_01
+    category: late_greeting_after_silence
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "About eight seconds of silence after answer before any sound."
+    cues: ["leave a message", "call you back"]
+    failure_modes: [late_greeting, gives_up_on_silence]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {pause: 7.5}
+      - {say: {text: "Hi, this is Robin. Leave a message and I'll call you back.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: late_greeting_after_silence_02
+    category: late_greeting_after_silence
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "Nine seconds of dead air, then a carrier-style greeting."
+    cues: ["leave a message", "after the tone"]
+    failure_modes: [late_greeting, gives_up_on_silence]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {pause: 8.2}
+      - {say: {text: "The party you are calling cannot be reached. Please leave a message after the tone.", voice: "male"}}
+      - {pause: 1.0}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: screener_then_voicemail_01
+    category: screener_then_voicemail
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Starts as a screener the agent must answer, then turns into a mailbox with a beep."
+    cues: ["leave a message", "after the tone", "screen", "say your name", "your name", "why you're calling"]
+    failure_modes: [hangs_up_early, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hi, this phone screens calls from unknown numbers. Please say your name and why you're calling.", voice: "neutral"}}
+      - {pause: 6.0}
+      - {say: {text: "Thanks. They can't take the call right now. Please leave a message after the tone.", voice: "neutral"}}
+      - {pause: 0.6}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: screener_then_voicemail_02
+    category: screener_then_voicemail
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A long wait for the agent's answer, then a short handoff line and a beep."
+    cues: ["leave a voice message", "after the beep", "not available", "who is calling"]
+    failure_modes: [hangs_up_early, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "This call is answered by an assistant. Who is calling, and what is it about?", voice: "female"}}
+      - {pause: 7.0}
+      - {say: {text: "Thank you. Sorry, they are not available. You can leave a voice message after the beep.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: screener_then_voicemail_03
+    category: screener_then_voicemail
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A screener tone asks for a name first; only the second tone is the record beep."
+    cues: ["record your message", "after the tone", "at the beep", "unavailable", "state your name", "your name"]
+    failure_modes: [hangs_up_early, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Please state your name after the tone.", voice: "male"}}
+      - {pause: 0.4}
+      - {tone: {freq: 440, duration: 0.3, amplitude: 10000, role: screen}}
+      - {pause: 5.0}
+      - {say: {text: "The person you are calling is unavailable. Record your message at the beep.", voice: "male"}}
+      - {pause: 0.7}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: greeting_asks_name_number_message_01
+    category: greeting_asks_name_number_message
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Six words that ask for details like a screener, then a beep."
+    cues: ["quick message"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Name, number, and a quick message, please.", voice: "female"}}
+      - {pause: 0.6}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: greeting_asks_name_number_message_02
+    category: greeting_asks_name_number_message
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "Asks what the call is about, which is the wording a screener uses."
+    cues: ["your name", "your number", "what this is about"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hi, it's Lena. Please tell me your name, your number, and what this is about.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: greeting_asks_name_number_message_03
+    category: greeting_asks_name_number_message
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "Short and direct, with no name and no mailbox wording."
+    cues: ["leave a message", "say your name", "your name"]
+    failure_modes: [false_human, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Please say your name and number, and leave a message.", voice: "male"}}
+      - {pause: 0.7}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: greeting_detailed_or_brief_message_01
+    category: greeting_detailed_or_brief_message
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["leave a detailed message", "you've reached", "call you back"]
+    failure_modes: [early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "You've reached Harbor View Insurance. Please leave a detailed message, including your policy number, and an agent will call you back.", voice: "female"}}
+      - {pause: 0.9}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: greeting_detailed_or_brief_message_02
+    category: greeting_detailed_or_brief_message
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["leave a detailed message", "i'll get back to you", "get back to you"]
+    failure_modes: [early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "This is Owen. Leave a detailed message and I'll get back to you today.", voice: "male"}}
+      - {pause: 0.8}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: greeting_detailed_or_brief_message_03
+    category: greeting_detailed_or_brief_message
+    prevalence: common
+    difficulty: easy
+    language: en
+    cues: ["leave a brief message", "call you back"]
+    failure_modes: [early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hi, it's Priya. Leave a brief message and I'll call you back.", voice: "female"}}
+      - {pause: 0.7}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: greeting_detailed_or_brief_message_04
+    category: greeting_detailed_or_brief_message
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "The request for a brief message comes after a business name and hours, so the cue is late."
+    cues: ["leave a brief message", "you have reached", "your name"]
+    failure_modes: [early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "You have reached Cedar Lane Pharmacy. We are open seven days a week. Please leave a brief message with your name and number.", voice: "female"}}
+      - {pause: 1.0}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: human_says_voicemail_phrases_01
+    category: human_says_voicemail_phrases
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A live person says you have reached, a stock greeting phrase."
+    cues: ["you have reached", "hello"]
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hello? Yes, you have reached the front desk, this is Nora.", voice: "female"}}
+      - {hold: 35}
+  - id: human_says_voicemail_phrases_02
+    category: human_says_voicemail_phrases
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A person in a hurry promises a call back in the words a greeting would use."
+    cues: ["i'll get back to you", "get back to you"]
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hey, I'm about to walk into a meeting. I'll get back to you in an hour, okay?", voice: "male"}}
+      - {hold: 35}
+  - id: human_says_voicemail_phrases_03
+    category: human_says_voicemail_phrases
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A relative offers to take a message with leave me a message, then asks who is calling."
+    cues: ["leave me a message", "who's calling"]
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hi. He's out right now. Leave me a message and I'll pass it along. Who's calling?", voice: "female"}}
+      - {hold: 35}
+  - id: human_says_voicemail_phrases_04
+    category: human_says_voicemail_phrases
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A playful live answer that opens exactly like a recorded greeting."
+    cues: ["you've reached"]
+    failure_modes: [false_machine]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "You've reached Ben, live and in person. Go ahead.", voice: "male"}}
+      - {hold: 35}
+  - id: stray_yes_before_carrier_01
+    category: stray_yes_before_carrier
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "The transcript starts with yes, which reads like a person confirming the agent's question."
+    cues: ["leave a message", "after the tone", "not available"]
+    failure_modes: [false_human, stt_overlap]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Yes.", voice: "male"}}
+      - {pause: 0.4}
+      - {say: {text: "The person you are calling is not available. Please leave a message after the tone.", voice: "female"}}
+      - {pause: 0.8}
+      - {tone: {freq: 650, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: stray_yes_before_carrier_02
+    category: stray_yes_before_carrier
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A one-word yes with almost no gap before a short carrier line."
+    cues: ["record your message", "after the beep", "voicemail"]
+    failure_modes: [false_human, stt_overlap]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Yes.", voice: "female"}}
+      - {pause: 0.3}
+      - {say: {text: "Your call has been sent to voicemail. Record your message after the beep.", voice: "neutral"}}
+      - {pause: 0.7}
+      - {tone: {freq: 450, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: stray_yes_before_carrier_03
+    category: stray_yes_before_carrier
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "A questioning yes, then a readback of the number before the mailbox wording."
+    cues: ["leave a message", "at the tone", "mailbox", "you have reached"]
+    failure_modes: [false_human, stt_overlap]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Yes?", voice: "male"}}
+      - {pause: 0.5}
+      - {say: {text: "The mailbox you have reached belongs to 555-0164. Please leave a message at the tone.", voice: "female"}}
+      - {pause: 0.9}
+      - {tone: {freq: 750, duration: 0.5, role: beep}}
+      - {hold: 45}
+      - {hangup: true}
+  - id: mailbox_full_after_greeting_01
+    category: mailbox_full_after_greeting
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A normal greeting invites a message, and the full notice comes only at the end."
+    cues: ["leave a message", "mailbox", "is full", "you've reached", "call you back"]
+    failure_modes: [message_on_unavailable, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hi, you've reached Tess. Leave a message and I'll call you back.", voice: "female"}}
+      - {pause: 0.8}
+      - {say: {text: "Sorry, this mailbox is full and cannot take new messages. Goodbye.", voice: "neutral"}}
+      - {pause: 1.0}
+      - {hangup: true}
+  - id: mailbox_full_after_greeting_02
+    category: mailbox_full_after_greeting
+    prevalence: occasional
+    difficulty: hard
+    language: en
+    why_hard: "A business greeting promises a call back before the system says the box is full."
+    cues: ["mailbox", "is full", "try again later"]
+    failure_modes: [message_on_unavailable, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Thanks for calling Brookside Plumbing. We'll return your call as soon as we can.", voice: "male"}}
+      - {pause: 1.0}
+      - {say: {text: "The mailbox you are trying to reach is full. Please try again later.", voice: "female"}}
+      - {pause: 1.0}
+      - {hangup: true}
+  - id: mailbox_full_after_greeting_03
+    category: mailbox_full_after_greeting
+    prevalence: rare
+    difficulty: hard
+    language: en
+    why_hard: "The full notice never uses the word full."
+    cues: ["leave a message", "mailbox", "no room"]
+    failure_modes: [message_on_unavailable, early_message]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Hey, it's Abby, leave a message.", voice: "female"}}
+      - {pause: 1.0}
+      - {say: {text: "This mailbox has no room for new messages. Goodbye.", voice: "neutral"}}
+      - {pause: 0.8}
+      - {hangup: true}
+  - id: unreachable_announcement_no_sit_01
+    category: unreachable_announcement_no_sit
+    prevalence: common
+    difficulty: medium
+    language: en
+    why_hard: "No tones before the announcement, so a tone-based check sees only speech."
+    cues: ["not in service"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "This number is not in service. Please check it and try your call again.", voice: "female"}}
+      - {pause: 1.0}
+      - {hangup: true}
+  - id: unreachable_announcement_no_sit_02
+    category: unreachable_announcement_no_sit
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "A short announcement that ends with goodbye, like the close of a greeting."
+    cues: ["not in service"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "Sorry, the line you called is not in service at this time. Goodbye.", voice: "male"}}
+      - {pause: 0.8}
+      - {hangup: true}
+  - id: unreachable_announcement_no_sit_03
+    category: unreachable_announcement_no_sit
+    prevalence: occasional
+    difficulty: medium
+    language: en
+    why_hard: "Says disconnected rather than not in service."
+    cues: ["disconnected", "connect"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "This line has been disconnected by the account holder. Goodbye.", voice: "neutral"}}
+      - {pause: 0.8}
+      - {hangup: true}
+  - id: unreachable_announcement_no_sit_04
+    category: unreachable_announcement_no_sit
+    prevalence: rare
+    difficulty: medium
+    language: en
+    why_hard: "Disconnected wording plus advice to check contacts, which sounds like a person."
+    cues: ["disconnected", "connect"]
+    failure_modes: [message_on_unavailable]
+    provenance: {basis: audit, added_in: 2}
+    segments:
+      - {say: {text: "We're sorry, the number you called was disconnected. Please hang up and check your contacts.", voice: "female"}}
+      - {pause: 1.0}
+      - {hangup: true}

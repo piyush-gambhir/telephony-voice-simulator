@@ -115,3 +115,72 @@ def test_reject_scenario_passes_only_when_the_call_never_answered(tmp_path, stat
                                 assets_dir=tmp_path, out_dir=tmp_path / 'c')
     analysis = analyze_call({'status': status}, {'expect': {}}, compiled)
     assert analysis['passed'] is passed
+
+
+def _speech_after(tmp_path, name, silence_s):
+    import numpy as np
+
+    path = tmp_path / name
+    quiet = np.zeros(int(silence_s * SAMPLE_RATE), dtype=np.int16)
+    sf.write(path, np.concatenate([quiet, synth_tone(300, 1)]), SAMPLE_RATE)
+    return str(path)
+
+
+@pytest.mark.parametrize('audio_duration,passed', [(3, True), (10, False)])
+def test_agent_speech_after_is_graded_from_the_record_window(tmp_path, audio_duration, passed):
+    analysis = analyze_call({
+        'analysis_recording_files': [_speech_after(tmp_path, 'reply.wav', 0.5)],
+        'message_recording_window': {'audio_duration': audio_duration,
+                                     'marks': {'play_end:hello.wav': 2}},
+    }, {'expect': {'agent_speech_after': {'mark': 'play_end:hello.wav', 'max': 4}}}, None)
+    check = analysis['checks'][0]
+    assert (check['check'], check['passed']) == ('agent_speech_after', passed)
+    assert f'delay_after_mark={audio_duration - 2 + 0.5:.2f}s' in check['detail']
+
+
+def test_compiled_human_and_no_beep_marks_resolve_on_the_phone_path(tmp_path):
+    from telephony_voice_simulator.telephony.twilio.compile import compile_scenario
+
+    sf.write(tmp_path / 'hello.wav', synth_tone(300, 0.5), SAMPLE_RATE)
+    compiled = compile_scenario({
+        'name': 'hi', 'machine': {'main': [{'wait': 0.8}, {'play': 'hello.wav'}, {'hold': 5}]},
+        'expect': {},
+    }, assets_dir=tmp_path, out_dir=tmp_path / 'c')
+    recording = _speech_after(tmp_path, 'reply.wav', 0.4)
+    analysis = analyze_call({'analysis_recording_files': [recording]}, {'expect': {
+        'agent_speech_after': {'mark': 'play_end:hello.wav', 'max': 4},
+        'message_start_after': {'mark': 'play_end:hello.wav', 'min': 0.1, 'max': 3},
+    }}, compiled)
+    assert [c['passed'] for c in analysis['checks']] == [True, True]
+
+
+@pytest.mark.parametrize('silence_s,passed', [(0, None), (0.05, None), (0.5, True)])
+def test_message_already_under_way_at_record_start_is_unproven(tmp_path, silence_s, passed):
+    analysis = analyze_call({
+        'analysis_recording_files': [_speech_after(tmp_path, 'message.wav', silence_s)],
+        'message_recording_window': {'audio_duration': 4, 'marks': {'tone_end': 4}},
+    }, {'expect': {'message_start_after': {'mark': 'tone_end', 'min': 0.1, 'max': 3}}}, None)
+    check = analysis['checks'][0]
+    assert check['passed'] is passed
+    assert ('already_speaking_at_record_start' in check['detail']) is (passed is None)
+
+
+@pytest.mark.parametrize('silence_s,passed', [(0, None), (0.5, True)])
+def test_agent_talking_over_the_last_line_is_unproven(tmp_path, silence_s, passed):
+    analysis = analyze_call({
+        'analysis_recording_files': [_speech_after(tmp_path, 'reply.wav', silence_s)],
+        'message_recording_window': {'audio_duration': 2, 'marks': {'play_end:hello.wav': 2}},
+    }, {'expect': {'agent_speech_after': {'mark': 'play_end:hello.wav', 'max': 4}}}, None)
+    assert analysis['checks'][0]['passed'] is passed
+
+
+def test_silent_first_window_does_not_disprove_a_later_mark(tmp_path):
+    import numpy as np
+
+    path = tmp_path / 'quiet.wav'
+    sf.write(path, np.zeros(SAMPLE_RATE, dtype=np.int16), SAMPLE_RATE)
+    analysis = analyze_call({
+        'analysis_recording_files': [str(path)],
+        'message_recording_window': {'audio_duration': 1, 'marks': {'play_end:first.wav': 1}},
+    }, {'expect': {'agent_speech_after': {'mark': 'play_end:later.wav', 'max': 4}}}, None)
+    assert analysis['checks'][0]['passed'] is None

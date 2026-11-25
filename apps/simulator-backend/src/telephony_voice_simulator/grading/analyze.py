@@ -12,7 +12,11 @@ Checks are derived from the same scenario ``expect`` block the room-level
 runner uses, mapped to what is observable on this side of the call:
 
   message_start_after {mark: tone_end}  → aligned delay after the mark in
-                                          [min, max + RECORD_START_SLACK]
+                                          [min, max + RECORD_START_SLACK];
+                                          indeterminate when speech starts within
+                                          UNSEEN_START_S of the recording
+  agent_speech_after {mark: play_end:X} → same aligned delay and rule, from
+                                          the first ``<Record>`` window
   message_content {expected, min_recall} → transcribe the mailbox recording
                                           (ElevenLabs) and verify the configured
                                           voicemail message actually landed:
@@ -41,6 +45,7 @@ from ..domains.amd.validation import validate_expectations
 from .checks import summarize_checks
 
 RECORD_START_SLACK = 0.8
+UNSEEN_START_S = 0.2
 
 
 def _norm_tokens(text: str) -> list[str]:
@@ -210,30 +215,43 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
         if len(candidates) == 1:
             window = {"marks": candidates[0].marks, "audio_duration": candidates[0].audio_duration}
 
-    if "message_start_after" in expect:
-        spec = expect["message_start_after"]
+    def speech_after_mark(name: str, default_mark: str) -> None:
+        spec = expect[name] or {}
         if not ordered:
-            add("message_start_after", None, "recording execution order is unverified")
-        elif message is None:
-            add("message_start_after", False, "no recording captured")
-        else:
-            first = segments_by_path.get(message, [])
-            mark = spec.get("mark", "tone_end")
-            if not first:
-                add("message_start_after", False, "no speech in recording (message not left?)")
-            elif window is None or mark not in window.get("marks", {}):
-                add("message_start_after", None, "recording start is not aligned to the requested mark")
-            else:
-                offset = float(window["audio_duration"]) - float(window["marks"][mark])
-                delta = offset + first[0][0]
-                lo = float(spec.get("min", 0.0))
-                hi = float(spec.get("max", 5.0)) + RECORD_START_SLACK
-                add(
-                    "message_start_after",
-                    lo - 0.2 <= delta <= hi,
-                    f"delay_after_mark={delta:.2f}s window=[{lo},{hi:.1f}] (+record slack) "
-                    f"record_offset={offset:.2f}s",
-                )
+            add(name, None, "recording execution order is unverified")
+            return
+        if message is None:
+            add(name, False, "no recording captured")
+            return
+        first = segments_by_path.get(message, [])
+        mark = spec.get("mark", default_mark)
+        aligned = window is not None and mark in window.get("marks", {})
+        if not first:
+            add(name, False if aligned or name == "message_start_after" else None,
+                "no agent speech in recording")
+            return
+        if not aligned:
+            add(name, None, "recording start is not aligned to the requested mark")
+            return
+        offset = float(window["audio_duration"]) - float(window["marks"][mark])
+        delta = offset + first[0][0]
+        lo = float(spec.get("min", 0.0))
+        hi = float(spec.get("max", 5.0)) + RECORD_START_SLACK
+        in_window = lo - 0.2 <= delta <= hi
+        if in_window and first[0][0] < UNSEEN_START_S:
+            add(name, None, f"already_speaking_at_record_start record_offset={offset:.2f}s")
+            return
+        add(
+            name,
+            in_window,
+            f"delay_after_mark={delta:.2f}s window=[{lo},{hi:.1f}] (+record slack) "
+            f"record_offset={offset:.2f}s",
+        )
+
+    if "message_start_after" in expect:
+        speech_after_mark("message_start_after", "tone_end")
+    if "agent_speech_after" in expect:
+        speech_after_mark("agent_speech_after", "audio_path_ready")
 
     if "message_content" in expect:
         spec = expect["message_content"] or {}
@@ -339,7 +357,7 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
             f"speech_segments={len(all_segments)} recordings={len(recordings)}",
         )
 
-    for name in ("first_agent_speech_after", "agent_speech_after", "max_overlap_with_playback",
+    for name in ("first_agent_speech_after", "max_overlap_with_playback",
                  "max_overlap_between_marks"):
         if name in expect:
             add(name, None, "requires aligned inbound audio during playback; message recordings cannot prove it")

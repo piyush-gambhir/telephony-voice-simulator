@@ -37,8 +37,12 @@ def test_hosted_grade_aligns_message_timing_to_default_mark(tmp_path, monkeypatc
         'name': 'beep', 'machine': {'main': [{'tone': {'duration': 1}}, {'hold': 5}]},
         'expect': {'message_start_after': {'max': 3}},
     })
+    import numpy as np
+
     wav = io.BytesIO()
-    sf.write(wav, synth_tone(300, 1), SAMPLE_RATE, format='WAV')
+    # The message starts after the record window opens; speech at sample 0 would be indeterminate.
+    silence = np.zeros(int(0.3 * SAMPLE_RATE), dtype=np.int16)
+    sf.write(wav, np.concatenate([silence, synth_tone(300, 1)]), SAMPLE_RATE, format='WAV')
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.host == 'sync.twilio.com':
