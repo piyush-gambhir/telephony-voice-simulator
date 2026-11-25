@@ -10,12 +10,15 @@ from pathlib import Path
 
 from aiohttp import web
 
+from ...grading.alignment import TIMING_CHECKS
 from ...grading.analyze import analyze_call
 from ...grading.checks import summarize_checks
 from . import recordings, routing, security, state
 from .compile import CompiledScenario
 
 CALLBACK_GRACE_SECONDS = 12
+FULL_CALL_WAIT_SECONDS = 90
+FULL_CALL_POLL_SECONDS = 2
 TERMINAL_STATUSES = {"completed", "failed", "busy", "no-answer", "canceled"}
 MEDIA_CHECKS = {"agent_spoke", "agent_speech_after", "message_start_after", "message_content",
                 "transcript_contains", "transcript_excludes"}
@@ -50,8 +53,35 @@ def restore(sid: str) -> dict | None:
     return call
 
 
+def _full_call_state(call: dict, saved, root: Path) -> tuple[list, dict]:
+    """Fingerprint full-call recordings and pick the one to align timing against.
+
+    Only scenarios with timing checks use them, so only those regrade when one arrives.
+    The audit recording this call started is preferred. It is pending until it is readable
+    or Twilio reports it absent or its download fails; ``finalize`` waits a bounded time for
+    a pending one, then grades without it.
+    """
+    audit = str(call.get("audit_recording_start", {}).get("sid") or "")
+    full = sorted((r for r in saved.recordings if r.kind == "full_call"),
+                  key=lambda r: (r.id != audit, r.id))
+    signature, chosen = [], None
+    for recording in full:
+        path = Path(recording.local_path) if recording.local_path else None
+        readable = bool(
+            path and not path.is_symlink() and path.resolve().parent == root and path.is_file()
+        )
+        signature.append(["full_call", recording.id, recording.status, recording.local_path,
+                          readable])
+        if readable and chosen is None:
+            chosen = str(path)
+    settled = chosen is not None or any(r.status in {"absent", "download_failed"} for r in full)
+    started = bool(call.get("audit_recording_start", {}).get("started")) or bool(full)
+    return signature, {"full_call_recording_file": chosen,
+                       "full_call_pending": started and not settled}
+
+
 def media_state(call: dict) -> tuple[list, list[str], bool, dict]:
-    """Fingerprint persisted message media and confine files before reading them."""
+    """Fingerprint persisted message and full-call media and confine files before reading them."""
     saved = state.call_store().get_incoming_call(call["call_sid"])
     if saved is None:
         return [], [], True, {}
@@ -91,6 +121,12 @@ def media_state(call: dict) -> tuple[list, list[str], bool, dict]:
     bound = {windows.get(r.id) for r in messages}
     if len(messages) < len(emitted) or (windows and any(step not in bound for step, _ in emitted)):
         incomplete = True
+    raw = call.get("grading_spec", {}).get("scenario") or state.STATE.raw_scenarios.get(
+        call.get("scenario"), {})
+    if TIMING_CHECKS & raw.get("expect", {}).keys():
+        full_signature, full_evidence = _full_call_state(call, saved, root)
+        signature.extend(full_signature)
+        evidence.update(full_evidence)
     return signature, paths, incomplete, evidence
 
 
@@ -166,6 +202,7 @@ async def finalize(call: dict) -> None:
     sid = call["call_sid"]
     try:
         await asyncio.sleep(CALLBACK_GRACE_SECONDS)
+        waited = 0
         while not state.call_is_deleted(sid):
             tasks = list(state.STATE.recording_tasks.get(sid, {}).values())
             if tasks:
@@ -173,8 +210,13 @@ async def finalize(call: dict) -> None:
                 if state.call_is_deleted(sid):
                     return
             signature, paths, incomplete, evidence = media_state(call)
+            if evidence.get("full_call_pending") and waited < FULL_CALL_WAIT_SECONDS:
+                await asyncio.sleep(FULL_CALL_POLL_SECONDS)
+                waited += FULL_CALL_POLL_SECONDS
+                continue
             work = snapshot(call)
             work["analysis_recording_files"] = paths
+            work["compiled_audio_dir"] = str(state.COMPILED_DIR)
             work.update(evidence)
             raw = call["grading_spec"]["scenario"]
             spec = call["grading_spec"]["compiled"]
@@ -185,15 +227,20 @@ async def finalize(call: dict) -> None:
             current_signature, _, _, _ = media_state(call)
             if signature != current_signature or state.STATE.recording_tasks.get(sid):
                 continue
-            needs_media = bool(MEDIA_CHECKS & raw.get("expect", {}).keys())
-            if incomplete and needs_media:
+            if evidence.get("full_call_pending"):
+                analysis["full_call_alignment"] = {
+                    "error": f"full-call recording did not arrive within {FULL_CALL_WAIT_SECONDS} s"}
+            from_full_call = set(analysis.get("full_call_alignment", {}).get("graded", []))
+            awaiting = ((MEDIA_CHECKS & raw.get("expect", {}).keys()) - from_full_call
+                        if incomplete else set())
+            if awaiting:
                 for check in analysis["checks"]:
-                    if check["check"] in MEDIA_CHECKS:
+                    if check["check"] in awaiting:
                         check.update(passed=None, detail="message media unavailable; awaiting provider evidence")
                 analysis["checks"].append({"check": "recording_evidence", "passed": None,
                                            "detail": "message callback or download is incomplete"})
                 analysis["passed"] = summarize_checks(c["passed"] for c in analysis["checks"])
-            analysis["graded"] = not (incomplete and needs_media)
+            analysis["graded"] = not awaiting
             if call.get("run_id"):
                 analysis["run_id"] = call["run_id"]
             if "mailbox_transcript" in work:

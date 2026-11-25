@@ -43,6 +43,7 @@ async def handle_recording(request: web.Request) -> web.Response:
     kind = (
         "full_call"
         if source_key in ("outboundapi", "startcallrecordingapi")
+        or request.query.get("full_call") == "1"
         or bool(recording_sid and recording_sid == audit_sid)
         else "message"
     )

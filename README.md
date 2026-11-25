@@ -204,7 +204,9 @@ compatibility only and do not imply affiliation.
 
 Full-call recording is configured per managed number in the console and is off
 for newly imported numbers by default. AMD scenarios with a record window save
-the isolated post-beep message separately for grading. Only enable complete-call
+the isolated post-beep message separately for grading. AMD scenarios with timing
+checks record the full call regardless, unless they can bridge a person in with
+`dial`, because timing is graded from the agent's channel. Only enable complete-call
 capture after establishing the notice, consent, access, retention, and deletion
 rules required for every jurisdiction involved. Deleting a call in the console
 removes the simulator's database records and local files; it does not remotely

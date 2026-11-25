@@ -10,13 +10,14 @@ from xml.sax.saxutils import escape
 
 from aiohttp import web
 
+from ...grading.alignment import TIMING_CHECKS
 from . import state
 from .compile import (
     DEFAULT_GATHER_TIMEOUT,
     MAX_PROMPT_REPEATS,
     CompiledScenario,
 )
-from .recordings import recording_status, start_audit_recording
+from .recordings import full_call_recording_twiml, recording_status, start_audit_recording
 from .routing import pick_call_assignment, reject_unavailable_endpoint, update_simulation_run
 from .security import reject_invalid_call_sid, reject_invalid_request
 from .state import call_is_deleted, call_store, epoch, iso
@@ -53,6 +54,19 @@ def _answers_with_persona(sid: str, to_number: str) -> bool:
     if state.STATE.calls.get(sid) is not None:
         return False
     return bool(call_store().list_customer_persona_queue(to_number))
+
+
+def _times_from_full_call(call: dict) -> bool:
+    """Record the whole call for timing checks unless the scenario can bridge a person in.
+
+    Timing checks are graded from the dual-channel recording, so it starts whatever the
+    line's setting. A ``dial`` step could put a real person on the simulator's channel,
+    and that stays behind the line's own opt-in. A scenario that rejects never answers.
+    """
+    expect = call["grading_spec"]["scenario"].get("expect", {})
+    sequences = _call_scenario(call).sequences.values()
+    bridges = any(segment.terminal == "dial" for sequence in sequences for segment in sequence)
+    return bool(TIMING_CHECKS & expect.keys()) and not bridges and not compiled_rejects(call)
 
 
 def compiled_rejects(call: dict) -> bool:
@@ -244,7 +258,11 @@ async def handle_voice(request: web.Request) -> web.Response:
     from .finalization import capture_scenario
 
     capture_scenario(call)
-    call["voice_response"] = twiml(*_segment_twiml(call, "main", 0)).text
+    timed = _times_from_full_call(call)
+    start = [full_call_recording_twiml()] if timed else []
+    if timed:
+        call["audit_recording_start"] = {"started": True, "method": "twiml"}
+    call["voice_response"] = twiml(*start, *_segment_twiml(call, "main", 0)).text
     rejects = compiled_rejects(call)
     call_store().upsert_incoming_call(
         call_id=sid,
@@ -270,7 +288,8 @@ async def handle_voice(request: web.Request) -> web.Response:
         if _rejects_without_answer(call):
             await asyncio.sleep(NO_ANSWER_RING_S)
         return web.Response(text=call["voice_response"], content_type="application/xml")
-    call["audit_recording_start"] = await start_audit_recording(sid, to_number)
+    if not timed:
+        call["audit_recording_start"] = await start_audit_recording(sid, to_number)
     if call_is_deleted(sid) or call.get("status") in {"completed", "failed", "busy", "no-answer", "canceled"}:
         return twiml("<Hangup/>")
     call_store().upsert_incoming_call(

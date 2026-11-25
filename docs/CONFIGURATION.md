@@ -76,7 +76,7 @@ Do not commit those values.
 | `IVR_MAX_ATTEMPTS` | `3` | IVR input attempts, clamped to a safe maximum |
 | `PSTN_DEFAULT_SCENARIO` | none | AMD scenario for numbers no endpoint manages |
 | `BRIDGE_NUMBER` | none | Human destination for scenarios whose dial target is `bridge` |
-| `PSTN_RECORD_ALL_CALLS` | `false` | Start a dual-channel full-call recording |
+| `PSTN_RECORD_ALL_CALLS` | `false` | Start a dual-channel full-call recording; AMD scenarios with timing checks and no `dial` step always do |
 | `PSTN_ALLOW_UNSIGNED_WEBHOOKS` | `false` | Local-only override; never use on a public endpoint |
 | `PSTN_ACKNOWLEDGE_PUBLIC_AUDIO` | `false` | Required acknowledgement before non-loopback AMD media serving |
 

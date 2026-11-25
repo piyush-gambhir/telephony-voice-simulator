@@ -377,6 +377,10 @@ sequenceDiagram
     PSTN->>PSTN: Create in-memory call state
     PSTN->>Store: Upsert incoming call
 
+    opt Scenario has timing checks and no dial
+        PSTN-->>Twilio: Start dual-channel Recording first in the answer TwiML
+    end
+
     loop Scenario state machine
         PSTN-->>Twilio: TwiML Play, Record, Gather, Dial, Pause, or Hangup
         Twilio->>Media: GET approved compiled WAV

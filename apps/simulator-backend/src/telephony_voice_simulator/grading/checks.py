@@ -70,8 +70,8 @@ def summarize_checks(results: Iterable[bool | None]) -> bool | None:
     return True if values and all(value is True for value in values) else None
 
 
-def speech_segments_from_wav(wav_path: Path) -> list[SpeechSegment]:
-    """Agent speech segments in machine-timeline seconds."""
+def speech_segments_from_wav(wav_path: Path, channel: int = 0) -> list[SpeechSegment]:
+    """Agent speech segments in machine-timeline seconds, from one channel of the file."""
     import soundfile as sf
 
     meta_path = wav_path.with_suffix(".meta.json")
@@ -79,7 +79,7 @@ def speech_segments_from_wav(wav_path: Path) -> list[SpeechSegment]:
     if meta_path.exists():
         offset = float(json.loads(meta_path.read_text()).get("started_at", 0.0))
     data, rate = sf.read(wav_path, dtype="int16", always_2d=True)
-    samples = data[:, 0].astype(np.float64)
+    samples = data[:, channel].astype(np.float64)
     frame_n = max(1, int(VAD_FRAME_S * rate))
     n_frames = len(samples) // frame_n
     if n_frames == 0:

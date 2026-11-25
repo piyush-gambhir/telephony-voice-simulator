@@ -6,7 +6,9 @@ into SEGMENTS:
 
   * every run of ``wait`` / ``play`` / ``tone`` steps is pre-rendered into ONE
     wav (silence + assets + synthesized beeps concatenated) — sub-second gaps
-    survive, and the beep-end offset inside the file is exact ground truth;
+    survive, and the end offset of the last play of each asset, its start offset
+    when it plays once, and the offsets of the last beep inside the file are exact
+    ground truth;
   * a ``hold`` step becomes a ``<Record>`` (this is how we capture what the
     agent says — the voicemail message it leaves, its post-connect speech);
   * a ``hangup`` step becomes ``<Hangup/>``;
@@ -149,6 +151,10 @@ def compile_scenario(
                 elapsed += seconds
             elif "play" in step:
                 samples = _load_asset_48k(assets_dir, str(step["play"]))
+                if f"play_end:{step['play']}" in marks:
+                    marks.pop(f"play_start:{step['play']}", None)
+                else:
+                    marks[f"play_start:{step['play']}"] = elapsed
                 marks[f"play_end:{step['play']}"] = elapsed + samples.shape[0] / SAMPLE_RATE
                 chunks.append(samples)
                 elapsed += samples.shape[0] / SAMPLE_RATE
@@ -159,6 +165,7 @@ def compile_scenario(
                     float(spec.get("duration", 0.5)),
                     int(spec.get("amplitude", 12000)),
                 )
+                marks["tone_start"] = elapsed
                 elapsed += samples.shape[0] / SAMPLE_RATE
                 marks["tone_end"] = elapsed
                 chunks.append(samples)

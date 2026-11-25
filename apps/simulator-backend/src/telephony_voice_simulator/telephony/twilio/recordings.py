@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import os
 import re
+from xml.sax.saxutils import escape
 
 from aiohttp import ClientSession, ClientTimeout, encode_basic_auth
 
@@ -44,6 +45,22 @@ def audit_recording_payload() -> dict[str, str]:
         "RecordingStatusCallbackMethod": "POST",
         "RecordingStatusCallbackEvent": "completed absent",
     }
+
+
+def full_call_recording_twiml() -> str:
+    """``<Start><Recording>`` that records both tracks from answer, before any playback.
+
+    A REST start from the answer webhook holds the TwiML response for its round trip,
+    which adds silence before the callee's first audio; this starts with the response
+    itself. The callback carries ``full_call=1`` because Twilio documents no
+    ``RecordingSource`` value for this kind of recording.
+    """
+    callback = escape(public_url("/twilio/recording?full_call=1"))
+    return (
+        '<Start><Recording channels="dual" track="both" trim="do-not-trim" '
+        f'recordingStatusCallback="{callback}" recordingStatusCallbackMethod="POST" '
+        'recordingStatusCallbackEvent="completed absent"/></Start>'
+    )
 
 
 def _full_call_recording_enabled(to_number: str) -> bool:

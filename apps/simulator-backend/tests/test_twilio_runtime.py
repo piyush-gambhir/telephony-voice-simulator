@@ -1052,6 +1052,51 @@ async def test_incoming_call_and_full_recording_are_persisted(pstn_client, monke
     assert persisted.recordings[0].channels == 2
 
 
+
+@pytest.mark.parametrize("scenario,from_answer", [("vm", True), ("gate", False), ("vm_bridge", False)])
+async def test_timing_scenarios_record_the_full_call_from_answer(
+    pstn_client, assets: Path, tmp_path: Path, monkeypatch, scenario: str, from_answer: bool
+) -> None:
+    from telephony_voice_simulator.telephony.twilio import amd as twilio_amd
+
+    client, state = pstn_client
+    bridge = _vm_scenario() | {"name": "vm_bridge"}
+    bridge["machine"]["main"] = [*bridge["machine"]["main"][:-1], {"dial": "bridge"}]
+    state.scenarios["vm_bridge"] = compile_scenario(bridge, assets_dir=assets, out_dir=tmp_path / "compiled")
+    state.raw_scenarios["vm_bridge"] = bridge
+    requested = []
+
+    async def started(_call_sid: str, _to_number: str = "") -> dict:
+        requested.append(_call_sid)
+        return {"started": False, "disabled": True}
+
+    monkeypatch.setattr(twilio_amd, "start_audit_recording", started)
+    _queue_on_line("+1555", scenario)
+    body = await _post_form(client, "/twilio/voice", {"CallSid": "CA-force", "To": "+1555"})
+    response = ElementTree.fromstring(body)
+    recording = response.find("Start/Recording")
+    assert (recording is not None) is from_answer
+    assert requested == ([] if from_answer else ["CA-force"])
+    if from_answer:
+        assert response[0].tag == "Start"
+        assert recording.attrib["trim"] == "do-not-trim"
+        assert recording.attrib["recordingStatusCallback"].endswith("/twilio/recording?full_call=1")
+
+
+async def test_recording_from_answer_is_stored_as_the_full_call(pstn_client) -> None:
+    from telephony_voice_simulator.telephony.twilio import state as twilio_state
+
+    client, _state = pstn_client
+    _queue_on_line("+1555", "vm")
+    await _post_form(client, "/twilio/voice", {"CallSid": "CA-twiml", "To": "+1555"})
+    assert twilio_state.CALL_STORE.get_incoming_call("CA-twiml").recording_status == "recording"
+    response = await client.post("/twilio/recording?full_call=1", data={
+        "CallSid": "CA-twiml", "RecordingSid": "RE" + "4" * 32,
+        "RecordingStatus": "absent", "RecordingSource": "StartCallRecordingTwiML",
+    })
+    assert response.status == 200
+    assert twilio_state.CALL_STORE.get_incoming_call("CA-twiml").recordings[0].kind == "full_call"
+
 def test_full_call_recording_requests_completion_callback(monkeypatch) -> None:
     from telephony_voice_simulator.telephony.twilio import recordings as twilio_recordings
 

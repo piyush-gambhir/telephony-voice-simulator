@@ -31,6 +31,55 @@ was the message intact). The agent's own call record proves what the agent
 *believed* happened (`ended_reason`, detection layer, AMD verdict and delay),
 the checks a sim-only run has to skip.
 
+## Timing on the phone path
+
+Timing checks (`message_start_after`, `agent_speech_after`,
+`first_agent_speech_after`, `max_overlap_with_playback` and
+`max_overlap_between_marks`) are graded from a Twilio dual-channel full-call
+recording: the agent under test on one channel and the simulator's playback on the
+other, on one clock. In server mode the simulator puts `<Start><Recording>` first in
+the answer TwiML of every scenario with a timing check, so the recording runs from
+answer, before the first playback, whatever the line's full-call recording setting.
+Scenarios with a `dial` step are left to the line's setting, because a bridge could
+put a real person on the call. Hosted (Twilio Functions) deploys do not record the
+full call and keep the `<Record>` window rules.
+
+Grading finds each segment the simulator played on the playback channel by
+cross-correlating its compiled audio within a few seconds of when its TwiML was
+served. That places `tone_start`, `tone_end`, `play_start:<asset>` and
+`play_end:<asset>` on the recording's clock; agent speech comes from the other
+channel through the same energy VAD as the room-level runner. The playback channel
+is whichever one carries the compiled audio. The checks mean what they mean in the
+room-level runner, with one stricter rule: `message_start_after` takes the first
+agent speech still under way after the mark, so a message that runs through the
+beep fails even when it pauses afterwards.
+
+- A mark counts only when the playback channel carries the audio up to it. A prompt
+  cut short by a keypress or a hangup leaves its later marks unconfirmed, and checks
+  on them indeterminate, as does audio that stops matching while the channel still
+  carries sound.
+- Overlap checks fail on overlap during confirmed playback, and pass only if the
+  worst case still fits: speech while playback may have continued, playback before
+  the recording began, and playback that could not be placed (such as an asset
+  played twice in one segment) all count against the limit.
+- A mark from a sequence that never played (a DTMF branch the agent did not take, or
+  a segment served after the caller hung up) fails, as in the room-level runner.
+- Delays are measured at the callee, where a real mailbox records, so they include
+  the network delay a real mailbox would see. There is no `<Record>` start slack, so
+  a reply that lands just past `max` now fails where the window rule passed it.
+- If the recording began after the first playback did, speech before it is unseen,
+  so `first_agent_speech_after` passes only when nothing was missed.
+- Rows graded this way end in `source=full-call`. The analysis carries a
+  `full_call_alignment` summary: segments located, checks graded, why any check
+  stayed unresolved, or why alignment failed.
+- Grading waits up to 90 s for a full-call recording that has started but not
+  downloaded, then grades without it and regrades if it lands later. Without a
+  usable recording, the checks fall back to the `<Record>` windows, which start
+  after the callee audio ends: speech during playback is invisible there, so overlap
+  checks are indeterminate.
+- A far end that echoes the callee's audio back above the VAD threshold counts as
+  agent speech. Listen to the agent channel when an overlap failure looks wrong.
+
 ## Configure the agent adapter
 
 `telephony_voice_simulator.integrations.agent_api` (driven through `telephony-voice-sim agents`) is vendor-neutral: it needs a URL that
@@ -197,3 +246,6 @@ the call count and the expected class for each scenario without dialing.
 
 Point the suite at a test agent and a test line. A misconfigured body template
 dials whatever number it contains.
+
+Scenarios with timing checks also store one Twilio full-call recording per
+attempt. Set provider retention, or delete them in Twilio after the run.
