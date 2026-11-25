@@ -37,6 +37,7 @@ fi
 
 sim="${TELEPHONY_VOICE_SIM:-.venv/bin/telephony-voice-sim}"
 [[ -x "$sim" ]] || sim="telephony-voice-sim"
+preflight_scenario="${BENCHMARK_PREFLIGHT_SCENARIO:-stock_voicemail_beep_1000}"
 
 echo "profile : $profile"
 echo "suite   : $suite"
@@ -82,7 +83,7 @@ if [[ "$skip_preflight" -eq 0 ]]; then
   mkdir -p results/benchmark
   preflight_dir="$(mktemp -d results/benchmark/preflight.XXXXXX)"
   "$sim" benchmark run \
-    --suite "$suite" --scenario stock_voicemail_beep_1000 --repeat 1 \
+    --suite "$suite" --scenario "$preflight_scenario" --repeat 1 \
     "${preflight_numbers[@]}" \
     --out "$preflight_dir" || true
   if ! "$sim" benchmark preflight "$preflight_dir"; then

@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,13 +17,13 @@ from typing import Any
 import yaml
 
 CATALOG_PATH = Path(__file__).with_name("catalog.yaml")
-SUPPORTED_VERSION = 1
+SUPPORTED_VERSION = 2
 
 OUTCOMES_BY_CLASS: dict[str, tuple[str, ...]] = {
     "machine-vm": ("leave_message_after_beep", "leave_message_no_beep"),
     "machine-unavailable": ("hang_up_inbox_full", "hang_up_unreachable"),
     "machine-ivr": ("hang_up_ivr",),
-    "screener": ("stay_through_screen", "press_key_then_continue"),
+    "screener": ("stay_through_screen", "press_key_then_continue", "leave_message_after_screen"),
     "human": ("talk_to_human",),
 }
 PREVALENCE = ("common", "occasional", "rare")
@@ -30,6 +31,24 @@ DIFFICULTY = ("easy", "medium", "hard")
 VOICES = ("female", "male", "neutral")
 SEGMENT_KEYS = ("say", "pause", "tone", "hold", "hangup")
 DTMF_KEYS = frozenset("0123456789*#")
+TONE_ROLES = ("beep", "noise", "music", "sit", "screen")
+FAILURE_MODES = (
+    "false_human",
+    "false_machine",
+    "early_message",
+    "misses_beep",
+    "waits_for_missing_beep",
+    "talks_over_greeting",
+    "late_greeting",
+    "gives_up_on_silence",
+    "hangs_up_early",
+    "stt_overlap",
+    "message_on_unavailable",
+    "ignores_screener",
+    "misses_key",
+)
+PROVENANCE_BASES = ("audit", "public_standard", "invented")
+AFTER_BEEP_OUTCOMES = ("leave_message_after_beep", "leave_message_after_screen")
 
 _ID = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*\Z")
 _LANGUAGE = re.compile(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*\Z")
@@ -64,6 +83,9 @@ class Entry:
     segments: tuple[dict[str, Any], ...]
     gate_digits: tuple[str, ...] = ()
     after_gate: tuple[dict[str, Any], ...] = ()
+    cues: tuple[str, ...] = ()
+    failure_modes: tuple[str, ...] = ()
+    provenance: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -134,9 +156,12 @@ def _check_segments(segments: Any, where: str, errors: list[str]) -> list[dict[s
                 errors.append(f"{spot}.hold: expected seconds above 0 and at most 120")
         elif kind == "tone":
             options = value if isinstance(value, dict) else {}
-            if not options or set(options) - {"freq", "duration", "amplitude"} or not {"freq", "duration"} <= set(options):
-                errors.append(f"{spot}.tone: expected freq and duration, optionally amplitude")
+            required = {"freq", "duration", "role"}
+            if not options or set(options) - required - {"amplitude"} or not required <= set(options):
+                errors.append(f"{spot}.tone: expected freq, duration and role, optionally amplitude")
                 continue
+            if options["role"] not in TONE_ROLES:
+                errors.append(f"{spot}.tone.role: expected one of {', '.join(TONE_ROLES)}")
             if not _number(options["freq"], 0, 24000, exclusive_low=True) or options["freq"] >= 24000:
                 errors.append(f"{spot}.tone.freq: expected Hz above 0 and below 24000")
             if not _number(options["duration"], 0, 10, exclusive_low=True):
@@ -155,11 +180,24 @@ def _kinds(segments: Any) -> list[str]:
     return [next(iter(s)) for s in segments if isinstance(s, dict) and s]
 
 
+def is_beep(segment: dict[str, Any]) -> bool:
+    return "tone" in segment and segment["tone"].get("role") == "beep"
+
+
+def say_texts(segments: Iterable[dict[str, Any]]) -> list[str]:
+    return [s["say"]["text"] for s in segments if "say" in s]
+
+
 def _check_outcome_shape(entry: dict[str, Any], outcome: str, errors: list[str]) -> None:
     name = entry["id"]
     kinds = _kinds(entry["segments"])
-    if outcome == "leave_message_after_beep" and not ("tone" in kinds and "hold" in kinds):
-        errors.append(f"{name}: leave_message_after_beep needs a tone and a hold")
+    if outcome in AFTER_BEEP_OUTCOMES:
+        before_hold = entry["segments"][: kinds.index("hold")] if "hold" in kinds else []
+        tones = [s for s in before_hold if isinstance(s, dict) and "tone" in s]
+        if not tones or not is_beep(tones[-1]):
+            errors.append(f"{name}: {outcome} needs a beep-role tone as the last tone before the first hold")
+    if outcome == "leave_message_after_screen" and "say" not in kinds:
+        errors.append(f"{name}: leave_message_after_screen needs speech")
     if outcome == "leave_message_no_beep" and ("tone" in kinds or "hold" not in kinds or "say" not in kinds):
         errors.append(f"{name}: leave_message_no_beep needs speech and a hold, and no tone")
     if outcome in {"hang_up_inbox_full", "hang_up_unreachable"} and kinds[-1:] != ["hangup"]:
@@ -183,6 +221,44 @@ def _check_outcome_shape(entry: dict[str, Any], outcome: str, errors: list[str])
         after = _kinds(entry["after_gate"])
         if "say" not in after or after[-1:] != ["hold"]:
             errors.append(f"{name}.after_gate: needs speech and a final hold")
+
+
+def _check_cues(cues: Any, spoken: str, where: str, errors: list[str]) -> list[str]:
+    if not isinstance(cues, list) or not all(isinstance(c, str) and c.strip() for c in cues):
+        errors.append(f"{where}.cues: expected a list of nonempty phrases")
+        return []
+    if len(cues) != len(set(cues)):
+        errors.append(f"{where}.cues: duplicate phrase")
+    for cue in cues:
+        errors.extend(f"{where}.cues: {p}" for p in lint_text(cue))
+        if cue.casefold() not in spoken:
+            errors.append(f"{where}.cues: {cue!r} does not occur in the entry's say text")
+    return cues
+
+
+def _check_failure_modes(modes: Any, where: str, errors: list[str]) -> list[str]:
+    if not isinstance(modes, list) or not modes:
+        errors.append(f"{where}.failure_modes: expected a nonempty list")
+        return []
+    unknown = [m for m in modes if m not in FAILURE_MODES]
+    if unknown:
+        errors.append(f"{where}.failure_modes: unknown {unknown}; expected {', '.join(FAILURE_MODES)}")
+    if len(modes) != len(set(map(str, modes))):
+        errors.append(f"{where}.failure_modes: duplicate mode")
+    return modes
+
+
+def _check_provenance(value: Any, version: Any, where: str, errors: list[str]) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != {"basis", "added_in"}:
+        errors.append(f"{where}.provenance: expected basis and added_in")
+        return {}
+    if value["basis"] not in PROVENANCE_BASES:
+        errors.append(f"{where}.provenance.basis: expected one of {', '.join(PROVENANCE_BASES)}")
+    added = value["added_in"]
+    latest = version if type(version) is int else SUPPORTED_VERSION
+    if type(added) is not int or not 1 <= added <= latest:
+        errors.append(f"{where}.provenance.added_in: expected a catalog version from 1 to {latest}")
+    return dict(value)
 
 
 def validate_catalog(raw: Any) -> Catalog:
@@ -240,7 +316,7 @@ def validate_catalog(raw: Any) -> Catalog:
         seen.add(eid)
         allowed = {
             "id", "category", "prevalence", "difficulty", "language", "why_hard",
-            "segments", "gate_digits", "after_gate",
+            "segments", "gate_digits", "after_gate", "cues", "failure_modes", "provenance",
         }
         if set(item) - allowed:
             errors.append(f"{where}: unknown keys {sorted(map(str, set(item) - allowed))}")
@@ -271,11 +347,16 @@ def validate_catalog(raw: Any) -> Catalog:
                 category.expected_outcome,
                 errors,
             )
+        spoken = " ".join(say_texts([*segments, *after])).casefold()
+        cues = _check_cues(item.get("cues", []), spoken, where, errors)
+        modes = _check_failure_modes(item.get("failure_modes"), where, errors)
+        provenance = _check_provenance(item.get("provenance"), raw.get("version"), where, errors)
         if category is not None and not errors:
             entries.append(
                 Entry(
                     eid, category.id, item["prevalence"], item["difficulty"], language, why,
                     tuple(segments), tuple(str(d) for d in gate), tuple(after),
+                    tuple(cues), tuple(modes), provenance,
                 )
             )
     used = {i.get("category") for i in raw.get("entries") or [] if isinstance(i, dict)}

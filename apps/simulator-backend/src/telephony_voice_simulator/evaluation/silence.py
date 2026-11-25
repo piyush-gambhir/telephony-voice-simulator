@@ -70,6 +70,16 @@ EXAMPLE_LIMITS = {"unclassified": 12}
 DEFAULT_EXAMPLE_LIMIT = 6
 
 
+def bucket(text: str) -> str:
+    """First matching rule for one transcript; ``text`` should already be ``norm``-ed."""
+    if not text:
+        return "true_silence_no_audio"
+    for name, pattern in RULES:
+        if re.search(pattern, text):
+            return name
+    return "unclassified"
+
+
 def _share(count: int, total: int) -> float:
     return round(count / total * 100, 1)
 
@@ -86,15 +96,10 @@ def classify(rows: list[dict[str, Any]]) -> dict[str, Any]:
     examples: dict[str, list[str]] = collections.defaultdict(list)
     for row in rows:
         text = norm(str(row.get("user_text") or ""))
-        if not text:
-            buckets["true_silence_no_audio"] += 1
-            continue
-        for name, pattern in RULES:
-            if re.search(pattern, text):
-                break
-        else:
-            name = "unclassified"
+        name = bucket(text)
         buckets[name] += 1
+        if name == "true_silence_no_audio":
+            continue
         if len(examples[name]) < EXAMPLE_LIMITS.get(name, DEFAULT_EXAMPLE_LIMIT):
             examples[name].append(text[:180])
 
