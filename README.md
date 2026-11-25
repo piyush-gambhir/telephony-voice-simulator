@@ -46,6 +46,10 @@ The catalog currently contains 50 scenarios:
 - 4 PBX scenarios covering schedules, direct extensions, queues, fallback,
   overflow, voicemail, CRM activity, and CDR completion.
 
+A separate voicemail dataset (clean-room callee recordings across carrier, personal,
+business, screener, and human answers) compiles into an extra scenario suite on demand:
+see [the voicemail dataset](docs/VOICEMAIL_DATASET.md).
+
 The backend also includes:
 
 - Provider profiles for the local simulator, Twilio, and the Telnyx preview adapter.

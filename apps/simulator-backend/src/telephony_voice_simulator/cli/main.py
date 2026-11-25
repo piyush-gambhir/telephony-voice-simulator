@@ -23,6 +23,7 @@ from . import (
     serve,
     sms,
     uat,
+    voicemail_dataset,
 )
 
 GROUPS = (
@@ -42,6 +43,7 @@ GROUPS = (
     sms,
     customer,
     analyze,
+    voicemail_dataset,
 )
 
 
