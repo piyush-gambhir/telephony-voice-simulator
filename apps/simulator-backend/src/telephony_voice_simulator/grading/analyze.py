@@ -30,8 +30,14 @@ runner uses, mapped to what is observable on this side of the call:
   ended_reason* / detection_layer*      → skipped here (webhook side); the
                                           run is cross-checked in ClickHouse /
                                           the CI dashboard by call id.
-Unaligned timing, playback overlap, and ambiguous message order remain
-indeterminate. Message recordings cannot establish speech during playback.
+
+When the call has a dual-channel full-call recording, ``alignment`` places the
+compiled marks on its clock and grades every timing check from the agent's
+channel, including speech during the greeting and overlap with playback. A
+check it cannot resolve falls back to the ``<Record>`` window rules above.
+Without that recording, unaligned timing, playback overlap, and ambiguous
+message order remain indeterminate: message recordings cannot establish speech
+during playback.
 """
 
 from __future__ import annotations
@@ -42,6 +48,8 @@ from pathlib import Path
 from typing import Any
 
 from ..domains.amd.validation import validate_expectations
+from ..paths import COMPILED_ASSETS_DIR
+from .alignment import TIMING_CHECKS, align, grade
 from .checks import summarize_checks
 
 RECORD_START_SLACK = 0.8
@@ -181,6 +189,28 @@ def _speech_segments(path: Path) -> list[tuple[float, float]]:
     return [(s.start, s.end) for s in speech_segments_from_wav(path)]
 
 
+def _full_call_timing(call: dict, expect: dict, compiled) -> tuple[dict, dict[str, Any] | None]:
+    """Timing rows graded from the full-call recording, and a summary of the attempt."""
+    path = call.get("full_call_recording_file")
+    if not path or compiled is None or not TIMING_CHECKS & expect.keys():
+        return {}, None
+    summary: dict[str, Any] = {"recording": str(path)}
+    audio_dir = Path(call.get("compiled_audio_dir") or COMPILED_ASSETS_DIR)
+    try:
+        alignment = align(Path(path), call.get("segments", []), compiled, audio_dir)
+    except (OSError, RuntimeError, ValueError) as error:
+        summary["error"] = str(error)[:160]
+        return {}, summary
+    rows = grade(expect, alignment)
+    summary.update(
+        segments_located=alignment.located,
+        segments_audible=alignment.audible,
+        graded=sorted(name for name, row in rows.items() if row[0] is not None),
+        unresolved={name: row[1] for name, row in rows.items() if row[0] is None},
+    )
+    return rows, summary
+
+
 def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
     expect: dict[str, Any] = raw_scenario.get("expect", {})
     validate_expectations(expect)
@@ -205,6 +235,8 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
     def add(name: str, passed: bool | None, detail: str) -> None:
         checks.append({"check": name, "passed": passed, "detail": detail})
 
+    timed, alignment_summary = _full_call_timing(call, expect, compiled)
+
     ordered = call.get("message_recording_order_known", len(recordings) <= 1)
     message_path = call.get("message_recording_file", recordings[0] if recordings else None)
     message = Path(message_path) if message_path else None
@@ -217,6 +249,9 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
 
     def speech_after_mark(name: str, default_mark: str) -> None:
         spec = expect[name] or {}
+        if name in timed and timed[name][0] is not None:
+            add(name, *timed[name])
+            return
         if not ordered:
             add(name, None, "recording execution order is unverified")
             return
@@ -359,7 +394,9 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
 
     for name in ("first_agent_speech_after", "max_overlap_with_playback",
                  "max_overlap_between_marks"):
-        if name in expect:
+        if name in timed:
+            add(name, *timed[name])
+        elif name in expect:
             add(name, None, "requires aligned inbound audio during playback; message recordings cannot prove it")
 
     skipped = [
@@ -369,10 +406,13 @@ def analyze_call(call: dict, raw_scenario: dict, compiled) -> dict[str, Any]:
         or k.startswith("detection_layer")
         or k == "webhook_received"
     ]
-    return {
+    result = {
         "passed": summarize_checks(c["passed"] for c in checks),
         "checks": checks,
         "skipped_webhook_side": skipped,
         "recordings_analyzed": [str(r) for r in recordings],
         "recordings_preserved": [str(r) for r in call.get("recording_files", [])],
     }
+    if alignment_summary is not None:
+        result["full_call_alignment"] = alignment_summary
+    return result

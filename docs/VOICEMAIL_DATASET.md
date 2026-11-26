@@ -214,11 +214,23 @@ Every scenario also sets `callee_class` and `webhook_received: true`. The compil
 sets no detection-layer checks and no `config_overrides`, because those depend on
 the agent under test.
 
-On the phone path, `message_start_after` and `agent_speech_after` are timed from the
-first `<Record>` window: the delay is the compiled audio after the mark plus the
-first speech in the recording. When that speech starts within 0.2 s of the recording
-and the delay is inside the window, the check is indeterminate: the agent may have
-been talking over the greeting, or the recording may have started late.
+On the phone path in server mode, timing checks are graded from the dual-channel
+full-call recording, which the simulator starts at answer for every scenario with a
+timing check (see [Timing on the phone path](BENCHMARK.md#timing-on-the-phone-path)).
+The simulator's channel places `tone_end` and the greeting marks on the recording's
+clock and the agent's channel shows when the agent spoke, including during the
+greeting.
+`message_start_after` takes the first agent speech still under way after the mark, so
+a message that starts before the beep fails even when it pauses after the beep, and
+the greeting overlap of `leave_message_no_beep` is measured instead of left
+indeterminate.
+
+Without a usable full-call recording, including on hosted deploys,
+`message_start_after` and `agent_speech_after` fall back to the first `<Record>` window: the delay is the compiled audio after the
+mark plus the first speech in the recording. When that speech starts within 0.2 s of
+the recording and the delay is inside the window, the check is indeterminate: the
+agent may have been talking over the greeting, or the recording may have started
+late. Overlap checks stay indeterminate.
 
 ## Render audio
 
@@ -326,9 +338,6 @@ Tune phrase lists or thresholds on the `dev` split and report on `test`.
   few seconds of silence, and a callee that waits for the agent to speak first.
   Short human answers such as "Yes." play at a fixed time today.
 - Audio-derived labels such as greeting end and beep start. They need rendered
-  audio durations and per-tone start marks from the Twilio compiler, which today
-  keeps only the last `tone_end` of each segment.
-- Timing grading from the dual-channel call recording, so speech during the
-  greeting, overlap with playback and answers to a screener become visible on the
-  phone path.
+  audio durations and per-tone marks from the Twilio compiler, which today keeps
+  only the last tone (`tone_start`, `tone_end`) of each segment.
 - Per-segment language tags for bilingual entries.

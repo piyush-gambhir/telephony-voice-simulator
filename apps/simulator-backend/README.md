@@ -191,4 +191,5 @@ uv run ruff check .
 Full-call recording defaults to off. Call recording laws and consent
 requirements vary by jurisdiction. Enable `PSTN_RECORD_ALL_CALLS=true` only
 where required notice, consent, retention, access, and deletion controls are in
-place.
+place. AMD scenarios with timing checks record the full call regardless, unless
+they have a `dial` step, because timing is graded from the agent's channel.

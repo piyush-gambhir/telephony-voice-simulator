@@ -537,3 +537,75 @@ async def test_late_binding_during_pending_grading_survives_restart(workspace):
     twilio_state.STATE.finalization_tasks.pop(SID).cancel()
     twilio_state.STATE.calls.clear()
     assert finalization.restore(SID)['recording_windows'] == {RECORDING: 0}
+
+
+def _timing_scenario(root, monkeypatch):
+    from telephony_voice_simulator.domains.amd.machine import SAMPLE_RATE
+
+    greeting = np.random.default_rng(3).standard_normal(2 * SAMPLE_RATE) * 4000
+    sf.write(root / 'greeting.wav', greeting.astype(np.int16), SAMPLE_RATE)
+    raw = twilio_state.STATE.raw_scenarios['test_media']
+    raw['machine']['main'] = [{'play': 'greeting.wav'}, {'tone': {'duration': 0.5}}, {'hold': 10}]
+    raw['expect'] = {'message_start_after': {'mark': 'tone_end', 'min': 0.1, 'max': 3.0}}
+    compiled = compile_scenario(raw, assets_dir=root, out_dir=root / 'compiled')
+    twilio_state.STATE.scenarios['test_media'] = compiled
+    monkeypatch.setattr(twilio_state, 'COMPILED_DIR', root / 'compiled')
+    return compiled
+
+
+def _full_call_arrives(store, root, compiled):
+    playback, _ = sf.read(root / 'compiled' / compiled.sequences['main'][0].audio_file, dtype='int16')
+    lead, total = 3200, 8000 * 8
+    agent = np.zeros(total)
+    agent[lead + len(playback) + 4000:lead + len(playback) + 20000] = 6000
+    channel = np.zeros(total)
+    channel[lead:lead + len(playback)] = playback
+    path = twilio_security.call_results_dir(SID) / f'full-call-{RECORDING}.wav'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(path, np.stack([agent, channel], axis=1).astype(np.int16), 8000, subtype='PCM_16')
+    store.upsert_recording(recording_id=RECORDING, call_id=SID, provider='twilio',
+                           kind='full_call', status='completed', local_path=str(path))
+
+
+def _timing_row(saved):
+    return next(c for c in saved.analysis['checks'] if c['check'] == 'message_start_after')
+
+
+async def test_timing_is_graded_from_a_full_call_recording_that_lands_during_the_wait(
+        workspace, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio import finalization
+
+    monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
+    monkeypatch.setattr(finalization, 'FULL_CALL_POLL_SECONDS', 0.05)
+    client, store, root = workspace
+    compiled = _timing_scenario(root, monkeypatch)
+    answered = await client.post('/twilio/voice', data={'CallSid': SID, 'To': '+15555550100'})
+    assert '<Start><Recording' in await answered.text()
+    await complete(client)
+    await asyncio.sleep(0.2)
+    assert store.get_incoming_call(SID).analysis['finalization']['state'] == 'pending'
+    _full_call_arrives(store, root, compiled)
+    saved = await settled(store)
+    assert (saved.analysis['graded'], saved.analysis['passed']) == (True, True)
+    assert 'delay_after_mark=0.50s' in _timing_row(saved)['detail']
+    assert 'source=full-call' in _timing_row(saved)['detail']
+
+
+async def test_a_full_call_recording_that_never_lands_stops_holding_up_grading(
+        workspace, monkeypatch):
+    from telephony_voice_simulator.telephony.twilio import finalization
+
+    monkeypatch.setattr(finalization, 'CALLBACK_GRACE_SECONDS', 0)
+    monkeypatch.setattr(finalization, 'FULL_CALL_WAIT_SECONDS', 0)
+    client, store, root = workspace
+    compiled = _timing_scenario(root, monkeypatch)
+    await answer(client)
+    await complete(client)
+    saved = await settled(store)
+    assert 'did not arrive' in saved.analysis['full_call_alignment']['error']
+    assert 'source=full-call' not in _timing_row(saved)['detail']
+    _full_call_arrives(store, root, compiled)
+    finalization.schedule(twilio_state.STATE.calls[SID])
+    saved = await settled(store)
+    assert 'source=full-call' in _timing_row(saved)['detail']
+    assert _timing_row(saved)['passed'] is True
